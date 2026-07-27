@@ -56,6 +56,25 @@ Verificação rápida sem correr o Docker inteiro:
 cd frontend && npx vite build     # apanha erros de JS/JSX/imports
 ```
 
+## Testes
+
+- **Backend**: JUnit via Maven (`backend/src/test`).
+- **Frontend**: Vitest + Testing Library (`cd frontend && npm run test:run`).
+- **E2E**: Playwright em TypeScript, contra a stack Docker completa (`e2e/`). Requer a stack a
+  correr e registo aberto (`TRACKY_INVITE_CODE` vazio).
+
+```bash
+cd e2e && npm test        # suite completa (verifica a stack primeiro)
+cd e2e && npm run test:ui  # modo interativo
+```
+
+Convenções dos E2E — **lê `e2e/README.md` antes de lá mexer**. Em resumo: os specs só
+orquestram Page Objects (`e2e/src/pages`), nunca contêm seletores CSS; a autenticação vem da
+fixture `user`, que regista um utilizador novo por teste via API e injeta o token via
+`storageState`; nada de `waitForTimeout` (o lint bloqueia). Ao adicionar UI, prefere dar-lhe um
+nome acessível (`aria-label`, `<label>` associado) a inventar um `data-testid` — serve os
+testes e os leitores de ecrã ao mesmo tempo.
+
 ## Convenções do backend
 
 - **Um pacote por funcionalidade.** A lógica vive nos `@RestController` (não há camada de serviço genérica). Exceções que são serviços: `PriceService`, `CurrencyService`, `ContributionService`.

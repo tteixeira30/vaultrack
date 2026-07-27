@@ -557,7 +557,7 @@ export default function InvestmentsPage() {
           </div>
           <div className="field">
             <label>Tipo</label>
-            <Dropdown value={form.type} onChange={(type) => setForm({ ...form, type })}
+            <Dropdown label="Tipo" value={form.type} onChange={(type) => setForm({ ...form, type })}
                       options={TYPES.map((t) => ({ value: t.id, label: t.label }))} />
           </div>
           <div className="field">
@@ -637,12 +637,12 @@ export default function InvestmentsPage() {
         <div className="form-grid">
           <div className="field full">
             <label>Nome</label>
-            <input autoFocus value={editForm.name}
+            <input autoFocus aria-label="Nome" value={editForm.name}
                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
           </div>
           <div className="field">
             <label>Tipo</label>
-            <Dropdown value={editForm.type} onChange={(type) => setEditForm({ ...editForm, type })}
+            <Dropdown label="Tipo" value={editForm.type} onChange={(type) => setEditForm({ ...editForm, type })}
                       options={TYPES.map((t) => ({ value: t.id, label: t.label }))} />
           </div>
           <div className="field">
@@ -664,7 +664,7 @@ export default function InvestmentsPage() {
           <div className="field">
             <label>Valor atual</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" value={editForm.currentValue}
+              <input type="number" min="0" step="0.01" aria-label="Valor atual" value={editForm.currentValue}
                      onChange={(e) => setEditForm({ ...editForm, currentValue: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
@@ -672,7 +672,7 @@ export default function InvestmentsPage() {
           <div className="field">
             <label>Ganho até agora</label>
             <div className="input-affix">
-              <input type="number" step="0.01" value={editForm.gainPercent}
+              <input type="number" step="0.01" aria-label="Ganho até agora" value={editForm.gainPercent}
                      onChange={(e) => setEditForm({ ...editForm, gainPercent: e.target.value })} />
               <span className="affix">%</span>
             </div>

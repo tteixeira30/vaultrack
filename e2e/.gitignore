@@ -4,4 +4,4 @@
 /playwright/.cache/
 
 # Config de override local (aponta ao Chromium do ambiente; não versionar)
-playwright.local.config.js
+playwright.local.config.*

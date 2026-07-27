@@ -486,7 +486,7 @@ export default function IncomePage() {
         <div className="field">
           <label>Rendimento do mês</label>
           <div className="input-affix">
-            <input type="number" min="0" step="0.01" autoFocus value={incomeInput}
+            <input type="number" min="0" step="0.01" autoFocus aria-label="Rendimento do mês" value={incomeInput}
                    onChange={(e) => setIncomeInput(e.target.value)}
                    onKeyDown={(e) => e.key === 'Enter' && saveIncome()} />
             <span className="affix">{cur}</span>

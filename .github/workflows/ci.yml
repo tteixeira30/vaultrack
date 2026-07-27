@@ -99,16 +99,16 @@ jobs:
       - run: npx playwright install --with-deps chromium
         working-directory: e2e
 
-      - name: Esperar pela stack (nginx → backend → db)
+      # Falham depressa e sem depender da stack — corre antes de esperar por ela.
+      - name: Typecheck e lint dos testes
+        working-directory: e2e
         run: |
-          for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/auth/login \
-              -H 'Content-Type: application/json' -d '{}') || code=000
-            # qualquer resposta 4xx prova que frontend, proxy, backend e BD estão de pé
-            if [ "$code" -ge 400 ] && [ "$code" -lt 500 ]; then exit 0; fi
-            sleep 2
-          done
-          echo "A stack não ficou pronta a tempo" && docker compose logs && exit 1
+          npm run typecheck
+          npm run lint
+
+      - name: Esperar pela stack (nginx → backend → db)
+        working-directory: e2e
+        run: node scripts/ensure-stack.mjs
 
       - name: Testes E2E
         working-directory: e2e
@@ -128,8 +128,10 @@ jobs:
         if: failure()
         run: docker compose logs
 
-      - name: Relatório Playwright (em falha)
-        if: failure()
+      # Sempre, não só em falha: o relatório de uma execução verde é útil para ver
+      # tempos por teste e confirmar que nada ficou por correr.
+      - name: Relatório Playwright
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: playwright-report
@@ -137,6 +139,7 @@ jobs:
             e2e/playwright-report/
             e2e/test-results/
           retention-days: 7
+          if-no-files-found: ignore
 
   trivy:
     name: Vulnerabilidades (Trivy)
