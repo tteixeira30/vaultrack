@@ -10,6 +10,7 @@
     "test:debug": "playwright test --debug",
     "test:smoke": "playwright test --grep @smoke",
     "report": "playwright show-report",
+    "db:clean": "node scripts/db-clean.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },

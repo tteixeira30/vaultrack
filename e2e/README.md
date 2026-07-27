@@ -82,5 +82,13 @@ test.use({ storageState: { cookies: [], origins: [] } })
 ## Dados deixados para trás
 
 Cada execução cria utilizadores `e2e-*@test.pt` que ficam na base de dados local. Não há
-endpoint de eliminação de conta no backend, por isso a limpeza é manual e opcional — no CI a
-stack é sempre nova e a questão não se põe.
+endpoint de eliminação de conta no backend, por isso a limpeza é feita por SQL — manual e
+opcional (no CI a stack é sempre nova e a questão não se põe):
+
+```bash
+npm run db:clean            # mostra o que seria apagado (dry-run)
+npm run db:clean -- --yes   # apaga
+```
+
+O script só toca em emails que casam com o padrão dos testes e **nunca** no `id = 1`, a conta
+real do dono.
