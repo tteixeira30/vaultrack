@@ -347,7 +347,8 @@ export default function ExpensesPage() {
               Todas as contas
             </button>
             {data.accounts.map((a) => (
-              <button key={a.id} className={`account-chip ${accountFilter === String(a.id) ? 'active' : ''}`}
+              <button key={a.id} data-testid="account-chip"
+                      className={`account-chip ${accountFilter === String(a.id) ? 'active' : ''}`}
                       onClick={() => setAccountFilter(String(a.id))}>
                 <IconBank size={13} /> {a.name}
                 {a.currentBalance != null && <span className="account-chip-balance">{fmtEur(a.currentBalance)}</span>}
@@ -357,7 +358,7 @@ export default function ExpensesPage() {
                 </span>
               </button>
             ))}
-            <button className="account-chip add" onClick={openAccountAdd}><IconPlus size={13} /> Conta</button>
+            <button data-testid="account-chip-add" className="account-chip add" onClick={openAccountAdd}><IconPlus size={13} /> Conta</button>
           </div>
         </div>
 
@@ -428,7 +429,7 @@ export default function ExpensesPage() {
                   <div className="tx-day">{fmtDay(g.date)}</div>
                   <ul className="event-list">
                     {g.txs.map((t) => (
-                      <li key={t.id} className="event-row">
+                      <li key={t.id} data-testid="movement-row" className="event-row">
                         <span className={`tl-icon ${t.inflow ? 'in' : 'out'}`}>
                           {t.inflow ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />}
                         </span>
@@ -602,12 +603,12 @@ export default function ExpensesPage() {
           </div>
           <div className="field">
             <label>Conta</label>
-            <Dropdown value={txForm.accountId} onChange={(accountId) => setTxForm({ ...txForm, accountId })}
+            <Dropdown label="Conta" value={txForm.accountId} onChange={(accountId) => setTxForm({ ...txForm, accountId })}
                       options={data.accounts.map((a) => ({ value: String(a.id), label: a.name }))} />
           </div>
           <div className="field">
             <label>Categoria</label>
-            <Dropdown value={txForm.category} onChange={(category) => {
+            <Dropdown label="Categoria" value={txForm.category} onChange={(category) => {
               setTxForm({ ...txForm, category, inflow: category === 'INCOME' ? true : txForm.inflow })
             }} options={catOptions} />
           </div>
@@ -621,7 +622,7 @@ export default function ExpensesPage() {
           <div className="field">
             <label>Valor</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" placeholder="0" value={txForm.amount}
+              <input type="number" min="0" step="0.01" placeholder="0" aria-label="Valor" value={txForm.amount}
                      onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>

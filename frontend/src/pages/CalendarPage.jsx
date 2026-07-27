@@ -316,7 +316,7 @@ export default function CalendarPage() {
           </div>
           <div className="field">
             <label>Categoria</label>
-            <Dropdown value={form.category} onChange={(category) => {
+            <Dropdown label="Categoria" value={form.category} onChange={(category) => {
               setForm({ ...form, category, inflow: category === 'INCOME' ? true : form.inflow })
             }} options={CATEGORIES.map((c) => ({ value: c, label: CATEGORY_META[c].label }))} />
           </div>
@@ -330,14 +330,14 @@ export default function CalendarPage() {
           <div className="field">
             <label>Valor</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" placeholder="0" value={form.amount}
+              <input type="number" min="0" step="0.01" placeholder="0" aria-label="Valor" value={form.amount}
                      onChange={(e) => setForm({ ...form, amount: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
           </div>
           <div className="field">
             <label>Frequência</label>
-            <Dropdown value={form.frequency} onChange={(frequency) => setForm({ ...form, frequency })}
+            <Dropdown label="Frequência" value={form.frequency} onChange={(frequency) => setForm({ ...form, frequency })}
                       options={[
                         { value: 'MONTHLY', label: 'Mensal' },
                         { value: 'YEARLY', label: 'Anual' },

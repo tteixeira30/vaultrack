@@ -9,8 +9,12 @@ const POP_MIN_W = 140 // largura mínima (triggers estreitos, ex.: seletor de mo
  * Dropdown com o visual da app (substitui o <select> nativo).
  * O menu é renderizado num portal com posição fixa, para nunca ficar cortado
  * por contentores com overflow (ex.: corpo de modais com scroll).
+ *
+ * `label` dá nome acessível ao trigger. Os <label> dos formulários são apenas
+ * visuais (não envolvem o controlo nem usam htmlFor), por isso sem isto o botão
+ * anuncia só o valor selecionado e fica indistinguível dos outros da mesma janela.
  */
-export default function Dropdown({ value, onChange, options = [], placeholder = 'Seleciona…' }) {
+export default function Dropdown({ value, onChange, options = [], placeholder = 'Seleciona…', label }) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState(null)
   const ref = useRef(null)
@@ -69,13 +73,14 @@ export default function Dropdown({ value, onChange, options = [], placeholder = 
 
   return (
     <div className={`dropdown ${open ? 'open' : ''}`} ref={ref}>
-      <button type="button" className="dd-trigger" onClick={toggle} aria-expanded={open} aria-haspopup="listbox">
+      <button type="button" className="dd-trigger" onClick={toggle} aria-expanded={open} aria-haspopup="listbox"
+              aria-label={label}>
         <span className={selected ? '' : 'dd-placeholder'}>{selected ? selected.label : placeholder}</span>
         <IconChevronRight size={16} className="dd-chevron" />
       </button>
 
       {open && pos && createPortal(
-        <div className="dd-pop" role="listbox" ref={popRef}
+        <div className="dd-pop" role="listbox" aria-label={label} ref={popRef}
              style={{ position: 'fixed', left: pos.left, top: pos.top, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}>
           {options.map((o) => (
             <button key={o.value} type="button" role="option" aria-selected={o.value === value}
