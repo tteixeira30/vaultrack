@@ -33,4 +33,14 @@ export class ProfileMenu {
   async logout(): Promise<void> {
     await this.select('Terminar sessão')
   }
+
+  /**
+   * Alterna o modo privacidade. Fecha o menu no fim (Escape) para deixar a página
+   * por baixo visível, que é onde os montantes mascarados se verificam.
+   */
+  async togglePrivacy(): Promise<void> {
+    await this.open()
+    await this.privacyToggle.click()
+    await this.page.keyboard.press('Escape')
+  }
 }

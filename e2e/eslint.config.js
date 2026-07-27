@@ -32,4 +32,11 @@ export default tseslint.config(
       'playwright/expect-expect': 'off',
     },
   },
+  {
+    // Nos Page Objects o `test.step` faz a regra pensar que está num teste. Aqui
+    // ramificar em argumentos opcionais (`if (balance != null) ...`) é o padrão
+    // normal de um helper — a regra continua ativa nos specs, onde importa.
+    files: ['src/**/*.ts'],
+    rules: { 'playwright/no-conditional-in-test': 'off' },
+  },
 )

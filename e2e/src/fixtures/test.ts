@@ -1,12 +1,17 @@
 import { test as base } from '@playwright/test'
+import { AchievementsPage } from '../pages/AchievementsPage'
 import { AuthPage } from '../pages/AuthPage'
+import { CalendarPage } from '../pages/CalendarPage'
 import { DashboardPage } from '../pages/DashboardPage'
+import { ExpensesPage } from '../pages/ExpensesPage'
+import { GoalsPage } from '../pages/GoalsPage'
 import { IncomePage } from '../pages/IncomePage'
+import { InvestmentsPage } from '../pages/InvestmentsPage'
 import { registerViaApi, TOKEN_KEY, type TestUser } from './api'
 
 /**
  * `test` estendido do projeto. Importa daqui, nunca de `@playwright/test`
- * diretamente (exceto `expect`).
+ * diretamente.
  *
  * A fixture `user` cria um utilizador novo por teste **via API** e a override de
  * `storageState` injeta o token em localStorage antes de a página abrir — quando o
@@ -18,9 +23,14 @@ import { registerViaApi, TOKEN_KEY, type TestUser } from './api'
  */
 export interface Fixtures {
   user: TestUser
+  achievementsPage: AchievementsPage
   authPage: AuthPage
+  calendarPage: CalendarPage
   dashboardPage: DashboardPage
+  expensesPage: ExpensesPage
+  goalsPage: GoalsPage
   incomePage: IncomePage
+  investmentsPage: InvestmentsPage
 }
 
 export const test = base.extend<Fixtures>({
@@ -42,9 +52,14 @@ export const test = base.extend<Fixtures>({
     })
   },
 
+  achievementsPage: async ({ page }, use) => use(new AchievementsPage(page)),
   authPage: async ({ page }, use) => use(new AuthPage(page)),
+  calendarPage: async ({ page }, use) => use(new CalendarPage(page)),
   dashboardPage: async ({ page }, use) => use(new DashboardPage(page)),
+  expensesPage: async ({ page }, use) => use(new ExpensesPage(page)),
+  goalsPage: async ({ page }, use) => use(new GoalsPage(page)),
   incomePage: async ({ page }, use) => use(new IncomePage(page)),
+  investmentsPage: async ({ page }, use) => use(new InvestmentsPage(page)),
 })
 
 export { expect } from '@playwright/test'

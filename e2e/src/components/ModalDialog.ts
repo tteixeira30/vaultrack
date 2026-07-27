@@ -12,8 +12,12 @@ export class ModalDialog {
     this.root = page.getByRole('dialog')
   }
 
-  field(placeholder: string | RegExp): Locator {
-    return this.root.getByPlaceholder(placeholder)
+  /**
+   * Campo pelo placeholder. Usa `exact` quando o placeholder é um prefixo de
+   * outro no mesmo modal — "0" também casa com "Ex: 10000" e "Ex: 300".
+   */
+  field(placeholder: string | RegExp, options?: { exact?: boolean }): Locator {
+    return this.root.getByPlaceholder(placeholder, options)
   }
 
   button(name: string | RegExp): Locator {

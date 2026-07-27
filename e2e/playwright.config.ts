@@ -6,7 +6,8 @@ import { defineConfig, devices } from '@playwright/test'
  *   npm test
  *
  * Cada teste recebe um utilizador próprio (fixture `user`, registado via API), por
- * isso nenhum teste toca em dados de outro nem em contas existentes. Ver README.md.
+ * isso nenhum teste toca em dados de outro nem em contas existentes — é isso que
+ * permite correr em paralelo. Ver README.md.
  */
 const CI = !!process.env.CI
 
@@ -18,10 +19,10 @@ export default defineConfig({
   // Sem isto, cada expect() herda apenas o timeout global do teste.
   expect: { timeout: 10_000 },
 
-  // TODO(PR3): passar a `fullyParallel: true` + workers quando todos os specs
-  // estiverem migrados para a fixture `user` (registo por API).
-  fullyParallel: false,
-  workers: 1,
+  // Seguro porque cada teste tem o seu próprio utilizador (fixture `user`): não
+  // há estado partilhado mutável no backend e nenhum teste depende de outro.
+  fullyParallel: true,
+  workers: CI ? 4 : undefined, // local: metade dos cores
 
   retries: CI ? 2 : 0,
   forbidOnly: CI,
