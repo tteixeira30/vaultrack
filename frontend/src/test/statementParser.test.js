@@ -110,11 +110,11 @@ describe('buildTransactions — sinal e valor dos movimentos', () => {
     expect(rows.find((r) => r.description === 'Salário').inflow).toBe(true)
   })
 
-  // BUG conhecido: num extrato PDF sem sinais, o PRIMEIRO movimento (o mais antigo) não
-  // tem saldo anterior com que comparar, por isso o seu sentido não é determinável e fica
-  // por omissão como ENTRADA — mesmo quando é uma saída. Este teste fixa o comportamento
-  // atual para o tornar visível; afeta 1 movimento por importação (só PDFs sem sinais).
-  it('sem saldo inicial, o primeiro movimento de um extrato sem sinais fica como entrada (fallback)', () => {
+  // Num extrato PDF sem sinais o PRIMEIRO movimento (o mais antigo) não tem saldo
+  // anterior com que comparar, por isso o seu sentido não é determinável. Nesse caso
+  // segue o sentido dominante do extrato em vez de ficar como entrada — dar uma saída
+  // como entrada inventava rendimento e estragava o saldo da conta.
+  it('sem saldo inicial, o primeiro movimento segue o sentido dominante do extrato', () => {
     const mapping = { date: 0, description: 1, amount: 2, debit: -1, credit: -1, currency: -1, state: -1, fee: -1, balance: 3 }
     const { rows } = buildTransactions([
       ['2026-03-05', 'Continente', '85,40', '914,60'],
@@ -122,8 +122,7 @@ describe('buildTransactions — sinal e valor dos movimentos', () => {
       ['2026-03-25', 'Salário', '2000,00', '2899,60'],
     ], mapping, '2026-03-31')
 
-    // sem saldo anterior com que comparar, mantém-se o fallback (entrada)
-    expect(rows.find((r) => r.description === 'Continente').inflow).toBe(true)
+    expect(rows.find((r) => r.description === 'Continente').inflow).toBe(false)
   })
 
   it('com saldo inicial, o primeiro movimento é sinalizado corretamente (saída)', () => {
@@ -162,7 +161,8 @@ describe('buildTransactions — sinal e valor dos movimentos', () => {
 
     expect(rows.find((r) => r.description === 'Farmácia').inflow).toBe(false)
     expect(rows.find((r) => r.description === 'Salário').inflow).toBe(true)
-    expect(rows.find((r) => r.description === 'Continente').inflow).toBe(true) // volta ao fallback
+    // o saldo inicial errado é ignorado e o 1.º movimento segue o sentido dominante
+    expect(rows.find((r) => r.description === 'Continente').inflow).toBe(false)
   })
 
   it('subtrai a comissão (fee) ao valor do movimento', () => {
