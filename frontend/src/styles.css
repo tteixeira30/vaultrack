@@ -1697,6 +1697,11 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   font-variant-numeric: tabular-nums;
 }
 .import-range { margin: 2px 2px 6px; font-size: 12px; }
+.import-overlap {
+  margin: 0 2px 8px; padding: 8px 10px; font-size: 12px; line-height: 1.45;
+  color: var(--amber); background: var(--amber-soft);
+  border: 1px solid rgba(245, 158, 11, 0.4); border-radius: var(--radius);
+}
 
 .check-row {
   flex-direction: row !important; align-items: flex-start; gap: 10px; cursor: pointer;

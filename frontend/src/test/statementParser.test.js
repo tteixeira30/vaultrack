@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { parseAmount, parseDate, buildTransactions, findOpeningBalance, analyzeRows, categoryKey } from '../statementParser'
+import {
+  parseAmount, parseDate, buildTransactions, findOpeningBalance, analyzeRows, analyzeStatement, categoryKey,
+} from '../statementParser'
 
 describe('parseAmount — formatos monetários', () => {
   it('formato PT (1.234,56)', () => {
@@ -290,5 +292,33 @@ describe('analyzeRows — integra o saldo inicial de ponta a ponta', () => {
     const { rows: txs } = buildTransactions(analysis.dataRows, analysis.mapping, analysis.dateHint)
     expect(txs.map((r) => [r.description, r.inflow, r.amount]))
       .toEqual([['Incoming transfer', true, 250], ['MERCADONA', false, 10.54]])
+  })
+})
+
+describe('CSV da Revolut — data alinhada com a do extrato PDF', () => {
+  // O CSV traz duas datas: a de início (quando a compra foi feita) e a de
+  // conclusão (quando o banco liquidou, tipicamente na manhã seguinte). O PDF do
+  // mesmo período só traz a de início, na coluna "Data Lançamento". Usar datas
+  // diferentes em cada formato fazia com que importar os dois duplicasse quase
+  // tudo — a deduplicação do backend compara a data exata.
+  const csv = [
+    'Tipo,Produto,Data de início,Data de Conclusão,Descrição,Montante,Comissão,Moeda,Estado,Saldo',
+    'Pagamento com cartão,Atual,2026-06-01 18:22:08,2026-06-02 05:20:28,Prateleira Magica,-2.90,0.00,EUR,CONCLUÍDA,214.93',
+    'Carregamento,Atual,2026-07-02 12:02:06,2026-07-02 12:02:08,Carregamento Apple Pay,200.00,0.00,EUR,CONCLUÍDA,218.84',
+  ].join('\n')
+
+  it('mapeia a data para a coluna "Data de início"', () => {
+    const analysis = analyzeStatement(csv)
+    expect(analysis.format).toBe('revolut')
+    expect(analysis.headers[analysis.mapping.date]).toBe('Data de início')
+  })
+
+  it('importa com a data da compra, não a da liquidação', () => {
+    const analysis = analyzeStatement(csv)
+    const { rows } = buildTransactions(analysis.dataRows, analysis.mapping, analysis.dateHint)
+    expect(rows.map((r) => [r.date, r.description, r.inflow])).toEqual([
+      ['2026-06-01', 'Prateleira Magica', false],
+      ['2026-07-02', 'Carregamento Apple Pay', true],
+    ])
   })
 })

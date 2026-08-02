@@ -67,6 +67,8 @@ public class ExpenseController {
     public record ImportRequest(@NotNull Long accountId, @NotEmpty List<@Valid ImportRow> rows,
                                 BigDecimal closingBalance) {}
     public record ImportResult(int imported, int skipped, BigDecimal balance) {}
+    /** Quantos movimentos a conta já tem no período de um extrato prestes a ser importado. */
+    public record PeriodUsage(long transactionCount) {}
     public record CategoryTotal(String category, BigDecimal total) {}
     public record MonthSummary(String month, BigDecimal inflows, BigDecimal outflows, BigDecimal net,
                                List<CategoryTotal> byCategory, List<AccountDto> accounts,
@@ -353,6 +355,25 @@ public class ExpenseController {
      * duplicaria num extrato de um período já refletido no saldo). Extratos sem
      * coluna de saldo deixam o saldo como está.
      */
+    /**
+     * Movimentos que a conta já tem entre duas datas. Serve o aviso da pré-visualização
+     * da importação: a deduplicação exige data, valor, sentido e descrição iguais, por
+     * isso o mesmo extrato exportado noutro formato (ou noutra data de referência) pode
+     * passar ao lado dela e duplicar movimentos. Saber que o período já tem movimentos
+     * deixa a decisão do lado de quem importa.
+     */
+    @GetMapping("/period-usage")
+    public PeriodUsage periodUsage(@AuthenticationPrincipal User user,
+                                   @RequestParam Long accountId,
+                                   @RequestParam String from,
+                                   @RequestParam String to) {
+        Account a = requireAccount(user, accountId);
+        LocalDate start = parseIsoDate(from), end = parseIsoDate(to);
+        if (end.isBefore(start)) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Período inválido.");
+        return new PeriodUsage(
+                transactions.findByUserIdAndAccountIdAndTxDateBetween(user.getId(), a.getId(), start, end).size());
+    }
+
     @PostMapping("/import")
     @Transactional
     public ImportResult importRows(@AuthenticationPrincipal User user, @Valid @RequestBody ImportRequest req) {
@@ -440,6 +461,14 @@ public class ExpenseController {
         if (a.getCurrentBalance() == null || delta.signum() == 0) return;
         a.setCurrentBalance(roundBalance(a.getCurrentBalance().add(delta)));
         accounts.save(a);
+    }
+
+    private static LocalDate parseIsoDate(String date) {
+        try {
+            return LocalDate.parse(date);
+        } catch (DateTimeParseException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Data inválida (usa AAAA-MM-DD).");
+        }
     }
 
     private static YearMonth parseMonth(String month) {

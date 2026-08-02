@@ -272,6 +272,31 @@ export default function ExpensesPage() {
     return result
   }, [importFile, mapping, categoryRules])
 
+  // período coberto pelo extrato (usado no resumo e no aviso de sobreposição)
+  const previewRange = useMemo(() => {
+    if (!preview || preview.rows.length === 0) return null
+    let min = preview.rows[0].date, max = preview.rows[0].date
+    for (const r of preview.rows) {
+      if (r.date < min) min = r.date
+      if (r.date > max) max = r.date
+    }
+    return { min, max }
+  }, [preview])
+
+  // Movimentos que a conta escolhida já tem neste período. A deduplicação da
+  // importação exige data, valor, sentido e descrição iguais, por isso o mesmo
+  // extrato noutro formato pode passar-lhe ao lado e duplicar movimentos — mais
+  // vale avisar antes de importar do que deixar descobrir depois.
+  const [periodUsage, setPeriodUsage] = useState(null)
+  useEffect(() => {
+    if (!importModal || !importAccountId || !previewRange) { setPeriodUsage(null); return }
+    let cancelled = false
+    api.getPeriodUsage(Number(importAccountId), previewRange.min, previewRange.max)
+      .then((r) => { if (!cancelled) setPeriodUsage(r.transactionCount) })
+      .catch(() => { if (!cancelled) setPeriodUsage(null) })
+    return () => { cancelled = true }
+  }, [importModal, importAccountId, previewRange])
+
   const doImport = async () => {
     if (!importAccountId) { toast.error('Conta em falta', 'Escolhe a conta a que pertence o extrato.'); return }
     if (!preview || preview.rows.length === 0) { toast.error('Sem movimentos', 'Não há movimentos válidos para importar.'); return }
@@ -702,12 +727,8 @@ export default function ExpensesPage() {
               </div>
             )}
 
-            {preview && preview.rows.length > 0 && (() => {
-              let minDate = preview.rows[0].date, maxDate = preview.rows[0].date
-              for (const r of preview.rows) {
-                if (r.date < minDate) minDate = r.date
-                if (r.date > maxDate) maxDate = r.date
-              }
+            {preview && preview.rows.length > 0 && previewRange && (() => {
+              const { min: minDate, max: maxDate } = previewRange
               const months = (Number(maxDate.slice(0, 4)) - Number(minDate.slice(0, 4))) * 12
                 + Number(maxDate.slice(5, 7)) - Number(minDate.slice(5, 7)) + 1
               const fmtD = (iso) => new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -723,6 +744,14 @@ export default function ExpensesPage() {
                     ? ` · saldo da conta passa a ${fmtEur(preview.closingBalance)}`
                     : ' · sem saldo no extrato, o saldo da conta fica como está'}
                 </p>
+                {periodUsage > 0 && (
+                  <p className="import-overlap" role="status">
+                    Esta conta já tem {periodUsage} movimento(s) neste período. Os que forem
+                    exatamente iguais (data, valor, sentido e descrição) são ignorados, mas o
+                    mesmo extrato noutro formato pode trazer datas ou descrições ligeiramente
+                    diferentes e entrar duas vezes.
+                  </p>
+                )}
                 <ul className="event-list">
                   {preview.rows.slice(0, 8).map((r, i) => (
                     <li key={i} className="event-row">

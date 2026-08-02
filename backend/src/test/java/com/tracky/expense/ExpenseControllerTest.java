@@ -497,4 +497,37 @@ class ExpenseControllerTest {
         t.setCategory(category);
         return t;
     }
+
+    @Test
+    void periodUsageContaOsMovimentosQueAContaJaTemNoPeriodoDoExtrato() {
+        ExpenseController controller = new ExpenseController(accounts, transactions, rules, categories);
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(1L);
+
+        Account account = mock(Account.class);
+        when(account.getId()).thenReturn(10L);
+        when(accounts.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(account));
+
+        LocalDate from = LocalDate.of(2026, 6, 1), to = LocalDate.of(2026, 6, 30);
+        when(transactions.findByUserIdAndAccountIdAndTxDateBetween(1L, 10L, from, to))
+                .thenReturn(List.of(tx("CONTINENTE", "GROCERIES"), tx("MERCADONA", "GROCERIES")));
+
+        assertThat(controller.periodUsage(user, 10L, "2026-06-01", "2026-06-30").transactionCount()).isEqualTo(2);
+    }
+
+    @Test
+    void periodUsageRejeitaDatasInvalidasEPeriodoAoContrario() {
+        ExpenseController controller = new ExpenseController(accounts, transactions, rules, categories);
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(1L);
+
+        Account account = mock(Account.class);
+        when(accounts.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(account));
+
+        assertThatThrownBy(() -> controller.periodUsage(user, 10L, "30-06-2026", "2026-06-30"))
+                .isInstanceOf(ResponseStatusException.class);
+        assertThatThrownBy(() -> controller.periodUsage(user, 10L, "2026-06-30", "2026-06-01"))
+                .isInstanceOf(ResponseStatusException.class);
+    }
+
 }

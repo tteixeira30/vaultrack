@@ -280,7 +280,12 @@ export function analyzeRows(rows) {
     // Revolut (EN): Type, Product, Started Date, Completed Date, Description, Amount, Fee, Currency, State, Balance
     // Revolut (PT): Tipo, Produto, Data de início, Data de Conclusão, Descrição, Montante, Comissão, Moeda, Estado, Saldo
     format = 'revolut'
-    mapping.date = find(/completed date|data de conclus/)
+    // Usa-se a data de início (quando a compra foi feita) e não a de conclusão
+    // (quando o banco a liquidou, tipicamente na manhã seguinte): é a data que o
+    // utilizador reconhece e é a mesma que o extrato PDF da Revolut traz na coluna
+    // "Data Lançamento". Com datas diferentes, importar o CSV e o PDF do mesmo mês
+    // duplicava quase todos os movimentos — a deduplicação compara a data exata.
+    mapping.date = find(/started date|data de in[ií]cio/)
     mapping.description = find(/^description$|^descri/)
     mapping.amount = find(/^amount$|^montante$/)
   } else {

@@ -14,7 +14,7 @@ vi.mock('../api', async (importOriginal) => {
       addExpenseCategory: vi.fn(), updateExpenseCategory: vi.fn(), deleteExpenseCategory: vi.fn(),
       addExpenseAccount: vi.fn(), updateExpenseAccount: vi.fn(), deleteExpenseAccount: vi.fn(),
       addTransaction: vi.fn(), updateTransaction: vi.fn(), deleteTransaction: vi.fn(),
-      importTransactions: vi.fn(), getCategoryRules: vi.fn(),
+      importTransactions: vi.fn(), getCategoryRules: vi.fn(), getPeriodUsage: vi.fn(),
     },
   }
 })
@@ -140,5 +140,50 @@ describe('ExpensesPage — categorias', () => {
 
     // a opção personalizada aparece no menu (portal)
     await waitFor(() => expect(screen.getByRole('option', { name: 'Educação' })).toBeInTheDocument())
+  })
+})
+
+describe('ExpensesPage — aviso de período já preenchido na importação', () => {
+  // CSV da Revolut: o parser usa a data de início, a mesma que o PDF traz em
+  // "Data Lançamento", para que importar os dois formatos não duplique tudo.
+  const csv = [
+    'Tipo,Produto,Data de início,Data de Conclusão,Descrição,Montante,Comissão,Moeda,Estado,Saldo',
+    'Pagamento com cartão,Atual,2026-07-03 16:30:29,2026-07-04 11:12:49,Cafetaria,-2.85,0.00,EUR,CONCLUÍDA,215.99',
+  ].join('\n')
+
+  const carregarExtrato = async (user) => {
+    await user.click(await screen.findByRole('button', { name: /Importar extrato/ }))
+    const file = new File([csv], 'extrato.csv', { type: 'text/csv' })
+    const input = document.querySelector('input[type="file"]')
+    await user.upload(input, file)
+  }
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+    setCustomCategories([])
+    api.getCategoryRules.mockResolvedValue([])
+    api.getExpenses.mockResolvedValue(monthData())
+    api.getExpenseCategories.mockResolvedValue([])
+  })
+
+  it('avisa quando a conta já tem movimentos no período do extrato', async () => {
+    api.getPeriodUsage.mockResolvedValue({ transactionCount: 26 })
+    const user = userEvent.setup()
+    render(<ExpensesPage />)
+    await carregarExtrato(user)
+
+    // o período consultado é o dos movimentos do ficheiro, com a data de início
+    await waitFor(() => expect(api.getPeriodUsage).toHaveBeenCalledWith(10, '2026-07-03', '2026-07-03'))
+    expect(await screen.findByText(/já tem 26 movimento\(s\) neste período/)).toBeInTheDocument()
+  })
+
+  it('não avisa quando o período está livre', async () => {
+    api.getPeriodUsage.mockResolvedValue({ transactionCount: 0 })
+    const user = userEvent.setup()
+    render(<ExpensesPage />)
+    await carregarExtrato(user)
+
+    await waitFor(() => expect(api.getPeriodUsage).toHaveBeenCalled())
+    expect(screen.queryByText(/neste período/)).not.toBeInTheDocument()
   })
 })

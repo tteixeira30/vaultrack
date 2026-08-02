@@ -104,6 +104,8 @@ export const api = {
   updateTransaction: (id, data) => request(`/expenses/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTransaction: (id) => request(`/expenses/transactions/${id}`, { method: 'DELETE' }),
   importTransactions: (data) => request('/expenses/import', { method: 'POST', body: JSON.stringify(data) }),
+  getPeriodUsage: (accountId, from, to) =>
+    request(`/expenses/period-usage?accountId=${accountId}&from=${from}&to=${to}`),
   getCategoryRules: () => request('/expenses/rules'),
 
   // Categorias de despesa personalizadas (as por omissão vivem em categories.js)
