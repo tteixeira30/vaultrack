@@ -235,66 +235,79 @@ describe('extrato Trade Republic — do PDF aos movimentos', () => {
   })
 })
 
+
 describe('extrato Revolut PT — do PDF aos movimentos', () => {
-  // Layout do extrato mensal da Revolut em PT-PT. A particularidade é que os
-  // rótulos "Saída de dinheiro" e "Entrada de dinheiro" são muito mais largos do
-  // que as colunas de valores que encimam, ficando lado a lado a menos de 7pt —
-  // o que os junta numa só célula de cabeçalho. Antes, isso fazia com que o mesmo
-  // índice de coluna servisse de débito E de crédito e TODOS os movimentos
-  // entrassem como saídas (as entradas nunca ficavam registadas).
+  // Coordenadas reais de um extrato mensal da Revolut Bank UAB, Sucursal em
+  // Portugal (conta EUR, PT-PT). Particularidades: o cabeçalho ocupa três linhas
+  // de texto ("Data"+"Lançamento", "Saldo"+"contabilístico"), há duas colunas de
+  // data (lançamento e data-valor) e a Revolut chama às colunas de sentido
+  // "Dinheiro retirado"/"Dinheiro recebido" — que não eram reconhecidas como
+  // débito/crédito. Sem isso o montante era lido da coluna dos débitos e as
+  // linhas de entrada, com essa célula vazia, eram descartadas em silêncio.
+  const it9 = (str, x, y, width) => item(str, x, y, width, 9)
   const items = [
-    item('Barbara Campos', 24, 760, 70, 12),
-    item('Extrato de conta', 24, 740, 100, 14),
-    // quadro-resumo: os rótulos ficam por cima dos valores, em linhas diferentes
-    item('Produto', 24, 700, 28, 8), item('Saldo inicial', 148, 700, 44, 8),
-    item('Saída de dinheiro', 272, 700, 60, 8), item('Entrada de dinheiro', 382, 700, 68, 8),
-    item('Saldo final', 531, 700, 40, 8),
-    item('Atual', 24, 686, 20, 8), item('€18,84', 168, 686, 24, 8),
-    item('€166,34', 304, 686, 28, 8), item('€384,99', 422, 686, 28, 8), item('€237,49', 543, 686, 28, 8),
-    // cabeçalho da tabela de movimentos: os dois rótulos de valores ficam a 4pt
-    item('Data', 24, 640, 18, 8), item('Descrição', 110, 640, 36, 8),
-    item('Saída de dinheiro', 332, 640, 68, 8), item('Entrada de dinheiro', 404, 640, 76, 8),
-    item('Saldo', 551, 640, 20, 8),
-    // movimentos (valores sem sinal, alinhados à direita de cada coluna)
-    item('2 jul. 2026', 24, 622, 44, 8), item('Carregamento com Apple Pay', 110, 622, 104, 8),
-    item('€200,00', 452, 622, 28, 8), item('€218,84', 543, 622, 28, 8),
-    item('4 jul. 2026', 24, 608, 44, 8), item('Cafetaria Centro Hos', 110, 608, 80, 8),
-    item('€2,85', 380, 608, 20, 8), item('€215,99', 543, 608, 28, 8),
-    item('6 jul. 2026', 24, 594, 44, 8), item('Sabor Gaucho', 110, 594, 52, 8),
-    item('€15,10', 376, 594, 24, 8), item('€200,89', 543, 594, 28, 8),
+    // quadro-resumo do saldo: rótulos em cima, valores na linha de baixo
+    it9('Produto', 42.7, 516.9, 31.9), it9('Saldo disponível', 253, 523.7, 65.4),
+    it9('inicial', 253, 510.2, 23.3), it9('Dinheiro retirado', 335.1, 516.9, 66.4),
+    it9('Dinheiro recebido', 417.1, 516.9, 70), it9('Saldo', 530.8, 530.4, 22.6),
+    it9('disponível', 512.8, 516.9, 40.5), it9('final', 538.3, 503.4, 17.3),
+    it9('Conta (Conta Corrente)', 42.7, 483.4, 92.6), it9('18,84€', 253, 483.4, 27),
+    it9('166,34€', 335.1, 483.4, 32.1), it9('384,99€', 417.1, 483.4, 32.1),
+    it9('237,49€', 523.5, 483.4, 32.1),
+    // cabeçalho da tabela de movimentos, repartido por três linhas a 6,75pt
+    it9('Data', 42.7, 386.3, 18.6), it9('Saldo', 530.8, 386.3, 22.6),
+    it9('Data-Valor', 104.3, 379.5, 42), it9('Descrição', 165.8, 379.5, 39.9),
+    it9('Dinheiro retirado', 335.1, 379.5, 66.4), it9('Dinheiro recebido', 417.1, 379.5, 70),
+    it9('Lançamento', 42.7, 372.8, 50), it9('contabilístico', 501.8, 372.8, 53.8),
+    // entrada: valor na coluna "Dinheiro recebido", descrição em duas linhas
+    it9('02/07/2026', 42.7, 352.8, 47.8), it9('02/07/2026', 104.3, 352.8, 47.8),
+    it9('Carregamento com Apple Pay através de', 165.8, 352.8, 163.1),
+    it9('200,00€', 417.1, 352.8, 32.1), it9('218,84€', 523.5, 352.8, 32.1),
+    it9('*3181', 165.8, 339.8, 24.1),
+    // linha de detalhe do movimento (sem data nem valor) — não é um movimento
+    it9('De: *3181', 165.8, 328.5, 39.1),
+    // saída: valor na coluna "Dinheiro retirado"
+    it9('03/07/2026', 42.7, 310.9, 47.8), it9('04/07/2026', 104.3, 310.9, 47.8),
+    it9('Cafetaria Centro Hos', 165.8, 310.9, 83.8),
+    it9('2,85€', 335.1, 310.9, 22), it9('215,99€', 523.5, 310.9, 32.1),
   ]
   const rows = linesToTable(mergeWrappedLines(itemsToLines(items)))
 
-  it('trata as duas colunas de valores coladas como uma coluna de montante sem sinal', () => {
-    const analysis = analyzeRows(rows)
-    // os dois rótulos vieram colados num só cabeçalho...
-    expect(analysis.headers[2]).toBe('Saída de dinheiro Entrada de dinheiro')
-    // ...por isso não podem servir de débito/crédito — é uma coluna de montante
-    expect(analysis.mapping).toMatchObject({ date: 0, description: 1, amount: 2, debit: -1, credit: -1, balance: 3 })
+  it('reconstrói o cabeçalho repartido por várias linhas de texto', () => {
+    expect(analyzeRows(rows).headers).toEqual([
+      'Data Lançamento', 'Data-Valor', 'Descrição',
+      'Dinheiro retirado', 'Dinheiro recebido', 'Saldo contabilístico',
+    ])
   })
 
-  it('lê o saldo inicial do quadro-resumo (rótulo por cima do valor)', () => {
-    expect(analyzeRows(rows).openingBalance).toBe(18.84)
+  it('reconhece "Dinheiro retirado"/"Dinheiro recebido" como débito/crédito', () => {
+    // a data é a de lançamento (não a data-valor) e o sentido vem da coluna
+    expect(analyzeRows(rows).mapping)
+      .toMatchObject({ date: 0, description: 2, debit: 3, credit: 4, balance: 5, amount: -1 })
   })
 
-  it('importa entradas como entradas e saídas como saídas', () => {
+  it('importa a entrada como entrada e a saída como saída', () => {
     const analysis = analyzeRows(rows)
     const { rows: txs, ignored } = buildTransactions(
       analysis.dataRows, analysis.mapping, analysis.dateHint, analysis.openingBalance,
     )
     expect(txs).toEqual([
-      { date: '2026-07-02', description: 'Carregamento com Apple Pay', amount: 200, inflow: true, category: 'TRANSFER' },
-      { date: '2026-07-04', description: 'Cafetaria Centro Hos', amount: 2.85, inflow: false, category: 'OTHER' },
-      { date: '2026-07-06', description: 'Sabor Gaucho', amount: 15.1, inflow: false, category: 'OTHER' },
+      // a descrição fica pela 1.ª linha: o resto ("*3181") vem numa linha de
+      // continuação igual às de detalhe ("De:", "Para:", "Cartão:"), que não
+      // pertencem à descrição — juntá-las estragaria a chave de categorização
+      {
+        date: '2026-07-02', description: 'Carregamento com Apple Pay através de',
+        amount: 200, inflow: true, category: 'TRANSFER',
+      },
+      { date: '2026-07-03', description: 'Cafetaria Centro Hos', amount: 2.85, inflow: false, category: 'OTHER' },
     ])
+    // as linhas de detalhe ("De: *3181") não contam como movimento falhado
     expect(ignored).toBe(0)
   })
 
-  it('traz o saldo de fecho do extrato', () => {
-    const analysis = analyzeRows(rows)
-    const { closingBalance } = buildTransactions(
-      analysis.dataRows, analysis.mapping, analysis.dateHint, analysis.openingBalance,
-    )
-    expect(closingBalance).toBe(200.89)
+  it('não toma o total retirado do resumo por saldo inicial', () => {
+    // "Saldo disponível inicial" vem colado a "Dinheiro retirado" no quadro-resumo:
+    // alinhar por índice leria 166,34€ (total retirado) em vez do saldo inicial
+    expect(analyzeRows(rows).openingBalance).not.toBe(166.34)
   })
 })

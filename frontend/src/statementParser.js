@@ -165,12 +165,12 @@ export const HEADER_HINTS = /data|date|descri|description|montante|amount|valor|
 
 // Colunas de saída (débito) e de entrada (crédito), quando o extrato as separa.
 // Além do débito/crédito clássico há os extratos em inglês com "Money in"/"Money out"
-// (Trade Republic) ou "Paid in"/"Paid out", e os PT com "Entradas"/"Saídas" ou
-// "Saída de dinheiro"/"Entrada de dinheiro" (Revolut), "Retiradas"/"Depósitos".
-const DEBIT_HEADER = /d[eé]bito|debit(?!\s*card)|money\s*out|paid\s*out|sa[ií]das?\b|retiradas?\b|levantamentos?\b/i
-const CREDIT_HEADER = /cr[eé]dito|credit(?!\s*card)|money\s*in|paid\s*in|entradas?\b|dep[oó]sitos?\b/i
+// (Trade Republic) ou "Paid in"/"Paid out", os PT com "Entradas"/"Saídas" e os da
+// Revolut, que lhes chama "Dinheiro retirado"/"Dinheiro recebido".
+const DEBIT_HEADER = /d[eé]bito|debit(?!\s*card)|money\s*out|paid\s*out|sa[ií]das?\b|retirad[oa]s?\b|levantamentos?\b/i
+const CREDIT_HEADER = /cr[eé]dito|credit(?!\s*card)|money\s*in|paid\s*in|entradas?\b|recebid[oa]s?\b|dep[oó]sitos?\b/i
 
-const OPENING_BALANCE_LABEL = /saldo\s*(anterior|inicial|de\s*abertura)|opening\s*balance/i
+const OPENING_BALANCE_LABEL = /saldo\s*(dispon[ií]vel\s*)?(anterior|inicial|de\s*abertura)|opening\s*balance/i
 
 /**
  * Procura o saldo inicial do extrato (linha "Saldo anterior"/"Saldo inicial"),
@@ -192,10 +192,15 @@ export function findOpeningBalance(rows) {
     // ou um número no fim da própria célula do rótulo ("Saldo anterior: 1.000,00 €")
     const m = String(r[idx]).match(/(-?\(?[\d.,]+\)?)\s*€?\s*$/)
     if (m) { const v = parseAmount(m[1]); if (v != null) return v }
-    // ou o rótulo é o cabeçalho de uma coluna e o valor está na linha abaixo — é
-    // assim o quadro-resumo dos extratos Revolut ("Saldo inicial" por cima do valor)
+    // ou o rótulo é o cabeçalho de uma coluna e o valor está na linha abaixo (nos
+    // quadros-resumo dos PDF). Só vale quando o rótulo está sozinho na célula: se
+    // veio colado ao cabeçalho da coluna seguinte, o alinhamento por índice deixa
+    // de ser fiável e leria o valor da coluna errada.
+    const label = String(r[idx])
+    const matched = label.match(OPENING_BALANCE_LABEL)
+    const alone = matched && label.replace(matched[0], '').trim() === ''
     const below = rows[i + 1]
-    if (below) { const v = parseAmount(below[idx]); if (v != null) return v }
+    if (alone && below) { const v = parseAmount(below[idx]); if (v != null) return v }
   }
   return null
 }
