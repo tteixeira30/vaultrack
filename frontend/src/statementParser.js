@@ -1,7 +1,8 @@
 // Parser de extratos bancários (CSV) no cliente.
-// Suporta deteção automática de formatos conhecidos (Revolut, Santander PT e
-// exportações genéricas com colunas Data/Descrição/Montante ou Débito/Crédito)
-// e mapeamento manual de colunas quando a deteção falha.
+// Suporta deteção automática de formatos conhecidos (Revolut, Santander PT,
+// Trade Republic e exportações genéricas com colunas Data/Descrição/Montante,
+// Débito/Crédito ou Money in/Money out) e mapeamento manual de colunas quando
+// a deteção falha.
 // Os valores do extrato são assumidos em EUR (linhas noutra moeda são ignoradas).
 
 // ---------- CSV ----------
@@ -51,7 +52,16 @@ function detectDelimiter(text) {
  */
 export function parseDate(raw, dateHint) {
   if (!raw) return null
-  const s = String(raw).trim().slice(0, 10)
+  const full = String(raw).trim()
+
+  // datas com o mês por extenso, PT ou EN ("17 Jul 2026", "5 de março de 2026",
+  // "Jul 17, 2026") — usadas pela Trade Republic e por vários bancos estrangeiros
+  let mn = full.match(/^(\d{1,2})\s*(?:de\s+)?([a-zA-Zçãéê]{3,})\.?,?\s*(?:de\s+)?(\d{4})\b/)
+  if (mn) return valid(mn[3], monthFromName(mn[2]), mn[1])
+  mn = full.match(/^([a-zA-Zçãéê]{3,})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/)
+  if (mn) return valid(mn[3], monthFromName(mn[1]), mn[2])
+
+  const s = full.slice(0, 10)
   let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (m) return valid(m[1], m[2], m[3])
   m = s.match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})/)
@@ -74,6 +84,16 @@ function addDaysIso(iso, days) {
   const d = new Date(`${iso}T00:00:00Z`)
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
+}
+
+// Mês pelas 3 primeiras letras, sem acentos — chega para PT e EN (jan/janeiro/january,
+// mar/março/march, mai/maio/may, out/outubro/october, dez/dezembro/december, …).
+const MONTH_ABBR = ['jan', 'fev|feb', 'mar', 'abr|apr', 'mai|may', 'jun', 'jul', 'ago|aug', 'set|sep', 'out|oct', 'nov', 'dez|dec']
+
+/** Número do mês (1–12) a partir do nome em PT ou EN; 0 se não reconhecer. */
+function monthFromName(name) {
+  const key = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().slice(0, 3)
+  return MONTH_ABBR.findIndex((abbr) => abbr.split('|').includes(key)) + 1
 }
 
 function valid(y, mo, d) {
@@ -105,15 +125,15 @@ export function parseAmount(raw) {
 
 const CATEGORY_RULES = [
   ['GROCERIES', /continente|pingo doce|lidl|aldi|mercadona|auchan|intermarch|minipre[çc]o|supermercado|froiz|spar\b/i],
-  ['RESTAURANT', /restaurante|mcdonald|burger|kfc|pizza|sushi|caf[eé]\b|pastelaria|padaria|uber\s*eats|glovo|bolt\s*food|telepizza|starbucks/i],
+  ['RESTAURANT', /restaurante|mcdonald|burger|kfc|pizza|sushi|caf[eé]\b|pastelaria|padaria|uber\s*eats|glovo|bolt\s*food|telepizza|starbucks|eurest|cantina/i],
   ['TRANSPORT', /uber(?!\s*eats)|bolt(?!\s*food)|cp\s|metro|carris|galp|bp\b|repsol|cepsa|prio\b|combust|gasolina|via\s*verde|brisa|flixbus|ryanair|easyjet|tap\b/i],
   ['HOUSING', /renda|condom[ií]nio|edp\b|endesa|iberdrola|goldenergy|[aá]guas|meo\b|nos\b|vodafone|digi\b|luz\b|g[aá]s\b|eletricidade/i],
   ['SUBSCRIPTION', /netflix|spotify|hbo|disney|\bprime\b|youtube|icloud|apple\.com|google\s*(one|play)|playstation|xbox|crunchyroll|dazn|patreon|subscri/i],
-  ['SHOPPING', /amazon|fnac|worten|zara|h&m|primark|decathlon|ikea|leroy|aliexpress|temu|shein|el\s*corte/i],
+  ['SHOPPING', /amazon|fnac|worten|zara|pull\s*&?\s*bear|bershka|stradivarius|massimo\s*dutti|h&m|primark|decathlon|ikea|leroy|aliexpress|temu|shein|el\s*corte/i],
   ['HEALTH', /farm[aá]cia|hospital|cl[ií]nica|dentista|wells|cuf\b|lus[ií]adas|seguro\s*sa[uú]de|gin[aá]sio|fitness|solinca/i],
   ['LEISURE', /cinema|teatro|concerto|museu|bilhete|ticketline|steam|epic\s*games|nintendo|viagem|hotel|booking|airbnb/i],
   ['INCOME', /sal[aá]rio|vencimento|ordenado|payroll|reembolso|juros\s*(recebidos)?|dividendo/i],
-  ['TRANSFER', /transfer[eê]ncia|trf\b|mb\s*way|mbway|levantamento|dep[oó]sito|top.?up|carregamento|revolut|trade\s*republic/i],
+  ['TRANSFER', /transfer[eê]ncia|\btransfer\b|trf\b|mb\s*way|mbway|levantamento|dep[oó]sito|top.?up|carregamento|revolut|trade\s*republic/i],
 ]
 
 /**
@@ -141,7 +161,13 @@ export function autoCategory(description, inflow) {
 
 // ---------- Deteção de formato / mapeamento ----------
 
-export const HEADER_HINTS = /data|date|descri|description|montante|amount|valor|d[eé]bito|debit|cr[eé]dito|credit|movimento|saldo|balance|currency|moeda/i
+export const HEADER_HINTS = /data|date|descri|description|montante|amount|valor|d[eé]bito|debit|cr[eé]dito|credit|money\s*(in|out)|paid\s*(in|out)|movimento|saldo|balance|currency|moeda/i
+
+// Colunas de saída (débito) e de entrada (crédito), quando o extrato as separa.
+// Além do débito/crédito clássico há os extratos em inglês com "Money in"/"Money out"
+// (Trade Republic) ou "Paid in"/"Paid out", e os PT com "Entradas"/"Saídas".
+const DEBIT_HEADER = /d[eé]bito|debit(?!\s*card)|money\s*out|paid\s*out|sa[ií]das?\b/i
+const CREDIT_HEADER = /cr[eé]dito|credit(?!\s*card)|money\s*in|paid\s*in|entradas?\b/i
 
 const OPENING_BALANCE_LABEL = /saldo\s*(anterior|inicial|de\s*abertura)|opening\s*balance/i
 
@@ -172,7 +198,7 @@ export function findOpeningBalance(rows) {
 const HEADER_CATEGORIES = [
   /data|date|\bmov\b/i,
   /descri|description|movimento|detalhe|details?|narrative|memo|concept/i,
-  /montante|amount|valor|import[aâ]ncia|d[eé]bito|debit|cr[eé]dito|credit/i,
+  /montante|amount|valor|import[aâ]ncia|d[eé]bito|debit|cr[eé]dito|credit|money\s*(in|out)|paid\s*(in|out)/i,
   /saldo|balance/i,
 ]
 
@@ -249,13 +275,15 @@ export function analyzeRows(rows) {
   } else {
     mapping.date = find(/data.*(opera|mov|lan[çc])/) !== -1 ? find(/data.*(opera|mov|lan[çc])/) : find(/^data\b|date/)
     mapping.description = find(/descri|description|movimento|detalhe|details?|narrative|memo|referência|referencia|concept/)
-    mapping.debit = find(/d[eé]bito|debit(?!\s*card)/)
-    mapping.credit = find(/cr[eé]dito|credit(?!\s*card)/)
+    mapping.debit = find(DEBIT_HEADER)
+    mapping.credit = find(CREDIT_HEADER)
     if (mapping.debit === -1 || mapping.credit === -1) {
       mapping.debit = -1; mapping.credit = -1
       mapping.amount = find(/montante|^amount$|^valor\b|import[aâ]ncia|^value/)
     }
-    if (find(/santander/) !== -1 || rows.slice(0, 40).some((r) => r.some((c) => /santander/i.test(c)))) format = 'santander'
+    const brand = (re) => find(re) !== -1 || rows.slice(0, 40).some((r) => r.some((c) => re.test(c)))
+    if (brand(/santander/i)) format = 'santander'
+    else if (brand(/trade\s*republic/i)) format = 'traderepublic'
   }
 
   refineMappingWithData(mapping, headers, dataRows, dateHint)
@@ -343,17 +371,6 @@ export function buildTransactions(dataRows, mapping, dateHint, openingBalance = 
   for (const cells of dataRows) {
     const date = parseDate(cells[mapping.date], dateHint)
     const description = (cells[mapping.description] || '').trim()
-    if (!date || !description) { ignored++; continue }
-
-    if (mapping.state !== -1) {
-      // ignora movimentos não finalizados (pendentes, revertidos, recusados…) em qualquer idioma conhecido
-      const state = (cells[mapping.state] || '').trim()
-      if (state && /pend|revert|declin|fail|cancel|recus|anulad|estorn/i.test(state)) { ignored++; continue }
-    }
-    if (mapping.currency !== -1) {
-      const cur = (cells[mapping.currency] || '').trim().toUpperCase()
-      if (cur && cur !== 'EUR') { ignored++; continue }
-    }
 
     let value = null
     if (mapping.amount !== -1) {
@@ -368,6 +385,23 @@ export function buildTransactions(dataRows, mapping, dateHint, openingBalance = 
       if (debit) value = -Math.abs(debit)
       else if (credit) value = Math.abs(credit)
     }
+
+    // Linhas sem data nem valor não são movimentos falhados — é o texto que rodeia
+    // a tabela nos PDF (cabeçalhos repetidos entre páginas, resumos, rodapés).
+    // Não contam para o total de ignoradas, senão o utilizador vê dezenas delas.
+    if (date == null && value == null) continue
+    if (!date || !description) { ignored++; continue }
+
+    if (mapping.state !== -1) {
+      // ignora movimentos não finalizados (pendentes, revertidos, recusados…) em qualquer idioma conhecido
+      const state = (cells[mapping.state] || '').trim()
+      if (state && /pend|revert|declin|fail|cancel|recus|anulad|estorn/i.test(state)) { ignored++; continue }
+    }
+    if (mapping.currency !== -1) {
+      const cur = (cells[mapping.currency] || '').trim().toUpperCase()
+      if (cur && cur !== 'EUR') { ignored++; continue }
+    }
+
     if (value == null || value === 0) { ignored++; continue }
 
     out.push({

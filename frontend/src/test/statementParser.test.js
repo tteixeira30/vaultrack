@@ -33,6 +33,18 @@ describe('parseDate — datas com e sem ano', () => {
   it('DD-MM muito depois da referência recua um ano (extrato de janeiro com movimentos de dezembro)', () => {
     expect(parseDate('28-12', '2026-01-10')).toBe('2025-12-28')
   })
+  it('mês por extenso em inglês (Trade Republic)', () => {
+    expect(parseDate('17 Jul 2026')).toBe('2026-07-17')
+    expect(parseDate('1 September 2026')).toBe('2026-09-01')
+    expect(parseDate('Jul 17, 2026')).toBe('2026-07-17')
+  })
+  it('mês por extenso em português, com ou sem "de" e acentos', () => {
+    expect(parseDate('5 de março de 2026')).toBe('2026-03-05')
+    expect(parseDate('05 Out 2026')).toBe('2026-10-05')
+  })
+  it('mês desconhecido devolve null', () => {
+    expect(parseDate('17 Xyz 2026')).toBeNull()
+  })
 })
 
 describe('buildTransactions — sinal e valor dos movimentos', () => {
@@ -162,6 +174,19 @@ describe('buildTransactions — sinal e valor dos movimentos', () => {
     // saída de 100 + 2 de comissão = 102 a sair da conta
     expect(rows[0]).toMatchObject({ amount: 102, inflow: false })
   })
+
+  it('texto de fora da tabela não conta como movimento ignorado', () => {
+    const mapping = { date: 0, description: 1, amount: 2, debit: -1, credit: -1, currency: -1, state: -1, fee: -1, balance: -1 }
+    const { rows, ignored } = buildTransactions([
+      ['2026-03-01', 'Continente', '-85,40'],
+      ['NOTAS AO EXTRATO'],                       // título de secção do PDF
+      ['Banco XPTO, S.A.', 'NIPC 500000000'],     // rodapé
+      ['2026-03-02', '', '-10,00'],               // este sim: parece movimento e falhou
+    ], mapping, '2026-03-31')
+
+    expect(rows).toHaveLength(1)
+    expect(ignored).toBe(1)
+  })
 })
 
 describe('findOpeningBalance — deteção do saldo inicial', () => {
@@ -210,5 +235,18 @@ describe('analyzeRows — integra o saldo inicial de ponta a ponta', () => {
     const { rows: txs } = buildTransactions(analysis.dataRows, analysis.mapping, analysis.dateHint, analysis.openingBalance)
     expect(txs.find((r) => r.description === 'Continente').inflow).toBe(false)
     expect(txs.find((r) => r.description === 'Salário').inflow).toBe(true)
+  })
+
+  it('reconhece colunas de entradas/saídas em inglês como crédito/débito', () => {
+    const analysis = analyzeRows([
+      ['Date', 'Description', 'Money in', 'Money out', 'Balance'],
+      ['17 Jul 2026', 'Incoming transfer', '250.00', '', '250.00'],
+      ['23 Jul 2026', 'MERCADONA', '', '10.54', '239.46'],
+    ])
+    expect(analysis.mapping).toMatchObject({ credit: 2, debit: 3, amount: -1 })
+
+    const { rows: txs } = buildTransactions(analysis.dataRows, analysis.mapping, analysis.dateHint)
+    expect(txs.map((r) => [r.description, r.inflow, r.amount]))
+      .toEqual([['Incoming transfer', true, 250], ['MERCADONA', false, 10.54]])
   })
 })
