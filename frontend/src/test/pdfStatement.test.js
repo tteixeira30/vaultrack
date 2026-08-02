@@ -184,6 +184,13 @@ describe('extrato Trade Republic — do PDF aos movimentos', () => {
     item('€250.00', 491.5, 468.9, 27.8, 6.75),
     item('2026', 74.4, 465.1, 17.2, 6.75),
     item('(PT50001800035114513402081)', 162.9, 465.1, 112.1, 6.75),
+    item('22 Jul', 74.4, 441, 18.9, 6.75),
+    item('Card', 110.2, 441, 15.8, 6.75),
+    item('EUREST ISEP', 162.9, 437.2, 41.4, 6.75),
+    item('€1.80', 462, 437.2, 19.2, 6.75),
+    item('€248.20', 491.5, 437.2, 27.8, 6.75),
+    item('2026', 74.4, 433.4, 17.2, 6.75),
+    item('Transaction', 110.2, 433.4, 38.5, 6.75),
     item('23 Jul', 74.4, 409.4, 18.9, 6.75),
     item('Card', 110.2, 409.4, 15.8, 6.75),
     item('MERCADONA', 162.9, 405.6, 44.5, 6.75),
@@ -212,9 +219,18 @@ describe('extrato Trade Republic — do PDF aos movimentos', () => {
         description: 'Incoming transfer from TIAGO ANDRE TORGO TEIXEIRA (PT50001800035114513402081)',
         amount: 250, inflow: true, category: 'TRANSFER',
       },
+      { date: '2026-07-22', description: 'EUREST ISEP', amount: 1.8, inflow: false, category: 'RESTAURANT' },
       { date: '2026-07-23', description: 'MERCADONA', amount: 10.54, inflow: false, category: 'GROCERIES' },
     ])
     // o texto à volta da tabela (título, rodapé) não conta como movimento falhado
     expect(ignored).toBe(0)
+  })
+
+  it('traz o saldo de fecho do extrato para atualizar o saldo da conta', () => {
+    const analysis = analyzeRows(rows)
+    const { closingBalance } = buildTransactions(analysis.dataRows, analysis.mapping, analysis.dateHint)
+    // saldo da última linha da coluna BALANCE, depois de confirmar que encadeia
+    // com os movimentos: 250,00 − 1,80 − 10,54
+    expect(closingBalance).toBe(237.66)
   })
 })
