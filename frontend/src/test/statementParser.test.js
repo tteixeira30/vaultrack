@@ -175,6 +175,48 @@ describe('buildTransactions — sinal e valor dos movimentos', () => {
     expect(rows[0]).toMatchObject({ amount: 102, inflow: false })
   })
 
+  it('devolve o saldo de fecho do extrato (saldo do movimento mais recente)', () => {
+    const mapping = { date: 0, description: 1, amount: 2, debit: -1, credit: -1, currency: -1, state: -1, fee: -1, balance: 3 }
+    const { closingBalance } = buildTransactions([
+      ['2026-07-17', 'Transferência', '250,00', '250,00'],
+      ['2026-07-22', 'Eurest', '-1,80', '248,20'],
+      ['2026-07-23', 'Mercadona', '-10,54', '237,66'],
+    ], mapping, '2026-07-31')
+
+    expect(closingBalance).toBe(237.66)
+  })
+
+  it('extrato do mais recente para o mais antigo: o fecho é o saldo da primeira linha', () => {
+    const mapping = { date: 0, description: 1, amount: 2, debit: -1, credit: -1, currency: -1, state: -1, fee: -1, balance: 3 }
+    const { closingBalance } = buildTransactions([
+      ['2026-07-23', 'Mercadona', '-10,54', '237,66'],
+      ['2026-07-22', 'Eurest', '-1,80', '248,20'],
+      ['2026-07-17', 'Transferência', '250,00', '250,00'],
+    ], mapping, '2026-07-31')
+
+    expect(closingBalance).toBe(237.66)
+  })
+
+  it('não devolve saldo quando a coluna de saldo não bate certo com os movimentos', () => {
+    // saldos incoerentes (mal lidos, ou extrato que começa a meio) → melhor não mexer no saldo
+    const mapping = { date: 0, description: 1, amount: 2, debit: -1, credit: -1, currency: -1, state: -1, fee: -1, balance: 3 }
+    const { closingBalance } = buildTransactions([
+      ['2026-07-17', 'Transferência', '250,00', '250,00'],
+      ['2026-07-22', 'Eurest', '-1,80', '999,99'],
+    ], mapping, '2026-07-31')
+
+    expect(closingBalance).toBeNull()
+  })
+
+  it('sem coluna de saldo não há saldo de fecho', () => {
+    const mapping = { date: 0, description: 1, amount: 2, debit: -1, credit: -1, currency: -1, state: -1, fee: -1, balance: -1 }
+    const { closingBalance } = buildTransactions([
+      ['2026-07-17', 'Transferência', '250,00'],
+    ], mapping, '2026-07-31')
+
+    expect(closingBalance).toBeNull()
+  })
+
   it('texto de fora da tabela não conta como movimento ignorado', () => {
     const mapping = { date: 0, description: 1, amount: 2, debit: -1, credit: -1, currency: -1, state: -1, fee: -1, balance: -1 }
     const { rows, ignored } = buildTransactions([

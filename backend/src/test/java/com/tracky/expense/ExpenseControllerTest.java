@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -161,7 +162,7 @@ class ExpenseControllerTest {
                 new ExpenseController.ImportRow(day, "Continente", new BigDecimal("45.30"), false, "GROCERIES"), // dup do existente → ignorado
                 new ExpenseController.ImportRow(day, "Continente", new BigDecimal("45.30"), false, "GROCERIES"), // 2ª ocorrência → importada
                 new ExpenseController.ImportRow(day, "Netflix", new BigDecimal("12.99"), false, "OTHER"));       // nova → importada (regra sobrepõe → SUBSCRIPTION)
-        ExpenseController.ImportResult result = controller.importRows(user, new ExpenseController.ImportRequest(10L, rows));
+        ExpenseController.ImportResult result = controller.importRows(user, new ExpenseController.ImportRequest(10L, rows, null));
 
         // multiset: o existente absorve só UMA ocorrência do ficheiro
         assertThat(result.imported()).isEqualTo(2);
@@ -175,6 +176,106 @@ class ExpenseControllerTest {
         assertThat(saved).extracting(Transaction::getCategory)
                 .containsExactly("GROCERIES", "SUBSCRIPTION");
         assertThat(saved.get(0).getAmount()).isEqualByComparingTo("45.30");
+
+        // extrato sem coluna de saldo (closingBalance null) → o saldo da conta fica como está
+        verify(accounts, never()).save(any());
+    }
+
+    @Test
+    void importPoeOSaldoDaContaNoSaldoDeFechoDoExtrato() {
+        ExpenseController controller = new ExpenseController(accounts, transactions, rules, categories);
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(1L);
+
+        Account account = mock(Account.class);
+        when(account.getId()).thenReturn(10L);
+        when(accounts.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(account));
+
+        LocalDate day = LocalDate.of(2026, 7, 31);
+        var rows = List.of(new ExpenseController.ImportRow(day, "MERCADONA", new BigDecimal("5.50"), false, "GROCERIES"));
+        controller.importRows(user, new ExpenseController.ImportRequest(10L, rows, new BigDecimal("213.67")));
+
+        // é o banco a declarar o saldo: fica esse, e não o resultado de somar movimentos
+        ArgumentCaptor<BigDecimal> balanceCap = ArgumentCaptor.forClass(BigDecimal.class);
+        verify(account).setCurrentBalance(balanceCap.capture());
+        assertThat(balanceCap.getValue()).isEqualByComparingTo("213.67");
+        verify(accounts).save(account);
+    }
+
+    @Test
+    void criarEApagarMovimentoAjustamOSaldoDaConta() {
+        ExpenseController controller = new ExpenseController(accounts, transactions, rules, categories);
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(1L);
+
+        Account account = mock(Account.class);
+        when(account.getId()).thenReturn(10L);
+        when(account.getName()).thenReturn("Trade Republic");
+        when(account.getCurrentBalance()).thenReturn(new BigDecimal("1000.00"));
+        when(accounts.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(account));
+        when(transactions.save(any(Transaction.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        var req = new ExpenseController.TransactionRequest(10L, LocalDate.of(2026, 7, 22),
+                "EUREST ISEP", new BigDecimal("45.30"), false, "RESTAURANT", null);
+        controller.create(user, req);
+
+        ArgumentCaptor<BigDecimal> cap = ArgumentCaptor.forClass(BigDecimal.class);
+        verify(account).setCurrentBalance(cap.capture());
+        assertThat(cap.getValue()).isEqualByComparingTo("954.70"); // saída baixa o saldo
+
+        // apagar devolve o valor ao saldo
+        Transaction saved = importedTx(LocalDate.of(2026, 7, 22), new BigDecimal("45.30"), false, "EUREST ISEP");
+        when(transactions.findByIdAndUserId(7L, 1L)).thenReturn(Optional.of(saved));
+        controller.delete(user, 7L);
+
+        verify(account, times(2)).setCurrentBalance(cap.capture());
+        assertThat(cap.getValue()).isEqualByComparingTo("1045.30"); // 1000 + 45.30 (o saldo mockado não muda)
+    }
+
+    @Test
+    void editarMovimentoNaMesmaContaAjustaOSaldoPelaDiferenca() {
+        ExpenseController controller = new ExpenseController(accounts, transactions, rules, categories);
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(1L);
+
+        Account account = mock(Account.class);
+        when(account.getId()).thenReturn(10L);
+        when(account.getName()).thenReturn("Trade Republic");
+        when(account.getCurrentBalance()).thenReturn(new BigDecimal("950.00"));
+        when(accounts.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(account));
+        when(transactions.save(any(Transaction.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // saída de 50 passa a saída de 80 → o saldo só desce mais 30
+        Transaction existing = importedTx(LocalDate.of(2026, 7, 10), new BigDecimal("50.00"), false, "MERCADONA");
+        when(transactions.findByIdAndUserId(7L, 1L)).thenReturn(Optional.of(existing));
+        var req = new ExpenseController.TransactionRequest(10L, LocalDate.of(2026, 7, 10),
+                "MERCADONA", new BigDecimal("80.00"), false, "GROCERIES", null);
+        controller.update(user, 7L, req);
+
+        ArgumentCaptor<BigDecimal> cap = ArgumentCaptor.forClass(BigDecimal.class);
+        verify(account).setCurrentBalance(cap.capture());
+        assertThat(cap.getValue()).isEqualByComparingTo("920.00");
+    }
+
+    @Test
+    void contaComSaldoPorDefinirNaoGanhaSaldoAPartirDeUmMovimento() {
+        ExpenseController controller = new ExpenseController(accounts, transactions, rules, categories);
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(1L);
+
+        Account account = mock(Account.class);
+        when(account.getId()).thenReturn(10L);
+        when(account.getName()).thenReturn("Revolut");
+        when(account.getCurrentBalance()).thenReturn(null); // saldo não definido
+        when(accounts.findByIdAndUserId(10L, 1L)).thenReturn(Optional.of(account));
+        when(transactions.save(any(Transaction.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        controller.create(user, new ExpenseController.TransactionRequest(10L, LocalDate.of(2026, 7, 22),
+                "Compra", new BigDecimal("20.00"), false, "OTHER", null));
+
+        // −20 não é um saldo: continua por definir até o utilizador o escrever
+        verify(account, never()).setCurrentBalance(any());
+        verify(accounts, never()).save(any());
     }
 
     @Test

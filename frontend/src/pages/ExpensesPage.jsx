@@ -277,11 +277,14 @@ export default function ExpensesPage() {
     if (!preview || preview.rows.length === 0) { toast.error('Sem movimentos', 'Não há movimentos válidos para importar.'); return }
     setBusy(true)
     try {
-      const res = await api.importTransactions({ accountId: Number(importAccountId), rows: preview.rows })
+      const res = await api.importTransactions({
+        accountId: Number(importAccountId), rows: preview.rows, closingBalance: preview.closingBalance,
+      })
       setImportModal(false)
       await load()
       toast.success('Extrato importado',
-        `${res.imported} movimento(s) adicionados${res.skipped ? ` · ${res.skipped} duplicado(s) ignorados` : ''}.`)
+        `${res.imported} movimento(s) adicionados${res.skipped ? ` · ${res.skipped} duplicado(s) ignorados` : ''}.`
+        + (preview.closingBalance != null ? ` Saldo da conta atualizado para ${fmtEur(res.balance)}.` : ''))
     } catch (e) { toast.error('Erro ao importar', e.message) }
     finally { setBusy(false) }
   }
@@ -716,6 +719,9 @@ export default function ExpensesPage() {
                 </div>
                 <p className="dim import-range">
                   Período: {fmtD(minDate)} a {fmtD(maxDate)}{months > 1 ? ` · ${months} meses` : ''}
+                  {preview.closingBalance != null
+                    ? ` · saldo da conta passa a ${fmtEur(preview.closingBalance)}`
+                    : ' · sem saldo no extrato, o saldo da conta fica como está'}
                 </p>
                 <ul className="event-list">
                   {preview.rows.slice(0, 8).map((r, i) => (

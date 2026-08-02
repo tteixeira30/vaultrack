@@ -63,8 +63,10 @@ public class ExpenseController {
                                  BigDecimal amount, boolean inflow, String category) {}
     public record ImportRow(@NotNull LocalDate date, @NotBlank String description,
                             @NotNull @Positive BigDecimal amount, boolean inflow, String category) {}
-    public record ImportRequest(@NotNull Long accountId, @NotEmpty List<@Valid ImportRow> rows) {}
-    public record ImportResult(int imported, int skipped) {}
+    /** closingBalance: saldo da conta no fim do extrato, em EUR; null quando o extrato não o traz. */
+    public record ImportRequest(@NotNull Long accountId, @NotEmpty List<@Valid ImportRow> rows,
+                                BigDecimal closingBalance) {}
+    public record ImportResult(int imported, int skipped, BigDecimal balance) {}
     public record CategoryTotal(String category, BigDecimal total) {}
     public record MonthSummary(String month, BigDecimal inflows, BigDecimal outflows, BigDecimal net,
                                List<CategoryTotal> byCategory, List<AccountDto> accounts,
@@ -198,6 +200,7 @@ public class ExpenseController {
     }
 
     @PostMapping("/transactions")
+    @Transactional
     public TransactionDto create(@AuthenticationPrincipal User user, @Valid @RequestBody TransactionRequest req) {
         Account a = requireAccount(user, req.accountId());
         Transaction t = new Transaction();
@@ -205,18 +208,35 @@ public class ExpenseController {
         t.setAccountId(a.getId());
         apply(user, t, req);
         TransactionDto dto = toDto(transactions.save(t), Map.of(a.getId(), a.getName()));
+        shiftBalance(a, effect(t.getAmount(), t.isInflow()));
         if (Boolean.TRUE.equals(req.applyToSimilar())) applyCategoryRule(user, t.getDescription(), t.getCategory());
         return dto;
     }
 
     @PutMapping("/transactions/{id}")
+    @Transactional
     public TransactionDto update(@AuthenticationPrincipal User user, @PathVariable Long id,
                                  @Valid @RequestBody TransactionRequest req) {
         Transaction t = transactions.findByIdAndUserId(id, user.getId()).orElseThrow();
+        Long fromAccountId = t.getAccountId();
+        BigDecimal before = effect(t.getAmount(), t.isInflow());
+
         Account a = requireAccount(user, req.accountId());
         t.setAccountId(a.getId());
         apply(user, t, req);
         TransactionDto dto = toDto(transactions.save(t), Map.of(a.getId(), a.getName()));
+
+        // saldo: desfaz o efeito antigo e aplica o novo. Na mesma conta é um só
+        // ajuste (a diferença) — carregar a conta duas vezes arriscava que a
+        // segunda gravação apagasse a primeira.
+        BigDecimal after = effect(t.getAmount(), t.isInflow());
+        if (Objects.equals(fromAccountId, a.getId())) {
+            shiftBalance(a, after.subtract(before));
+        } else {
+            accounts.findByIdAndUserId(fromAccountId, user.getId()).ifPresent(from -> shiftBalance(from, before.negate()));
+            shiftBalance(a, after);
+        }
+
         if (Boolean.TRUE.equals(req.applyToSimilar())) applyCategoryRule(user, t.getDescription(), t.getCategory());
         return dto;
     }
@@ -259,8 +279,13 @@ public class ExpenseController {
     }
 
     @DeleteMapping("/transactions/{id}")
+    @Transactional
     public void delete(@AuthenticationPrincipal User user, @PathVariable Long id) {
-        transactions.findByIdAndUserId(id, user.getId()).ifPresent(transactions::delete);
+        transactions.findByIdAndUserId(id, user.getId()).ifPresent(t -> {
+            transactions.delete(t);
+            accounts.findByIdAndUserId(t.getAccountId(), user.getId())
+                    .ifPresent(a -> shiftBalance(a, effect(t.getAmount(), t.isInflow()).negate()));
+        });
     }
 
     // ---------- Categorias personalizadas ----------
@@ -322,8 +347,14 @@ public class ExpenseController {
      * A comparação é por contagem (multiset): um extrato pode ter movimentos
      * legitimamente idênticos (ex.: duas compras iguais no mesmo dia) e cada
      * ocorrência já existente na conta só absorve uma ocorrência do ficheiro.
+     *
+     * O saldo da conta passa a ser o do fim do extrato, quando o ficheiro o traz —
+     * é o banco a dizer o saldo, o que é mais fiável do que somar movimentos (somar
+     * duplicaria num extrato de um período já refletido no saldo). Extratos sem
+     * coluna de saldo deixam o saldo como está.
      */
     @PostMapping("/import")
+    @Transactional
     public ImportResult importRows(@AuthenticationPrincipal User user, @Valid @RequestBody ImportRequest req) {
         Account a = requireAccount(user, req.accountId());
 
@@ -361,7 +392,14 @@ public class ExpenseController {
             imported++;
         }
         transactions.saveAll(batch);
-        return new ImportResult(imported, skipped);
+
+        // ao contrário do shiftBalance, aqui até uma conta sem saldo definido o ganha:
+        // não é um valor deduzido de movimentos, é o saldo que o banco declara
+        if (req.closingBalance() != null) {
+            a.setCurrentBalance(roundBalance(req.closingBalance()));
+            accounts.save(a);
+        }
+        return new ImportResult(imported, skipped, a.getCurrentBalance());
     }
 
     // ---------- Helpers ----------
@@ -385,6 +423,23 @@ public class ExpenseController {
         t.setAmount(req.amount().setScale(2, RoundingMode.HALF_UP));
         t.setInflow(req.inflow());
         t.setCategory(resolveCategory(user, req.category()));
+    }
+
+    /** Efeito de um movimento no saldo: entradas somam, saídas subtraem. */
+    private static BigDecimal effect(BigDecimal amount, boolean inflow) {
+        return inflow ? amount : amount.negate();
+    }
+
+    /**
+     * Aplica ao saldo da conta o efeito de um movimento (positivo entra, negativo sai).
+     * Contas com saldo por definir ficam como estão: null é "não definido" e não deve
+     * virar um saldo inventado a partir de um único movimento — o utilizador tem de o
+     * escrever primeiro (ou importar um extrato, que traz o saldo real do banco).
+     */
+    private void shiftBalance(Account a, BigDecimal delta) {
+        if (a.getCurrentBalance() == null || delta.signum() == 0) return;
+        a.setCurrentBalance(roundBalance(a.getCurrentBalance().add(delta)));
+        accounts.save(a);
     }
 
     private static YearMonth parseMonth(String month) {

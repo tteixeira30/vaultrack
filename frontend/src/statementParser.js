@@ -429,7 +429,30 @@ export function buildTransactions(dataRows, mapping, dateHint, openingBalance = 
       }
     }),
     ignored,
+    closingBalance: closingBalanceOf(out),
   }
+}
+
+/**
+ * Saldo da conta no fim do extrato — o saldo do movimento mais recente. É o
+ * próprio banco a dizer o saldo, por isso vale mais do que ir somando movimentos
+ * (que duplicaria se o extrato for de um período já refletido no saldo).
+ *
+ * Só o devolve depois de confirmar que a coluna de saldo bate certo com os
+ * movimentos (cada saldo = saldo anterior + valor do movimento). Se a coluna foi
+ * mal lida, ou se o extrato começa a meio de um período, os saldos não encadeiam
+ * e mais vale não mexer no saldo da conta do que pô-lo errado.
+ */
+function closingBalanceOf(entries) {
+  if (entries.length === 0 || entries.some((r) => r.balance == null)) return null
+
+  // documento por ordem decrescente (mais recente primeiro) → o fecho é a 1.ª linha
+  const chronological = entries[0].date > entries[entries.length - 1].date ? [...entries].reverse() : entries
+  for (let i = 1; i < chronological.length; i++) {
+    const delta = chronological[i].balance - chronological[i - 1].balance
+    if (Math.abs(delta - chronological[i].value) > 0.015) return null
+  }
+  return chronological[chronological.length - 1].balance
 }
 
 /**
