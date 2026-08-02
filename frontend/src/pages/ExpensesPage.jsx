@@ -292,7 +292,7 @@ export default function ExpensesPage() {
   ]
   const setMap = (key, v) => setMapping((m) => ({ ...m, [key]: Number(v) }))
 
-  const FORMAT_LABEL = { revolut: 'Revolut', santander: 'Santander', generic: 'genérico', unknown: 'não reconhecido' }
+  const FORMAT_LABEL = { revolut: 'Revolut', santander: 'Santander', traderepublic: 'Trade Republic', generic: 'genérico', unknown: 'não reconhecido' }
 
   // ---------- render ----------
 
