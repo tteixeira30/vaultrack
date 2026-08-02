@@ -287,15 +287,21 @@ export default function ExpensesPage() {
   // importação exige data, valor, sentido e descrição iguais, por isso o mesmo
   // extrato noutro formato pode passar-lhe ao lado e duplicar movimentos — mais
   // vale avisar antes de importar do que deixar descobrir depois.
-  const [periodUsage, setPeriodUsage] = useState(null)
+  // A contagem guarda a conta e o período a que pertence: assim não é preciso
+  // limpá-la ao mudar de conta (bastam a chave e o render deixarem de bater
+  // certo) e nunca se mostra o número de uma consulta anterior.
+  const usageKey = importModal && importAccountId && previewRange
+    ? `${importAccountId}|${previewRange.min}|${previewRange.max}`
+    : null
+  const [periodUsage, setPeriodUsage] = useState(null) // { key, count }
   useEffect(() => {
-    if (!importModal || !importAccountId || !previewRange) { setPeriodUsage(null); return }
+    if (!usageKey) return undefined
     let cancelled = false
     api.getPeriodUsage(Number(importAccountId), previewRange.min, previewRange.max)
-      .then((r) => { if (!cancelled) setPeriodUsage(r.transactionCount) })
-      .catch(() => { if (!cancelled) setPeriodUsage(null) })
+      .then((r) => { if (!cancelled) setPeriodUsage({ key: usageKey, count: r.transactionCount }) })
+      .catch(() => {})
     return () => { cancelled = true }
-  }, [importModal, importAccountId, previewRange])
+  }, [usageKey, importAccountId, previewRange])
 
   const doImport = async () => {
     if (!importAccountId) { toast.error('Conta em falta', 'Escolhe a conta a que pertence o extrato.'); return }
@@ -744,9 +750,9 @@ export default function ExpensesPage() {
                     ? ` · saldo da conta passa a ${fmtEur(preview.closingBalance)}`
                     : ' · sem saldo no extrato, o saldo da conta fica como está'}
                 </p>
-                {periodUsage > 0 && (
+                {periodUsage?.key === usageKey && periodUsage.count > 0 && (
                   <p className="import-overlap" role="status">
-                    Esta conta já tem {periodUsage} movimento(s) neste período. Os que forem
+                    Esta conta já tem {periodUsage.count} movimento(s) neste período. Os que forem
                     exatamente iguais (data, valor, sentido e descrição) são ignorados, mas o
                     mesmo extrato noutro formato pode trazer datas ou descrições ligeiramente
                     diferentes e entrar duas vezes.
