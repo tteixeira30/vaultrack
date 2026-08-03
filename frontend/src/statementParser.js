@@ -165,11 +165,12 @@ export const HEADER_HINTS = /data|date|descri|description|montante|amount|valor|
 
 // Colunas de saída (débito) e de entrada (crédito), quando o extrato as separa.
 // Além do débito/crédito clássico há os extratos em inglês com "Money in"/"Money out"
-// (Trade Republic) ou "Paid in"/"Paid out", e os PT com "Entradas"/"Saídas".
-const DEBIT_HEADER = /d[eé]bito|debit(?!\s*card)|money\s*out|paid\s*out|sa[ií]das?\b/i
-const CREDIT_HEADER = /cr[eé]dito|credit(?!\s*card)|money\s*in|paid\s*in|entradas?\b/i
+// (Trade Republic) ou "Paid in"/"Paid out", os PT com "Entradas"/"Saídas" e os da
+// Revolut, que lhes chama "Dinheiro retirado"/"Dinheiro recebido".
+const DEBIT_HEADER = /d[eé]bito|debit(?!\s*card)|money\s*out|paid\s*out|sa[ií]das?\b|retirad[oa]s?\b|levantamentos?\b/i
+const CREDIT_HEADER = /cr[eé]dito|credit(?!\s*card)|money\s*in|paid\s*in|entradas?\b|recebid[oa]s?\b|dep[oó]sitos?\b/i
 
-const OPENING_BALANCE_LABEL = /saldo\s*(anterior|inicial|de\s*abertura)|opening\s*balance/i
+const OPENING_BALANCE_LABEL = /saldo\s*(dispon[ií]vel\s*)?(anterior|inicial|de\s*abertura)|opening\s*balance/i
 
 /**
  * Procura o saldo inicial do extrato (linha "Saldo anterior"/"Saldo inicial"),
@@ -178,7 +179,8 @@ const OPENING_BALANCE_LABEL = /saldo\s*(anterior|inicial|de\s*abertura)|opening\
  */
 export function findOpeningBalance(rows) {
   if (!rows) return null
-  for (const r of rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]
     const idx = r.findIndex((c) => OPENING_BALANCE_LABEL.test(String(c)))
     if (idx === -1) continue
     // valor noutra célula numérica da mesma linha (o rótulo e o valor costumam estar separados)
@@ -190,6 +192,15 @@ export function findOpeningBalance(rows) {
     // ou um número no fim da própria célula do rótulo ("Saldo anterior: 1.000,00 €")
     const m = String(r[idx]).match(/(-?\(?[\d.,]+\)?)\s*€?\s*$/)
     if (m) { const v = parseAmount(m[1]); if (v != null) return v }
+    // ou o rótulo é o cabeçalho de uma coluna e o valor está na linha abaixo (nos
+    // quadros-resumo dos PDF). Só vale quando o rótulo está sozinho na célula: se
+    // veio colado ao cabeçalho da coluna seguinte, o alinhamento por índice deixa
+    // de ser fiável e leria o valor da coluna errada.
+    const label = String(r[idx])
+    const matched = label.match(OPENING_BALANCE_LABEL)
+    const alone = matched && label.replace(matched[0], '').trim() === ''
+    const below = rows[i + 1]
+    if (alone && below) { const v = parseAmount(below[idx]); if (v != null) return v }
   }
   return null
 }
@@ -269,7 +280,12 @@ export function analyzeRows(rows) {
     // Revolut (EN): Type, Product, Started Date, Completed Date, Description, Amount, Fee, Currency, State, Balance
     // Revolut (PT): Tipo, Produto, Data de início, Data de Conclusão, Descrição, Montante, Comissão, Moeda, Estado, Saldo
     format = 'revolut'
-    mapping.date = find(/completed date|data de conclus/)
+    // Usa-se a data de início (quando a compra foi feita) e não a de conclusão
+    // (quando o banco a liquidou, tipicamente na manhã seguinte): é a data que o
+    // utilizador reconhece e é a mesma que o extrato PDF da Revolut traz na coluna
+    // "Data Lançamento". Com datas diferentes, importar o CSV e o PDF do mesmo mês
+    // duplicava quase todos os movimentos — a deduplicação compara a data exata.
+    mapping.date = find(/started date|data de in[ií]cio/)
     mapping.description = find(/^description$|^descri/)
     mapping.amount = find(/^amount$|^montante$/)
   } else {
@@ -277,7 +293,17 @@ export function analyzeRows(rows) {
     mapping.description = find(/descri|description|movimento|detalhe|details?|narrative|memo|referência|referencia|concept/)
     mapping.debit = find(DEBIT_HEADER)
     mapping.credit = find(CREDIT_HEADER)
-    if (mapping.debit === -1 || mapping.credit === -1) {
+    if (mapping.debit !== -1 && mapping.debit === mapping.credit) {
+      // Os dois rótulos caíram na mesma célula: nos PDF as colunas de saída e de
+      // entrada são estreitas e vizinhas, e rótulos longos ("Saída de dinheiro"
+      // Entrada de dinheiro", da Revolut em PT) acabam colados num só cabeçalho.
+      // Nesse caso a coluna é uma só e não diz o sentido — trata-se como uma
+      // coluna de montante sem sinal e deduz-se o sentido pelo saldo (ver
+      // inferSignsFromBalance). Sem isto, o mesmo índice servia de débito e de
+      // crédito e todos os movimentos entravam como saídas.
+      mapping.amount = mapping.debit
+      mapping.debit = -1; mapping.credit = -1
+    } else if (mapping.debit === -1 || mapping.credit === -1) {
       mapping.debit = -1; mapping.credit = -1
       mapping.amount = find(/montante|^amount$|^valor\b|import[aâ]ncia|^value/)
     }
@@ -326,14 +352,18 @@ function refineMappingWithData(mapping, headers, dataRows, dateHint) {
   }
 
   // coluna do montante (quando não há débito/crédito): valores numéricos, excluindo
-  // data e saldo; em caso de empate fica a coluna mais à direita (posição habitual)
+  // data e saldo. Entre as candidatas fica a que tem valor em mais linhas — uma
+  // coluna de montante está preenchida em todos os movimentos, enquanto colunas
+  // vizinhas (ex.: só os depósitos) só têm valor numas poucas; em caso de empate
+  // fica a mais à direita (posição habitual do montante).
   if (mapping.debit === -1
       && (mapping.amount === -1 || mapping.amount === mapping.date || rate(mapping.amount, parseAmount) < 0.5)) {
-    let best = -1, bestRate = 0.5
+    let best = -1, bestFilled = 0
     for (let k = 0; k < ncols; k++) {
       if (k === mapping.date || k === mapping.balance || k === mapping.description) continue
-      const r = rate(k, parseAmount)
-      if (r >= bestRate) { bestRate = r; best = k }
+      if (rate(k, parseAmount) < 0.5) continue
+      const filled = sample.filter((r) => r[k] != null && String(r[k]).trim() !== '').length
+      if (filled >= bestFilled) { bestFilled = filled; best = k }
     }
     if (best !== -1) mapping.amount = best
   }
@@ -413,8 +443,17 @@ export function buildTransactions(dataRows, mapping, dateHint, openingBalance = 
   // Extratos sem sinal no montante (comum em PDF): infere entrada/saída pela evolução do saldo.
   if (mapping.amount !== -1 && mapping.balance !== -1 && out.length >= 1 && !out.some((r) => r.value < 0)) {
     const signs = inferSignsFromBalance(out, openingBalance)
-    if (signs) for (let i = 0; i < out.length; i++) {
-      if (signs[i] !== 0) out[i].value = signs[i] * Math.abs(out[i].value)
+    if (signs) {
+      // O sentido do 1.º movimento cronológico só se resolve com o saldo inicial
+      // (não há saldo anterior com que o comparar); sem ele, e nos raros casos em
+      // que o saldo não encadeia, o sinal fica por determinar. Nesses movimentos
+      // segue-se o sentido dominante do extrato em vez de os deixar positivos —
+      // dar uma saída como entrada inventava rendimento que não existe.
+      const resolved = signs.filter((s) => s !== 0)
+      const fallback = resolved.filter((s) => s > 0).length * 2 > resolved.length ? 1 : -1
+      for (let i = 0; i < out.length; i++) {
+        out[i].value = (signs[i] || fallback) * Math.abs(out[i].value)
+      }
     }
   }
 

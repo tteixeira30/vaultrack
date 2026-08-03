@@ -234,3 +234,80 @@ describe('extrato Trade Republic — do PDF aos movimentos', () => {
     expect(closingBalance).toBe(237.66)
   })
 })
+
+
+describe('extrato Revolut PT — do PDF aos movimentos', () => {
+  // Coordenadas reais de um extrato mensal da Revolut Bank UAB, Sucursal em
+  // Portugal (conta EUR, PT-PT). Particularidades: o cabeçalho ocupa três linhas
+  // de texto ("Data"+"Lançamento", "Saldo"+"contabilístico"), há duas colunas de
+  // data (lançamento e data-valor) e a Revolut chama às colunas de sentido
+  // "Dinheiro retirado"/"Dinheiro recebido" — que não eram reconhecidas como
+  // débito/crédito. Sem isso o montante era lido da coluna dos débitos e as
+  // linhas de entrada, com essa célula vazia, eram descartadas em silêncio.
+  const it9 = (str, x, y, width) => item(str, x, y, width, 9)
+  const items = [
+    // quadro-resumo do saldo: rótulos em cima, valores na linha de baixo
+    it9('Produto', 42.7, 516.9, 31.9), it9('Saldo disponível', 253, 523.7, 65.4),
+    it9('inicial', 253, 510.2, 23.3), it9('Dinheiro retirado', 335.1, 516.9, 66.4),
+    it9('Dinheiro recebido', 417.1, 516.9, 70), it9('Saldo', 530.8, 530.4, 22.6),
+    it9('disponível', 512.8, 516.9, 40.5), it9('final', 538.3, 503.4, 17.3),
+    it9('Conta (Conta Corrente)', 42.7, 483.4, 92.6), it9('18,84€', 253, 483.4, 27),
+    it9('166,34€', 335.1, 483.4, 32.1), it9('384,99€', 417.1, 483.4, 32.1),
+    it9('237,49€', 523.5, 483.4, 32.1),
+    // cabeçalho da tabela de movimentos, repartido por três linhas a 6,75pt
+    it9('Data', 42.7, 386.3, 18.6), it9('Saldo', 530.8, 386.3, 22.6),
+    it9('Data-Valor', 104.3, 379.5, 42), it9('Descrição', 165.8, 379.5, 39.9),
+    it9('Dinheiro retirado', 335.1, 379.5, 66.4), it9('Dinheiro recebido', 417.1, 379.5, 70),
+    it9('Lançamento', 42.7, 372.8, 50), it9('contabilístico', 501.8, 372.8, 53.8),
+    // entrada: valor na coluna "Dinheiro recebido", descrição em duas linhas
+    it9('02/07/2026', 42.7, 352.8, 47.8), it9('02/07/2026', 104.3, 352.8, 47.8),
+    it9('Carregamento com Apple Pay através de', 165.8, 352.8, 163.1),
+    it9('200,00€', 417.1, 352.8, 32.1), it9('218,84€', 523.5, 352.8, 32.1),
+    it9('*3181', 165.8, 339.8, 24.1),
+    // linha de detalhe do movimento (sem data nem valor) — não é um movimento
+    it9('De: *3181', 165.8, 328.5, 39.1),
+    // saída: valor na coluna "Dinheiro retirado"
+    it9('03/07/2026', 42.7, 310.9, 47.8), it9('04/07/2026', 104.3, 310.9, 47.8),
+    it9('Cafetaria Centro Hos', 165.8, 310.9, 83.8),
+    it9('2,85€', 335.1, 310.9, 22), it9('215,99€', 523.5, 310.9, 32.1),
+  ]
+  const rows = linesToTable(mergeWrappedLines(itemsToLines(items)))
+
+  it('reconstrói o cabeçalho repartido por várias linhas de texto', () => {
+    expect(analyzeRows(rows).headers).toEqual([
+      'Data Lançamento', 'Data-Valor', 'Descrição',
+      'Dinheiro retirado', 'Dinheiro recebido', 'Saldo contabilístico',
+    ])
+  })
+
+  it('reconhece "Dinheiro retirado"/"Dinheiro recebido" como débito/crédito', () => {
+    // a data é a de lançamento (não a data-valor) e o sentido vem da coluna
+    expect(analyzeRows(rows).mapping)
+      .toMatchObject({ date: 0, description: 2, debit: 3, credit: 4, balance: 5, amount: -1 })
+  })
+
+  it('importa a entrada como entrada e a saída como saída', () => {
+    const analysis = analyzeRows(rows)
+    const { rows: txs, ignored } = buildTransactions(
+      analysis.dataRows, analysis.mapping, analysis.dateHint, analysis.openingBalance,
+    )
+    expect(txs).toEqual([
+      // a descrição fica pela 1.ª linha: o resto ("*3181") vem numa linha de
+      // continuação igual às de detalhe ("De:", "Para:", "Cartão:"), que não
+      // pertencem à descrição — juntá-las estragaria a chave de categorização
+      {
+        date: '2026-07-02', description: 'Carregamento com Apple Pay através de',
+        amount: 200, inflow: true, category: 'TRANSFER',
+      },
+      { date: '2026-07-03', description: 'Cafetaria Centro Hos', amount: 2.85, inflow: false, category: 'OTHER' },
+    ])
+    // as linhas de detalhe ("De: *3181") não contam como movimento falhado
+    expect(ignored).toBe(0)
+  })
+
+  it('não toma o total retirado do resumo por saldo inicial', () => {
+    // "Saldo disponível inicial" vem colado a "Dinheiro retirado" no quadro-resumo:
+    // alinhar por índice leria 166,34€ (total retirado) em vez do saldo inicial
+    expect(analyzeRows(rows).openingBalance).not.toBe(166.34)
+  })
+})
