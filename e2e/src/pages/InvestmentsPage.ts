@@ -56,9 +56,14 @@ export class InvestmentsPage extends TabPage {
     const viewport = this.page.viewportSize()
     expect(viewport, 'o viewport tem de estar definido').not.toBeNull()
 
+    // poll: a sheet entra com uma animação de 280ms e estar visível não é o
+    // mesmo que ter chegado ao fundo
+    await expect.poll(async () => {
+      const box = await sheet.boundingBox()
+      return box ? Math.round(box.y + box.height) : null
+    }, { message: 'a sheet do seletor tem de assentar no fundo do ecrã' }).toBe(viewport!.height)
+
     const box = await sheet.boundingBox()
-    expect(box, 'a sheet do seletor tem de estar visível').not.toBeNull()
-    expect(Math.round(box!.y + box!.height)).toBe(viewport!.height)
     expect(Math.round(box!.width)).toBe(viewport!.width)
   }
 

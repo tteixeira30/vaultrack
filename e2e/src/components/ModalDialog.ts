@@ -32,15 +32,24 @@ export class ModalDialog {
     await expect(this.root).toBeHidden()
   }
 
-  /** Em ecrãs pequenos o modal é um bottom sheet: colado ao fundo e à largura toda. */
+  /**
+   * Em ecrãs pequenos o modal é um bottom sheet: colado ao fundo e à largura
+   * toda.
+   *
+   * A medição usa `expect.poll` porque a sheet entra com uma animação de 280ms
+   * (`sheet-in`, translateY): ficar visível não significa ter chegado ao sítio,
+   * e uma leitura única apanhava-a a meio do percurso.
+   */
   async expectBottomSheet(): Promise<void> {
     const viewport = this.page.viewportSize()
     expect(viewport, 'o viewport tem de estar definido').not.toBeNull()
 
-    const box = await this.root.boundingBox()
-    expect(box, 'o modal tem de estar visível').not.toBeNull()
+    await expect.poll(async () => {
+      const box = await this.root.boundingBox()
+      return box ? Math.round(box.y + box.height) : null
+    }, { message: 'o modal tem de assentar no fundo do ecrã' }).toBe(viewport!.height)
 
-    expect(Math.round(box!.y + box!.height)).toBe(viewport!.height)
+    const box = await this.root.boundingBox()
     expect(Math.round(box!.width)).toBe(viewport!.width)
   }
 

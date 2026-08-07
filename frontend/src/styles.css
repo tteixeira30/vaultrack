@@ -11,6 +11,10 @@
   --text-dim: #8b93a7;
   --text-faint: #808aa0; /* AA: ≥4.5:1 sobre superfícies escuras (antes #5c6478 falhava) */
   --accent: #5457ee;     /* AA: texto branco ~5.3:1 (antes #6366f1 dava 4.47) */
+  /* Accent como TEXTO sobre fundo escuro: o --accent dá só 3.68:1, abaixo dos
+     4.5 exigidos. Este tom claro dá 8.9:1. No tema claro o problema inverte-se
+     e é o --accent que serve (5.3:1 sobre branco). */
+  --accent-text: #a5a8ff;
   --accent-soft: rgba(99, 102, 241, 0.14);
   --cyan: #22d3ee;
   --green: #10b981;
@@ -91,6 +95,7 @@
   --text: #1a1e2c;
   --text-dim: #5a6478;
   --text-faint: #646d84; /* AA: ≥4.5:1 sobre cartões claros (antes #8b93a7 falhava) */
+  --accent-text: var(--accent); /* sobre fundo claro é o tom escuro que contrasta */
   --green: #047d58;      /* AA como texto em fundo claro; o escuro mantém o verde vivo #10b981 */
   --accent-soft: rgba(99, 102, 241, 0.12);
   --green-soft: rgba(16, 185, 129, 0.12);
@@ -449,7 +454,9 @@ button, .nav-item, .account-chip, .cal-cell {
     cursor: pointer;
     transition: color var(--dur-1);
   }
-  .bottom-nav button.active { color: var(--accent); }
+  /* --accent-text e não --accent: o rótulo tem 10.5px, é texto pequeno, e o
+     accent sobre a barra escura dava 3.68:1 — o axe apanhou isto. */
+  .bottom-nav button.active { color: var(--accent-text); }
   .bottom-nav button.active svg { transform: scale(1.08); }
   .bottom-nav button svg { transition: transform var(--dur-2) var(--ease-spring); }
   .bottom-nav button:active { background: var(--surface-2); }
