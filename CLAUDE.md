@@ -101,8 +101,44 @@ testes e os leitores de ecrã ao mesmo tempo.
 - **Sem router.** `App.jsx` alterna páginas por um estado `tab`. Novos separadores: adicionar ao array `TABS` e ao `main`.
 - **`api.js`** é o único cliente HTTP. Anexa o Bearer token, trata 401 (limpa sessão). Exporta `fmtEur`, `fmtMoneyShort`, `fmtPct`, `toEur`, `setDisplayCurrency`.
 - **Contextos/components**: `AuthContext` (sessão + moeda), `Toast` (`useToast()`), `Modal` + `ConfirmDialog`. `Icons.jsx` são SVG inline (adiciona novos aqui).
-- **Estilos**: um único `styles.css` com design tokens em `:root` (`--bg`, `--accent`, `--cyan`, `--green`, `--red`, `--radius`, …). Mobile via media queries: em `max-width: 900px` a sidebar vira barra de topo e surge o `.bottom-nav`. Segue as classes/tokens existentes; evita estilos inline exceto valores dinâmicos.
+- **Estilos**: um único `styles.css` com design tokens em `:root`. Segue as classes/tokens existentes; evita estilos inline exceto valores dinâmicos.
 - Formata dinheiro **sempre** via `fmtEur`/`fmtMoneyShort` (respeitam a moeda base). Converte inputs monetários com `toEur` antes de enviar.
+
+### Tokens de `styles.css`
+
+Além das cores (`--bg`, `--surface*`, `--text*`, `--accent`, `--cyan`, `--green`, `--red`, `--amber`,
+`--radius`, `--shadow`), existem escalas que **devem** ser usadas em vez de números soltos:
+
+| Grupo | Tokens |
+|---|---|
+| Espaçamento | `--sp-1` (4px) … `--sp-8` (32px) |
+| Camadas | `--z-sidebar` 40, `--z-nav` 50, `--z-pop` 60, `--z-modal` 100, `--z-portal` 200, `--z-toast` 200 |
+| Movimento | `--dur-1/2/3` (120/200/280ms), `--ease-out`, `--ease-spring` |
+| Toque | `--tap` (44px, alvo tátil mínimo) |
+| Chrome mobile | `--nav-h` (62px), `--topbar-h` (56px) |
+| Safe areas | `--safe-t/-b/-l/-r` (envolvem `env(safe-area-inset-*)`) |
+| Foco | `--ring` (anel de `:focus-visible`) |
+
+`--z-pop` é para popovers no fluxo (menu de perfil); `--z-portal` é para os popovers em portal
+(`Dropdown`, `DatePicker`), que têm de ficar **acima** dos modais.
+
+### Breakpoints (só estes quatro)
+
+As custom properties não funcionam dentro de `@media`, por isso os níveis estão documentados num
+comentário no topo do `styles.css`. Não inventes valores intermédios — foi assim que se chegou a
+sete breakpoints desiguais.
+
+- `<= 600px` — telemóvel em retrato: uma coluna, modais viram bottom sheets, `font-size: 16px` nos
+  campos (evita o zoom automático do iOS).
+- `<= 760px` — telemóvel em paisagem / tablet pequeno: `table.responsive` vira lista de cartões.
+- `<= 900px` — **fronteira "isto é mobile"**: a sidebar vira barra de topo, surge a `.bottom-nav`,
+  e todo o interativo passa a ter pelo menos `--tap` de altura.
+- `<= 1000px` — desktop estreito: só ajustes de grelha.
+
+Regras globais que já existem e não precisam de ser repetidas: supressão do realce de toque com
+`:active` próprios, `touch-action: manipulation`, `overscroll-behavior` nas sobreposições,
+`:focus-visible` com `--ring`, e um bloco `prefers-reduced-motion` que desliga animações.
+Usa `100dvh` (com `100vh` antes, como fallback) sempre que precises da altura do ecrã.
 
 ## Modelo de dados (entidades)
 

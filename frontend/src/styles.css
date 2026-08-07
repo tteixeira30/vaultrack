@@ -27,7 +27,58 @@
   --nav-bg: rgba(15, 18, 27, 0.88);
   --glow-1: rgba(99, 102, 241, 0.12);
   --glow-2: rgba(34, 211, 238, 0.07);
+
+  /* Escala de espaçamento */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* Camadas: manter esta ordem ao acrescentar sobreposições novas */
+  --z-sidebar: 40;
+  --z-nav: 50;
+  --z-pop: 60;      /* popovers no fluxo (menu de perfil) */
+  --z-modal: 100;
+  --z-portal: 200;  /* popovers em portal (Dropdown, DatePicker): acima dos modais */
+  --z-toast: 200;
+
+  /* Movimento */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 280ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.3, 1.05, 0.4, 1);
+
+  /* Alvo tátil mínimo (WCAG 2.2 AA: 24px; usamos 44px, a norma das apps móveis) */
+  --tap: 44px;
+
+  /* Altura do "chrome" mobile — a barra inferior e a barra de topo */
+  --nav-h: 62px;
+  --topbar-h: 56px;
+
+  /* Safe areas (notch). Precisam de viewport-fit=cover no index.html. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+
+  /* Anel de foco visível (teclado) */
+  --ring: 0 0 0 3px rgba(99, 102, 241, 0.45);
 }
+
+/* ---------- Breakpoints ----------
+   As custom properties não funcionam dentro de @media, por isso os níveis
+   ficam aqui documentados. Usa SEMPRE um destes quatro — não inventes valores
+   intermédios, é assim que se chega a sete breakpoints desiguais.
+
+     <= 600px   telemóvel em retrato: uma coluna, modais viram bottom sheets
+     <= 760px   telemóvel em paisagem / tablet pequeno: tabelas viram cartões
+     <= 900px   fronteira "isto é mobile": sidebar → barra de topo + barra inferior
+     <= 1000px  desktop estreito: só ajustes de grelha
+*/
 
 /* Tema claro: sobrepõe os tokens; o resto do CSS usa var() e adapta-se sozinho. */
 :root[data-theme="light"] {
@@ -61,7 +112,9 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 14px;
   line-height: 1.5;
+  /* dvh acompanha a barra de endereço do browser móvel; vh fica de fallback */
   min-height: 100vh;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -84,9 +137,72 @@ body::before {
 ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 6px; border: 2px solid var(--bg); }
 ::-webkit-scrollbar-track { background: transparent; }
 
+/* ---------- Comportamento tátil e acessibilidade ---------- */
+
+/* O realce azul do toque (Android/iOS) é substituído por estados :active
+   próprios, definidos logo a seguir — sem isto perdia-se todo o feedback. */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Remove o atraso de 300ms em WebViews antigas e o duplo-toque para zoom
+   nos controlos. O zoom continua disponível no resto da página. */
+button, [role='button'], a, label, summary,
+input[type='checkbox'], input[type='radio'], select {
+  touch-action: manipulation;
+}
+
+/* Um toque longo num controlo não deve selecionar o rótulo. */
+button, .nav-item, .account-chip, .cal-cell {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Sem hover no telemóvel, o :active é o único sinal de que o toque pegou. */
+.icon-btn:active { background: var(--surface-3); }
+.account-chip:active,
+.seg button:active,
+.range-buttons button:active,
+.mode-toggle button:active,
+.auth-tabs button:active { filter: brightness(1.15); }
+
+/* O scroll dentro de sobreposições não arrasta a página por trás. */
+.modal-body, .dd-pop, .dp-pop, .import-preview { overscroll-behavior: contain; }
+.table-wrap { overscroll-behavior-x: contain; }
+
+/* Foco visível por teclado. Os campos já têm anel próprio (ver "Forms"). */
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.nav-item:focus-visible,
+.bottom-nav button:focus-visible,
+.profile-trigger:focus-visible,
+.profile-item:focus-visible,
+.dd-trigger:focus-visible,
+.dd-option:focus-visible,
+.dp-trigger:focus-visible,
+.seg button:focus-visible,
+.range-buttons button:focus-visible,
+.mode-toggle button:focus-visible,
+.auth-tabs button:focus-visible,
+.account-chip:focus-visible,
+.toast-close:focus-visible,
+.alloc-toggle:focus-visible,
+.exp-back:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* Respeita a preferência do sistema por menos movimento. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ---------- Layout ---------- */
 
-.shell { display: flex; min-height: 100vh; }
+.shell { display: flex; min-height: 100vh; min-height: 100dvh; }
 
 .sidebar {
   width: var(--sidebar-w);
@@ -98,7 +214,7 @@ body::before {
   border-right: 1px solid var(--border);
   background: var(--sidebar-bg);
   backdrop-filter: blur(10px);
-  z-index: 40;
+  z-index: var(--z-sidebar);
 }
 
 .brand {
@@ -187,7 +303,7 @@ body::before {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
-  z-index: 60;
+  z-index: var(--z-pop);
 }
 .profile-head { display: flex; align-items: center; gap: 10px; padding: 6px 8px 10px; }
 .profile-sep { height: 1px; background: var(--border); margin: 5px 2px; }
@@ -260,10 +376,11 @@ body::before {
     align-items: center;
     justify-content: space-between;
     /* safe area de topo em ecrãs com notch (PWA/Capacitor, viewport-fit=cover) */
-    padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+    padding: calc(10px + var(--safe-t)) calc(var(--sp-4) + var(--safe-r))
+             10px calc(var(--sp-4) + var(--safe-l));
     border-right: none;
     border-bottom: 1px solid var(--border);
-    z-index: 40;
+    z-index: var(--z-sidebar);
   }
   .brand { padding: 0; gap: 9px; }
   .brand h1 { font-size: 17px; }
@@ -283,7 +400,13 @@ body::before {
   .profile-pop { bottom: auto; left: auto; right: 0; top: calc(100% + 10px); }
   .profile-pop .dd-pop { left: auto; right: 0; min-width: 140px; }
 
-  .main { margin-left: 0; padding: 20px 16px calc(96px + env(safe-area-inset-bottom)); }
+  .main {
+    margin-left: 0;
+    /* o fundo tem de limpar a barra inferior + a safe area do gesto de sistema */
+    padding: var(--sp-5) calc(var(--sp-4) + var(--safe-r))
+             calc(var(--nav-h) + var(--safe-b) + var(--sp-5))
+             calc(var(--sp-4) + var(--safe-l));
+  }
 
   /* navegação principal passa para o fundo, estilo app nativa */
   .bottom-nav {
@@ -292,31 +415,57 @@ body::before {
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 50;
+    z-index: var(--z-nav);
+    min-height: calc(var(--nav-h) + var(--safe-b));
     background: var(--nav-bg);
     backdrop-filter: blur(14px);
     border-top: 1px solid var(--border);
-    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    padding: var(--sp-2) calc(var(--sp-3) + var(--safe-r))
+             calc(var(--sp-2) + var(--safe-b))
+             calc(var(--sp-3) + var(--safe-l));
   }
   .bottom-nav button {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 3px;
+    min-height: var(--tap);
     background: none;
     border: none;
     color: var(--text-dim);
     font-family: inherit;
     font-size: 10.5px;
     font-weight: 600;
-    padding: 6px 4px;
+    padding: var(--sp-1) var(--sp-1);
     border-radius: 10px;
     cursor: pointer;
-    transition: color 0.15s;
+    transition: color var(--dur-1);
   }
   .bottom-nav button.active { color: var(--accent); }
   .bottom-nav button:active { background: var(--surface-2); }
+
+  /* Alvos táteis: no telemóvel nada de interativo desce abaixo de --tap.
+     Fica confinado ao mobile para não inchar a densidade do desktop. */
+  .icon-btn,
+  .btn,
+  .seg button,
+  .mode-toggle button,
+  .range-buttons button,
+  .account-chip,
+  .dd-option,
+  .toast-close,
+  .alloc-toggle,
+  .exp-back {
+    min-width: var(--tap);
+    min-height: var(--tap);
+  }
+  /* os chips têm conteúdo largo: chega garantir a altura */
+  .account-chip, .exp-back { min-width: 0; }
+  .theme-toggle .tt-opt { width: 40px; height: 34px; }
+  .dp-day { min-height: 40px; }
+  .check-row input[type='checkbox'] { width: 20px; height: 20px; }
 }
 
 /* ---------- Cards ---------- */
@@ -337,9 +486,9 @@ body::before {
 .grid-2 { grid-template-columns: 1fr 1fr; }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
 @media (max-width: 1000px) { .grid-4 { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 700px) {
+@media (max-width: 760px) {
   .grid-2 { grid-template-columns: 1fr; }
-  .grid-4 { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-4 { grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
   /* no telemóvel o donut + lista de categorias sobem para o topo (a seguir ao total);
      a tabela editável fica por baixo para gestão detalhada */
   .income-grid .income-overview { order: -1; }
@@ -380,7 +529,7 @@ body::before {
 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-grid .full { grid-column: 1 / -1; }
-@media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
 
 input, select, textarea {
   background-color: var(--surface-2);
@@ -577,7 +726,7 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
 /* ---------- Goals ---------- */
 
 .goals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-@media (max-width: 860px) { .goals-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .goals-grid { grid-template-columns: 1fr; } }
 
 .goal-card { margin-bottom: 0; display: flex; flex-direction: column; gap: 14px; }
 .goal-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
@@ -608,8 +757,8 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  z-index: 100;
+  padding: var(--sp-5);
+  z-index: var(--z-modal);
   animation: fade-in 0.16s ease;
 }
 
@@ -621,6 +770,7 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   box-shadow: var(--shadow);
   animation: modal-in 0.22s cubic-bezier(0.3, 1.1, 0.4, 1);
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   display: flex;
   flex-direction: column;
 }
@@ -667,7 +817,7 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   display: flex;
   flex-direction: column;
   gap: 10px;
-  z-index: 200;
+  z-index: var(--z-toast);
   width: min(360px, calc(100vw - 36px));
 }
 
@@ -955,8 +1105,8 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 
 /* ---------- Ajustes mobile ---------- */
 
-@media (max-width: 700px) {
-  .card { padding: 16px; border-radius: 12px; }
+@media (max-width: 760px) {
+  .card { padding: var(--sp-4); border-radius: 12px; }
   .page-head h2 { font-size: 20px; }
   .page-actions { width: 100%; }
   .page-actions .btn { flex: 1; justify-content: center; }
@@ -1004,7 +1154,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 
 /* modais viram bottom sheets em ecrãs pequenos */
 @media (max-width: 600px) {
-  input, select { font-size: 16px; } /* evita o zoom automático no iOS */
+  input, select, textarea { font-size: 16px; } /* evita o zoom automático no iOS */
 
   .modal-overlay { align-items: flex-end; padding: 0; }
   .modal {
@@ -1012,18 +1162,26 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
     border-radius: 20px 20px 0 0;
     border-bottom: none;
     max-height: calc(100dvh - 40px);
-    animation: sheet-in 0.28s cubic-bezier(0.3, 1.05, 0.4, 1);
+    animation: sheet-in var(--dur-3) var(--ease-spring);
   }
-  .modal-foot { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .modal-foot { padding-bottom: calc(var(--sp-4) + var(--safe-b)); }
   .modal-foot .btn { flex: 1; }
 
   .modal-confirm {
     border-radius: 20px 20px 0 0;
-    padding-bottom: calc(26px + env(safe-area-inset-bottom));
+    padding-bottom: calc(26px + var(--safe-b));
   }
   .confirm-actions .btn { flex: 1; }
 
-  .toast-stack { top: auto; bottom: calc(78px + env(safe-area-inset-bottom)); right: 12px; }
+  .toast-stack {
+    top: auto;
+    bottom: calc(var(--nav-h) + var(--safe-b) + var(--sp-3));
+    right: var(--sp-3);
+  }
+
+  /* rótulos da barra inferior encolhem para caber todos os separadores */
+  .bottom-nav button { font-size: 9.5px; padding: var(--sp-1) 2px; }
+  .bottom-nav button span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 
 @keyframes sheet-in { from { opacity: 0.4; transform: translateY(60px); } }
@@ -1050,7 +1208,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 }
 .month-label strong { font-size: 13.5px; font-weight: 600; white-space: nowrap; }
 
-@media (max-width: 700px) {
+@media (max-width: 760px) {
   .month-nav { width: 100%; justify-content: space-between; }
 }
 
@@ -1168,10 +1326,12 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 
 .auth-wrap {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: calc(var(--sp-6) + var(--safe-t)) calc(var(--sp-6) + var(--safe-r))
+           calc(var(--sp-6) + var(--safe-b)) calc(var(--sp-6) + var(--safe-l));
 }
 
 .auth-card {
@@ -1294,9 +1454,9 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .hero-chart .empty-state.compact { padding: 24px 8px; }
 .hero-chart .empty-state.compact .empty-icon { width: 44px; height: 44px; }
 
-@media (max-width: 860px) {
-  .dash-hero { grid-template-columns: 1fr; gap: 20px; }
-  .hero-chart { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: 16px; }
+@media (max-width: 900px) {
+  .dash-hero { grid-template-columns: 1fr; gap: var(--sp-5); }
+  .hero-chart { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: var(--sp-4); }
 }
 
 .kpi-grid {
@@ -1385,7 +1545,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 560px) {
+@media (max-width: 600px) {
   .kpi-grid { grid-template-columns: 1fr; }
 }
 
@@ -1407,7 +1567,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .datepicker.open .dp-trigger svg { color: var(--accent); }
 
 .dp-pop {
-  position: fixed; z-index: 200;
+  position: fixed; z-index: var(--z-portal);
   padding: 9px;
   width: 260px; max-width: calc(100vw - 32px);
   background: var(--surface); border: 1px solid var(--border-strong);
@@ -1460,7 +1620,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
      aqui ficam só o empilhamento e o visual. NÃO definir top/left/right: quando o
      menu abre para cima o inline só define `bottom`, e um `top` de CSS a sobrar
      empurrava o menu para fora do ecrã (ex.: seletor de moeda na barra lateral). */
-  z-index: 200; /* acima dos modais (z-index 100) */
+  z-index: var(--z-portal); /* acima dos modais */
   padding: 6px; display: flex; flex-direction: column; gap: 2px;
   background: var(--surface); border: 1px solid var(--border-strong);
   border-radius: var(--radius); box-shadow: var(--shadow);
@@ -1548,9 +1708,9 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .event-row > span.pos, .event-row > span.neg { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 13px; }
 .event-actions { display: flex; gap: 2px; flex-shrink: 0; }
 
-@media (max-width: 560px) {
-  .cal-cell { min-height: 52px; padding: 4px 5px; }
-  .cal-grid { gap: 4px; }
+@media (max-width: 600px) {
+  .cal-cell { min-height: 52px; padding: var(--sp-1) 5px; }
+  .cal-grid { gap: var(--sp-1); }
 }
 
 /* ---------- Conquistas ---------- */
@@ -1594,10 +1754,8 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 @media (max-width: 900px) {
   .ach-grid { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 560px) {
+@media (max-width: 600px) {
   .ach-grid { grid-template-columns: 1fr; }
-  .bottom-nav button { font-size: 9.5px; padding: 6px 2px; }
-  .bottom-nav button span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 
 /* ---------- Seletor de moeda ---------- */

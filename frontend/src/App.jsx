@@ -149,7 +149,7 @@ function Shell() {
   if (loading) {
     return (
       <div className="auth-wrap">
-        <div className="skeleton" style={{ width: 380, height: 420, borderRadius: 18 }} />
+        <div className="skeleton" style={{ width: 'min(380px, 100%)', height: 420, borderRadius: 18 }} />
       </div>
     )
   }
