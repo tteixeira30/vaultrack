@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useAuth } from '../components/AuthContext'
 import { useToast } from '../components/Toast'
+import { useIsMobile } from '../components/useMediaQuery'
 import { IconLogo } from '../components/Icons'
 
 export default function AuthPage() {
+  const ids = { name: useId(), email: useId(), password: useId(), invite: useId() }
+  // no telemóvel o autoFocus abre logo o teclado e tapa o cartão inteiro
+  const isMobile = useIsMobile()
   const { login, register } = useAuth()
   const toast = useToast()
   const [mode, setMode] = useState('login')
@@ -55,26 +59,36 @@ export default function AuthPage() {
         <form onSubmit={submit} className="auth-form">
           {!isLogin && (
             <div className="field">
-              <label>Nome</label>
-              <input placeholder="O teu nome" autoFocus value={form.name}
+              <label htmlFor={ids.name}>Nome</label>
+              <input id={ids.name} placeholder="O teu nome" autoFocus={!isMobile}
+                     autoComplete="name" enterKeyHint="next" value={form.name}
                      onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </div>
           )}
           <div className="field">
-            <label>Email</label>
-            <input type="email" placeholder="exemplo@email.com" autoFocus={isLogin} value={form.email}
+            <label htmlFor={ids.email}>Email</label>
+            <input id={ids.email} type="email" inputMode="email" placeholder="exemplo@email.com"
+                   autoFocus={isLogin && !isMobile}
+                   autoComplete={isLogin ? 'username' : 'email'}
+                   autoCapitalize="none" autoCorrect="off" spellCheck={false} enterKeyHint="next"
+                   value={form.email}
                    onChange={(e) => setForm({ ...form, email: e.target.value })} />
           </div>
           <div className="field">
-            <label>Palavra-passe</label>
-            <input type="password" placeholder={isLogin ? 'A tua palavra-passe' : 'Mínimo 6 caracteres'}
+            <label htmlFor={ids.password}>Palavra-passe</label>
+            <input id={ids.password} type="password"
+                   placeholder={isLogin ? 'A tua palavra-passe' : 'Mínimo 6 caracteres'}
+                   autoComplete={isLogin ? 'current-password' : 'new-password'}
+                   enterKeyHint={isLogin ? 'go' : 'next'}
                    value={form.password}
                    onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </div>
           {!isLogin && (
             <div className="field">
-              <label>Código de convite <span className="dim">(se aplicável)</span></label>
-              <input placeholder="Deixa vazio se não tiveres" value={form.inviteCode}
+              <label htmlFor={ids.invite}>Código de convite <span className="dim">(se aplicável)</span></label>
+              <input id={ids.invite} placeholder="Deixa vazio se não tiveres"
+                     autoComplete="off" autoCapitalize="characters" enterKeyHint="go"
+                     value={form.inviteCode}
                      onChange={(e) => setForm({ ...form, inviteCode: e.target.value })} />
             </div>
           )}

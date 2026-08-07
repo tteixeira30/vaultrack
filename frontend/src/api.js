@@ -144,9 +144,35 @@ export const CURRENCY_SYMBOLS = {
 /** Símbolo da moeda base ativa (ex: '€', '$'), para rótulos de campos monetários. */
 export const getCurrencySymbol = () => CURRENCY_SYMBOLS[displayCurrency] || displayCurrency
 
+/**
+ * Lê um número escrito por uma pessoa em PT-PT.
+ *
+ * Os campos monetários são `type="text"` com `inputMode="decimal"`: o teclado
+ * numérico do telemóvel oferece vírgula, e um `type="number"` descartava
+ * "1,5" em silêncio. Aceita as duas convenções:
+ *   "1234,56" → 1234.56    "1.234,56" → 1234.56    "1234.56" → 1234.56
+ * Devolve NaN quando não dá para ler — quem chama decide o que fazer.
+ */
+export const parseAmount = (v) => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : NaN
+  if (v == null) return NaN
+
+  let s = String(v).trim().replace(/\s/g, '')
+  if (s === '') return NaN
+
+  const hasComma = s.includes(',')
+  const hasDot = s.includes('.')
+  // com ambos, o ponto é separador de milhares e a vírgula é a decimal
+  if (hasComma && hasDot) s = s.replace(/\./g, '').replace(',', '.')
+  else if (hasComma) s = s.replace(',', '.')
+
+  const n = Number(s)
+  return Number.isFinite(n) ? n : NaN
+}
+
 /** Converte um valor introduzido na moeda base para EUR (para enviar ao backend). */
 export const toEur = (baseValue) => {
-  const n = Number(baseValue)
+  const n = parseAmount(baseValue)
   if (!Number.isFinite(n)) return baseValue
   return displayRate === 1 ? n : n / displayRate
 }

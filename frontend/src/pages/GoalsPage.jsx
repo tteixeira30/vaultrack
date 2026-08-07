@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { api, fmtEur, toEur, fromEur, getCurrencySymbol } from '../api'
+import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
-import { IconCalendar, IconCheck, IconPencil, IconPlus, IconRefresh, IconTarget } from '../components/Icons'
+import { IconCalendar, IconCheck, IconPencil, IconPlus, IconRefresh, IconTarget, IconTrash } from '../components/Icons'
 
 const EMPTY_FORM = { name: '', targetAmount: '', monthlyAllocation: '', savedAmount: '', autoDeposit: false, contributionDay: '1' }
 
@@ -33,9 +33,9 @@ export default function GoalsPage() {
     try {
       await api.addGoal({
         name: form.name.trim(),
-        targetAmount: toEur(Number(form.targetAmount)),
-        monthlyAllocation: toEur(Number(form.monthlyAllocation)),
-        savedAmount: toEur(Number(form.savedAmount) || 0),
+        targetAmount: toEur(parseAmount(form.targetAmount)),
+        monthlyAllocation: toEur(parseAmount(form.monthlyAllocation)),
+        savedAmount: toEur(parseAmount(form.savedAmount) || 0),
         autoDeposit: form.autoDeposit,
         contributionDay: form.autoDeposit ? (Number(form.contributionDay) || 1) : null,
       })
@@ -68,9 +68,9 @@ export default function GoalsPage() {
     try {
       await api.updateGoal(editing.id, {
         name: editForm.name.trim(),
-        targetAmount: toEur(Number(editForm.targetAmount)),
-        monthlyAllocation: toEur(Number(editForm.monthlyAllocation)),
-        savedAmount: toEur(Number(editForm.savedAmount) || 0),
+        targetAmount: toEur(parseAmount(editForm.targetAmount)),
+        monthlyAllocation: toEur(parseAmount(editForm.monthlyAllocation)),
+        savedAmount: toEur(parseAmount(editForm.savedAmount) || 0),
         autoDeposit: editForm.autoDeposit,
         contributionDay: editForm.autoDeposit ? (Number(editForm.contributionDay) || 1) : null,
       })
@@ -82,7 +82,7 @@ export default function GoalsPage() {
   }
 
   const contribute = async (goal) => {
-    const amount = Number(contrib[goal.id])
+    const amount = parseAmount(contrib[goal.id])
     if (!amount) {
       toast.error('Valor em falta', 'Indica o valor da contribuição.')
       return
@@ -133,9 +133,9 @@ export default function GoalsPage() {
   }
 
   const estimateMonths = () => {
-    const target = Number(form.targetAmount) || 0
-    const monthly = Number(form.monthlyAllocation) || 0
-    const saved = Number(form.savedAmount) || 0
+    const target = parseAmount(form.targetAmount) || 0
+    const monthly = parseAmount(form.monthlyAllocation) || 0
+    const saved = parseAmount(form.savedAmount) || 0
     if (target <= saved) return 'Objetivo já atingido com o valor poupado.'
     if (monthly <= 0) return null
     const months = Math.ceil((target - saved) / monthly)
@@ -185,7 +185,7 @@ export default function GoalsPage() {
                     <button className="icon-btn" onClick={() => openEdit(g)} aria-label="Editar" title="Editar">
                       <IconPencil size={16} />
                     </button>
-                    <button className="icon-btn danger" onClick={() => setToDelete(g)} aria-label="Eliminar">✕</button>
+                    <button className="icon-btn danger" onClick={() => setToDelete(g)} aria-label="Eliminar"><IconTrash size={15} /></button>
                   </div>
                 </div>
 
@@ -220,7 +220,7 @@ export default function GoalsPage() {
                 {!done && (
                   <div className="goal-contribute">
                     <div className="input-affix">
-                      <input type="number" step="0.01" placeholder="Valor"
+                      <input type="text" inputMode="decimal" enterKeyHint="done" placeholder="Valor"
                              value={contrib[g.id] ?? ''}
                              onChange={(e) => setContrib({ ...contrib, [g.id]: e.target.value })}
                              onKeyDown={(e) => e.key === 'Enter' && contribute(g)} />
@@ -254,7 +254,7 @@ export default function GoalsPage() {
           <div className="field">
             <label>Valor do objetivo</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" placeholder="Ex: 10000" value={form.targetAmount}
+              <input type="text" inputMode="decimal" placeholder="Ex: 10000" value={form.targetAmount}
                      onChange={(e) => setForm({ ...form, targetAmount: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
@@ -262,7 +262,7 @@ export default function GoalsPage() {
           <div className="field">
             <label>Alocação mensal</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" placeholder="Ex: 300" value={form.monthlyAllocation}
+              <input type="text" inputMode="decimal" placeholder="Ex: 300" value={form.monthlyAllocation}
                      onChange={(e) => setForm({ ...form, monthlyAllocation: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
@@ -270,7 +270,7 @@ export default function GoalsPage() {
           <div className="field full">
             <label>Já poupado <span className="dim">(opcional)</span></label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" placeholder="0" value={form.savedAmount}
+              <input type="text" inputMode="decimal" placeholder="0" value={form.savedAmount}
                      onChange={(e) => setForm({ ...form, savedAmount: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
@@ -287,10 +287,10 @@ export default function GoalsPage() {
               Também podes usar o botão "Simular depósito mensal".
             </span>
           </div>
-          {form.autoDeposit && Number(form.monthlyAllocation) > 0 && (
+          {form.autoDeposit && parseAmount(form.monthlyAllocation) > 0 && (
             <div className="field full">
               <label>Dia do mês do depósito</label>
-              <div className="input-affix" style={{ width: 110 }}>
+              <div className="input-affix field-narrow">
                 <input type="number" min="1" max="31" step="1" value={form.contributionDay}
                        onChange={(e) => setForm({ ...form, contributionDay: e.target.value })} />
                 <span className="affix">do mês</span>
@@ -318,7 +318,7 @@ export default function GoalsPage() {
           <div className="field">
             <label>Valor do objetivo</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" value={editForm.targetAmount}
+              <input type="text" inputMode="decimal" value={editForm.targetAmount}
                      onChange={(e) => setEditForm({ ...editForm, targetAmount: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
@@ -326,7 +326,7 @@ export default function GoalsPage() {
           <div className="field">
             <label>Alocação mensal</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" value={editForm.monthlyAllocation}
+              <input type="text" inputMode="decimal" value={editForm.monthlyAllocation}
                      onChange={(e) => setEditForm({ ...editForm, monthlyAllocation: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
@@ -334,7 +334,7 @@ export default function GoalsPage() {
           <div className="field full">
             <label>Já poupado</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" value={editForm.savedAmount}
+              <input type="text" inputMode="decimal" value={editForm.savedAmount}
                      onChange={(e) => setEditForm({ ...editForm, savedAmount: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
@@ -346,10 +346,10 @@ export default function GoalsPage() {
               <span>Depósito automático mensal</span>
             </label>
           </div>
-          {editForm.autoDeposit && Number(editForm.monthlyAllocation) > 0 && (
+          {editForm.autoDeposit && parseAmount(editForm.monthlyAllocation) > 0 && (
             <div className="field full">
               <label>Dia do mês do depósito</label>
-              <div className="input-affix" style={{ width: 110 }}>
+              <div className="input-affix field-narrow">
                 <input type="number" min="1" max="31" step="1" value={editForm.contributionDay}
                        onChange={(e) => setEditForm({ ...editForm, contributionDay: e.target.value })} />
                 <span className="affix">do mês</span>

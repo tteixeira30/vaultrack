@@ -18,6 +18,15 @@ export class AuthPage extends BasePage {
     return this.page.getByPlaceholder('A tua palavra-passe')
   }
 
+  /** No registo o placeholder é outro — e o autocomplete tem de ser new-password. */
+  get newPasswordField(): Locator {
+    return this.page.getByPlaceholder('Mínimo 6 caracteres')
+  }
+
+  get nameField(): Locator {
+    return this.page.getByPlaceholder('O teu nome')
+  }
+
   get submitLogin(): Locator {
     return this.page.getByRole('button', { name: 'Entrar' })
   }

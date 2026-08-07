@@ -606,6 +606,11 @@ input[type='month']::-webkit-calendar-picker-indicator {
 }
 input[type='date']::-webkit-calendar-picker-indicator:hover { opacity: 1; }
 
+/* Campo estreito (dia do mês). Em desktop tem largura fixa; no telemóvel
+   solta-se, senão fica um campo de 110px perdido numa linha inteira. */
+.field-narrow { width: 110px; }
+@media (max-width: 600px) { .field-narrow { width: 100%; } }
+
 .input-affix { position: relative; }
 .input-affix input { padding-right: 38px; }
 .input-affix .affix {
@@ -2013,3 +2018,12 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 }
 .check-row input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); cursor: pointer; }
 .check-row strong { color: var(--text); font-weight: 600; }
+
+/* A .check-row é um <label> que envolve a caixa, por isso o alvo tátil é a
+   linha inteira e não a caixa — é a linha que tem de ter altura. A caixa em si
+   é definida três vezes ao longo do ficheiro e esta é a última: sem repetir
+   aqui, a regra do bloco dos 900px lá em cima ficava sobreposta. */
+@media (max-width: 900px) {
+  .check-row { min-height: var(--tap); align-items: center; }
+  .check-row input[type="checkbox"] { width: 22px; height: 22px; margin-top: 0; }
+}

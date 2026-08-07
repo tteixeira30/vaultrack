@@ -2,14 +2,18 @@ import { expect, test, type Locator } from '@playwright/test'
 import { type TabLabel } from '../components/MainNav'
 import { TabPage } from './BasePage'
 
+/**
+ * Os montantes aceitam string para os testes poderem escrever exatamente o que
+ * uma pessoa escreveria — incluindo a vírgula decimal do PT-PT ("10000,50").
+ */
 export interface GoalInput {
   name: string
   /** Meta a atingir, em EUR. */
-  target: number
+  target: number | string
   /** Alocação mensal, em EUR. */
-  monthly: number
+  monthly: number | string
   /** Montante já poupado à data de criação. */
-  saved?: number
+  saved?: number | string
 }
 
 /** Objetivos de poupança. */
@@ -34,6 +38,12 @@ export class GoalsPage extends TabPage {
     return this.card(name).locator('.of')
   }
 
+  /** Abre o modal de criação sem preencher — para inspecionar os campos. */
+  async openCreateForm(): Promise<void> {
+    await this.page.getByRole('button', { name: 'Novo objetivo' }).click()
+    await this.dialog.expectOpen()
+  }
+
   async create({ name, target, monthly, saved }: GoalInput): Promise<void> {
     await test.step(`criar objetivo "${name}"`, async () => {
       await this.page.getByRole('button', { name: 'Novo objetivo' }).click()
@@ -47,7 +57,7 @@ export class GoalsPage extends TabPage {
     })
   }
 
-  async contribute(name: string, amount: number): Promise<void> {
+  async contribute(name: string, amount: number | string): Promise<void> {
     const card = this.card(name)
     await card.getByPlaceholder('Valor').fill(String(amount))
     await card.getByRole('button', { name: 'Contribuir' }).click()

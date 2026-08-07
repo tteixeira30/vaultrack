@@ -300,7 +300,7 @@ export default function DashboardPage() {
           <div className="card-header">
             <div>
               <h3><IconReceipt size={16} /> Despesas ao longo do ano</h3>
-              <div className="sub">Últimos 12 meses{exp.hasData ? ' · clica num mês para ver o detalhe' : ''}</div>
+              <div className="sub">Últimos 12 meses{exp.hasData ? ' · toca num mês para ver o detalhe' : ''}</div>
             </div>
             <div className="exp-stats">
               <div className="exp-stat">
