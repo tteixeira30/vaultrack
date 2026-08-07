@@ -48,7 +48,7 @@ export class AuthPage extends BasePage {
     await this.page.getByPlaceholder('Mínimo 6 caracteres').fill(password)
     // código de convite fica vazio (registo aberto em dev)
     await this.page.getByRole('button', { name: 'Criar conta' }).last().click()
-    await this.sidebar.expectVisible()
+    await this.nav.expectVisible()
     return { name, email, password }
   }
 

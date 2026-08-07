@@ -8,7 +8,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 export class ModalDialog {
   readonly root: Locator
 
-  constructor(page: Page) {
+  constructor(private readonly page: Page) {
     this.root = page.getByRole('dialog')
   }
 
@@ -30,6 +30,18 @@ export class ModalDialog {
 
   async expectClosed(): Promise<void> {
     await expect(this.root).toBeHidden()
+  }
+
+  /** Em ecrãs pequenos o modal é um bottom sheet: colado ao fundo e à largura toda. */
+  async expectBottomSheet(): Promise<void> {
+    const viewport = this.page.viewportSize()
+    expect(viewport, 'o viewport tem de estar definido').not.toBeNull()
+
+    const box = await this.root.boundingBox()
+    expect(box, 'o modal tem de estar visível').not.toBeNull()
+
+    expect(Math.round(box!.y + box!.height)).toBe(viewport!.height)
+    expect(Math.round(box!.width)).toBe(viewport!.width)
   }
 
   /** Submete e espera o fecho — evita corridas com a re-renderização da página. */

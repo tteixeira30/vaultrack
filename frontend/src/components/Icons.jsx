@@ -290,6 +290,14 @@ export const IconBank = (p) => (
   </Icon>
 )
 
+export const IconMore = (p) => (
+  <Icon {...p}>
+    <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
+    <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+  </Icon>
+)
+
 export const IconLogo = (p) => (
   <svg width={p?.size ?? 30} height={p?.size ?? 30} viewBox="0 0 64 64">
     <defs>

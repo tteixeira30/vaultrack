@@ -12,8 +12,8 @@ test.describe('autenticação', () => {
     const { email, password } = await authPage.register({ name: 'Maria Teste' })
 
     // sessão iniciada: brand, separadores e identidade visíveis
-    await expect(authPage.sidebar.brand).toContainText('Vaultrack')
-    await expect(authPage.sidebar.tab('Rendimento')).toBeVisible()
+    await expect(authPage.nav.brand).toContainText('Vaultrack')
+    await expect(authPage.nav.tab('Investimentos')).toBeVisible()
     await expect(authPage.profileMenu.identity).toContainText('Maria Teste')
 
     await authPage.profileMenu.logout()
@@ -21,7 +21,7 @@ test.describe('autenticação', () => {
 
     // entrar de novo com as mesmas credenciais
     await authPage.login(email, password)
-    await authPage.sidebar.expectVisible()
+    await authPage.nav.expectVisible()
   })
 
   test('password errada mostra erro e não inicia sessão', async ({ authPage }) => {

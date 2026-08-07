@@ -349,6 +349,12 @@ button, .nav-item, .account-chip, .cal-cell {
   margin: 0 auto;
 }
 
+/* Entrada da página ao trocar de separador. O transform só existe durante os
+   200ms da animação — se alguma vez uma página abrir um modal logo à entrada,
+   passa-o para um portal, senão o position: fixed ancora aqui. */
+.page-swap { animation: page-in var(--dur-2) var(--ease-out); }
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } }
+
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 26px; flex-wrap: wrap; }
 .page-head h2 { font-size: 23px; font-weight: 700; letter-spacing: -0.4px; }
 .page-head p { color: var(--text-dim); margin-top: 3px; font-size: 13.5px; }
@@ -444,7 +450,30 @@ button, .nav-item, .account-chip, .cal-cell {
     transition: color var(--dur-1);
   }
   .bottom-nav button.active { color: var(--accent); }
+  .bottom-nav button.active svg { transform: scale(1.08); }
+  .bottom-nav button svg { transition: transform var(--dur-2) var(--ease-spring); }
   .bottom-nav button:active { background: var(--surface-2); }
+
+  /* Indicador do separador ativo: um só elemento deslocado por transform.
+     --i é o índice do botão ativo e --n o número de posições (ver BottomNav). */
+  .bn-indicator {
+    position: absolute;
+    top: var(--sp-1);
+    left: calc(var(--sp-3) + var(--safe-l));
+    width: calc((100% - var(--sp-3) * 2 - var(--safe-l) - var(--safe-r)) / var(--n));
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--accent);
+    transform: translateX(calc(var(--i) * 100%));
+    transition: transform var(--dur-2) var(--ease-spring);
+    pointer-events: none;
+  }
+
+  /* a barra de topo destaca-se do conteúdo assim que este passa por baixo */
+  .sidebar.scrolled {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    border-bottom-color: var(--border-strong);
+  }
 
   /* Alvos táteis: no telemóvel nada de interativo desce abaixo de --tap.
      Fica confinado ao mobile para não inchar a densidade do desktop. */
@@ -807,6 +836,59 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
 .modal-confirm h3 { font-size: 16.5px; margin-bottom: 6px; }
 .modal-confirm p { color: var(--text-dim); font-size: 13.5px; }
 .confirm-actions { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+
+/* ---------- Bottom sheets ---------- */
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: flex-end;
+  background: rgba(5, 7, 12, 0.66);
+  backdrop-filter: blur(5px);
+  animation: fade-in 0.16s ease;
+}
+
+.sheet {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 40px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 35%), var(--surface);
+  border: 1px solid var(--border-strong);
+  border-bottom: none;
+  border-radius: 20px 20px 0 0;
+  box-shadow: var(--shadow);
+  padding-bottom: calc(var(--sp-3) + var(--safe-b));
+  animation: sheet-in var(--dur-3) var(--ease-spring);
+}
+
+/* pega visual; o arrastar-para-fechar chega na fase das sobreposições */
+.sheet-grabber {
+  width: 38px;
+  height: 4px;
+  flex-shrink: 0;
+  margin: var(--sp-2) auto var(--sp-1);
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+.sheet-title {
+  padding: var(--sp-2) var(--sp-4) var(--sp-1);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 
 /* ---------- Toasts ---------- */
 

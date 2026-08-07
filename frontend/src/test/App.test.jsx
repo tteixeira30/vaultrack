@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App'
 import { useAuth } from '../components/AuthContext'
@@ -16,7 +16,11 @@ vi.mock('../pages/InvestmentsPage', () => ({ default: () => <div>PÁGINA_INVEST<
 vi.mock('../pages/GoalsPage', () => ({ default: () => <div>PÁGINA_OBJETIVOS</div> }))
 vi.mock('../pages/CalendarPage', () => ({ default: () => <div>PÁGINA_CALENDARIO</div> }))
 vi.mock('../pages/AchievementsPage', () => ({ default: () => <div>PÁGINA_CONQUISTAS</div> }))
+vi.mock('../pages/ExpensesPage', () => ({ default: () => <div>PÁGINA_DESPESAS</div> }))
 vi.mock('../pages/AuthPage', () => ({ default: () => <div>PÁGINA_AUTH</div> }))
+
+/** Barra inferior (mobile). Escondida por CSS no desktop, mas sempre no DOM. */
+const bottomNav = () => screen.getByRole('navigation', { name: 'Navegação principal' })
 
 const authed = {
   user: { name: 'Ana Silva', email: 'ana@ex.com' },
@@ -25,7 +29,12 @@ const authed = {
 }
 
 describe('App / Shell', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // jsdom não implementa scrollTo e o histórico persiste entre testes
+    window.scrollTo = vi.fn()
+    window.history.replaceState(null, '', '/')
+  })
 
   it('mostra o esqueleto enquanto a sessão carrega', () => {
     useAuth.mockReturnValue({ ...authed, loading: true, user: null })
@@ -56,6 +65,79 @@ describe('App / Shell', () => {
     await user.click(screen.getAllByRole('button', { name: /Investimentos/ })[0])
 
     expect(screen.getByText('PÁGINA_INVEST')).toBeInTheDocument()
+  })
+
+  it('a barra inferior mostra os quatro separadores primários e o "Mais"', () => {
+    useAuth.mockReturnValue(authed)
+    render(<App />)
+
+    const labels = within(bottomNav()).getAllByRole('button').map((b) => b.textContent)
+    expect(labels).toEqual(['Painel', 'Despesas', 'Investimentos', 'Objetivos', 'Mais'])
+  })
+
+  it('o separador ativo é anunciado com aria-current', async () => {
+    useAuth.mockReturnValue(authed)
+    const user = userEvent.setup()
+    render(<App />)
+
+    const nav = bottomNav()
+    expect(within(nav).getByRole('button', { name: 'Painel' })).toHaveAttribute('aria-current', 'page')
+
+    await user.click(within(nav).getByRole('button', { name: 'Objetivos' }))
+    expect(within(nav).getByRole('button', { name: 'Objetivos' })).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('button', { name: 'Painel' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('os separadores secundários chegam-se pela sheet "Mais"', async () => {
+    useAuth.mockReturnValue(authed)
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(within(bottomNav()).getByRole('button', { name: 'Mais' }))
+
+    const sheet = screen.getByRole('dialog', { name: 'Mais' })
+    expect(within(sheet).getAllByRole('button').map((b) => b.textContent))
+      .toEqual(['Rendimento', 'Calendário', 'Conquistas'])
+
+    await user.click(within(sheet).getByRole('button', { name: 'Rendimento' }))
+    expect(screen.getByText('PÁGINA_RENDIMENTO')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog', { name: 'Mais' })).not.toBeInTheDocument()
+  })
+
+  it('num separador secundário é o "Mais" que fica ativo', async () => {
+    useAuth.mockReturnValue(authed)
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(within(bottomNav()).getByRole('button', { name: 'Mais' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Mais' })).getByRole('button', { name: 'Calendário' }))
+
+    expect(within(bottomNav()).getByRole('button', { name: 'Mais' })).toHaveClass('active')
+  })
+
+  it('trocar de separador empilha histórico e o voltar desfaz', async () => {
+    useAuth.mockReturnValue(authed)
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(within(bottomNav()).getByRole('button', { name: 'Despesas' }))
+    expect(screen.getByText('PÁGINA_DESPESAS')).toBeInTheDocument()
+    expect(window.location.hash).toBe('#expenses')
+
+    // o popstate do browser (e o botão físico do Android) devolve o anterior
+    window.dispatchEvent(new PopStateEvent('popstate', { state: { tab: 'dashboard' } }))
+    expect(await screen.findByText('PÁGINA_PAINEL')).toBeInTheDocument()
+  })
+
+  it('tocar no separador já ativo sobe ao topo em vez de renavegar', async () => {
+    useAuth.mockReturnValue(authed)
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(within(bottomNav()).getByRole('button', { name: 'Painel' }))
+
+    expect(window.scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 0 }))
+    expect(screen.getByText('PÁGINA_PAINEL')).toBeInTheDocument()
   })
 
   it('o botão de terminar sessão chama logout', async () => {

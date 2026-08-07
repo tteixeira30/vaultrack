@@ -7,7 +7,7 @@ test.describe('sessão e rendimento', () => {
     await dashboardPage.page.reload()
 
     // continua autenticado — o token em localStorage revalida via /auth/me
-    await dashboardPage.sidebar.expectVisible()
+    await dashboardPage.nav.expectVisible()
     await expect(dashboardPage.profileMenu.identity).toContainText(user.name)
   })
 
