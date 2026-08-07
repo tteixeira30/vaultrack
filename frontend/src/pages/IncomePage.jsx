@@ -474,7 +474,7 @@ export default function IncomePage() {
         </div>
       </div>
 
-      <Modal open={incomeModal} onClose={() => setIncomeModal(false)}
+      <Modal open={incomeModal} onClose={() => setIncomeModal(false)} onSubmit={saveIncome} busy={busy}
              title={`Rendimento de ${fmtMonth(data.month)}`}
              subtitle="Valor líquido que recebeste (ou vais receber) neste mês." width={420}
              footer={
@@ -487,14 +487,13 @@ export default function IncomePage() {
           <label>Rendimento do mês</label>
           <div className="input-affix">
             <input type="text" inputMode="decimal" enterKeyHint="done" autoFocus aria-label="Rendimento do mês" value={incomeInput}
-                   onChange={(e) => setIncomeInput(e.target.value)}
-                   onKeyDown={(e) => e.key === 'Enter' && saveIncome()} />
+                   onChange={(e) => setIncomeInput(e.target.value)} />
             <span className="affix">{cur}</span>
           </div>
         </div>
       </Modal>
 
-      <Modal open={allocModal} onClose={closeAllocModal} dirty={allocDirty}
+      <Modal open={allocModal} onClose={closeAllocModal} dirty={allocDirty} onSubmit={saveAlloc} busy={busy}
              title={allocEditId ? 'Editar categoria' : 'Nova categoria'}
              subtitle={allocEditId
                ? `Ajusta a categoria de ${fmtMonth(data.month)}.`
@@ -536,8 +535,7 @@ export default function IncomePage() {
             <div className="input-affix">
               <input type="text" inputMode="decimal" enterKeyHint="done"
                      placeholder={isPct ? 'Ex: 30' : 'Ex: 400'} value={allocForm.value}
-                     onChange={(e) => setAllocForm({ ...allocForm, value: e.target.value })}
-                     onKeyDown={(e) => e.key === 'Enter' && saveAlloc()} />
+                     onChange={(e) => setAllocForm({ ...allocForm, value: e.target.value })} />
               <span className="affix">{isPct ? '%' : cur}</span>
             </div>
             {formHint && <span className="hint">{formHint}</span>}
@@ -562,7 +560,7 @@ export default function IncomePage() {
         </div>
       </Modal>
 
-      <Modal open={!!itemModal} onClose={() => setItemModal(null)}
+      <Modal open={!!itemModal} onClose={() => setItemModal(null)} onSubmit={saveItem} busy={busy}
              title={itemModal?.item ? 'Editar item' : 'Novo item'}
              subtitle={itemModal ? `Dentro de "${itemModal.alloc.name}".` : ''} width={420}
              footer={
@@ -577,15 +575,13 @@ export default function IncomePage() {
           <div className="field full">
             <label>Nome</label>
             <input placeholder="Ex: Netflix, Claude, HBO…" autoFocus value={itemForm.name}
-                   onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-                   onKeyDown={(e) => e.key === 'Enter' && saveItem()} />
+                   onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} />
           </div>
           <div className="field full">
             <label>Valor mensal</label>
             <div className="input-affix">
               <input type="text" inputMode="decimal" enterKeyHint="done" placeholder="Ex: 12" value={itemForm.value}
-                     onChange={(e) => setItemForm({ ...itemForm, value: e.target.value })}
-                     onKeyDown={(e) => e.key === 'Enter' && saveItem()} />
+                     onChange={(e) => setItemForm({ ...itemForm, value: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
           </div>

@@ -35,6 +35,31 @@ test.describe('formulários', () => {
     await expect(goalsPage.dialog.field('Ex: 10000')).toHaveAttribute('inputmode', 'decimal')
   })
 
+  test('o Enter num campo do modal submete o formulário', async ({ goalsPage }) => {
+    await goalsPage.goto()
+    await goalsPage.openCreateForm()
+
+    await goalsPage.dialog.field('Ex: Fundo de emergência').fill('Objetivo por Enter')
+    await goalsPage.dialog.field('Ex: 10000').fill('500')
+    await goalsPage.dialog.field('Ex: 300').press('Enter')
+
+    await goalsPage.dialog.expectClosed()
+    await expect(goalsPage.card('Objetivo por Enter')).toBeVisible()
+  })
+
+  test('o Enter cria o objetivo uma só vez', async ({ goalsPage }) => {
+    await goalsPage.goto()
+    await goalsPage.openCreateForm()
+
+    await goalsPage.dialog.field('Ex: Fundo de emergência').fill('Sem duplicados')
+    await goalsPage.dialog.field('Ex: 10000').fill('500')
+    await goalsPage.dialog.field('Ex: 300').press('Enter')
+    await goalsPage.dialog.expectClosed()
+
+    // o botão-fantasma fica desativado durante o gravar; sem isso ficavam dois
+    await expect(goalsPage.title('Sem duplicados')).toHaveCount(1)
+  })
+
   test('o formulário de sessão dá as pistas de preenchimento automático', async ({ authPage }) => {
     await authPage.goto()
 

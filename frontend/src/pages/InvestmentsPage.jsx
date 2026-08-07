@@ -540,7 +540,7 @@ export default function InvestmentsPage() {
         )}
       </div>
 
-      <Modal open={addModal} onClose={() => setAddModal(false)}
+      <Modal open={addModal} onClose={() => setAddModal(false)} onSubmit={add} busy={busy}
              title="Novo investimento"
              subtitle="Indica quanto vale agora e a % de ganho — calculamos o valor inicial, o lucro e as unidades."
              footer={
@@ -623,7 +623,7 @@ export default function InvestmentsPage() {
         </div>
       </Modal>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)}
+      <Modal open={!!editing} onClose={() => setEditing(null)} onSubmit={saveEdit} busy={busy}
              title="Editar investimento"
              subtitle={editing?.live
                ? 'Ativo com cotação em tempo real — o valor atual ajusta a tua posição ao preço do momento.'

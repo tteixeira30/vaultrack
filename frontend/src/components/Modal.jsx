@@ -6,7 +6,10 @@ import { useIsMobile } from './useMediaQuery'
 import { useScrollLock } from './useScrollLock'
 import { useSheetDrag } from './useSheetDrag'
 
-export default function Modal({ open, title, subtitle, onClose, children, footer, width = 540, dirty = false }) {
+export default function Modal({
+  open, title, subtitle, onClose, children, footer, width = 540, dirty = false,
+  onSubmit, busy = false,
+}) {
   // quando o form tem alterações por guardar, pedir confirmação antes de descartar
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const titleId = useId()
@@ -64,7 +67,19 @@ export default function Modal({ open, title, subtitle, onClose, children, footer
             </button>
           </div>
         </div>
-        <div className="modal-body">{children}</div>
+        <div className="modal-body">
+          {onSubmit ? (
+            <form onSubmit={(e) => { e.preventDefault(); onSubmit() }}>
+              {children}
+              {/* O botão real vive no rodapé, que é irmão do corpo e por isso
+                  nunca pode ser o submit deste form. Este botão-fantasma é o
+                  que dá ao Enter o significado de "submeter" num formulário
+                  com vários campos; fica desativado durante o gravar para não
+                  haver duplo envio. */}
+              <button type="submit" hidden disabled={busy} aria-hidden="true" tabIndex={-1} />
+            </form>
+          ) : children}
+        </div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
 

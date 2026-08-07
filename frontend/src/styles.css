@@ -475,26 +475,7 @@ button, .nav-item, .account-chip, .cal-cell {
     border-bottom-color: var(--border-strong);
   }
 
-  /* Alvos táteis: no telemóvel nada de interativo desce abaixo de --tap.
-     Fica confinado ao mobile para não inchar a densidade do desktop. */
-  .icon-btn,
-  .btn,
-  .seg button,
-  .mode-toggle button,
-  .range-buttons button,
-  .account-chip,
-  .dd-option,
-  .toast-close,
-  .alloc-toggle,
-  .exp-back {
-    min-width: var(--tap);
-    min-height: var(--tap);
-  }
-  /* os chips têm conteúdo largo: chega garantir a altura */
-  .account-chip, .exp-back { min-width: 0; }
-  .theme-toggle .tt-opt { width: 40px; height: 34px; }
-  .dp-day { min-height: 40px; }
-  .check-row input[type='checkbox'] { width: 20px; height: 20px; }
+  /* Os alvos táteis vivem no FIM do ficheiro — ver a secção lá em baixo. */
 }
 
 /* ---------- Cards ---------- */
@@ -2019,11 +2000,41 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .check-row input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); cursor: pointer; }
 .check-row strong { color: var(--text); font-weight: 600; }
 
-/* A .check-row é um <label> que envolve a caixa, por isso o alvo tátil é a
-   linha inteira e não a caixa — é a linha que tem de ter altura. A caixa em si
-   é definida três vezes ao longo do ficheiro e esta é a última: sem repetir
-   aqui, a regra do bloco dos 900px lá em cima ficava sobreposta. */
+/* ---------- Alvos táteis (mobile) — MANTER NO FIM DO FICHEIRO ----------
+
+   Num telemóvel nada de interativo desce abaixo de --tap. Estas regras têm de
+   ser as últimas: são seletores de classe simples, por isso qualquer regra de
+   dimensão declarada depois ganha por ordem de cascata. Esteve a meio do
+   ficheiro e foi assim que a caixa de "depósito automático" ficou com 17px
+   durante duas fases sem ninguém dar por isso.
+
+   Se acrescentares um controlo novo, acrescenta-o aqui — não noutro sítio. */
+
 @media (max-width: 900px) {
+  .icon-btn,
+  .btn,
+  .seg button,
+  .mode-toggle button,
+  .range-buttons button,
+  .account-chip,
+  .dd-option,
+  .toast-close,
+  .alloc-toggle,
+  .exp-back,
+  /* os gatilhos dos seletores próprios: estão em todos os formulários e
+     ficavam nos 40px (dd) e 38px (dp) que o padding lhes dava */
+  .dd-trigger,
+  .dp-trigger {
+    min-width: var(--tap);
+    min-height: var(--tap);
+  }
+  /* os chips têm conteúdo largo: chega garantir a altura */
+  .account-chip, .exp-back { min-width: 0; }
+
+  .theme-toggle .tt-opt { width: 40px; height: 34px; }
+  .dp-day { min-height: 40px; }
+
+  /* A .check-row é um <label> que envolve a caixa: o alvo é a linha inteira. */
   .check-row { min-height: var(--tap); align-items: center; }
   .check-row input[type="checkbox"] { width: 22px; height: 22px; margin-top: 0; }
 }

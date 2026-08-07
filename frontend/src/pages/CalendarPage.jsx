@@ -296,7 +296,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <Modal open={addModal} onClose={() => setAddModal(false)}
+      <Modal open={addModal} onClose={() => setAddModal(false)} onSubmit={save} busy={busy}
              title={editing ? 'Editar evento' : 'Novo evento'}
              subtitle="Salário, renda, subscrições ou qualquer movimento recorrente."
              footer={

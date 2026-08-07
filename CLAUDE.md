@@ -140,6 +140,22 @@ Regras globais que já existem e não precisam de ser repetidas: supressão do r
 `:focus-visible` com `--ring`, e um bloco `prefers-reduced-motion` que desliga animações.
 Usa `100dvh` (com `100vh` antes, como fallback) sempre que precises da altura do ecrã.
 
+**Alvos táteis**: o bloco que garante os `--tap` está no **fim** do `styles.css` e tem de lá
+ficar. São seletores de classe simples, por isso qualquer regra de dimensão declarada depois
+ganha por cascata — foi assim que a caixa de "depósito automático" ficou com 17px e os gatilhos
+dos seletores com 38–40px sem ninguém dar por isso. Controlo novo? Acrescenta-o a esse bloco,
+não a outro sítio.
+
+### Formulários
+
+- Campos monetários e percentuais são `type="text"` com `inputMode="decimal"`, nunca
+  `type="number"`: em PT-PT escreve-se "1,5" e o `type="number"` descarta-o em silêncio. Lê
+  sempre esses valores com `parseAmount` (`api.js`) — nunca com `Number()`, `parseFloat` ou `+`.
+  `type="number"` fica só para inteiros (dia do mês, horizonte da projeção).
+- Um `<Modal>` com formulário recebe `onSubmit` e `busy`; passa a envolver o corpo num `<form>`
+  com um botão de submit escondido, que é o que dá ao Enter o significado de submeter. Não
+  acrescentes `onKeyDown` de Enter aos campos desse modal — disparariam o gravar duas vezes.
+
 ## Modelo de dados (entidades)
 
 - `User` — id, name, email, passwordHash, `baseCurrency`, `currentBalance`, createdAt.

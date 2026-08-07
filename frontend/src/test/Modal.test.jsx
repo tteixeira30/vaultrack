@@ -69,6 +69,41 @@ describe('Modal', () => {
     expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true)
   })
 
+  it('sem onSubmit o corpo não é um formulário', () => {
+    render(<Modal open title="X" onClose={() => {}}><input placeholder="v" /></Modal>)
+    expect(document.querySelector('.modal-body form')).toBeNull()
+  })
+
+  it('o Enter num campo submete — uma só vez', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <Modal open title="X" onClose={() => {}} onSubmit={onSubmit}>
+        <input placeholder="valor" />
+        <input placeholder="outro" />
+      </Modal>,
+    )
+
+    await user.type(screen.getByPlaceholderText('valor'), '10{Enter}')
+
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('enquanto grava, o Enter não volta a submeter', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <Modal open title="X" onClose={() => {}} onSubmit={onSubmit} busy>
+        <input placeholder="valor" />
+        <input placeholder="outro" />
+      </Modal>,
+    )
+
+    await user.type(screen.getByPlaceholderText('valor'), '10{Enter}')
+
+    expect(onSubmit).not.toHaveBeenCalled()
+  })
+
   it('com alterações por guardar, fechar pede confirmação em vez de descartar', () => {
     const onClose = vi.fn()
     render(<Modal open title="X" onClose={onClose} dirty />)

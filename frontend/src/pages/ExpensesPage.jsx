@@ -593,7 +593,7 @@ export default function ExpensesPage() {
       </Modal>
 
       {/* ---------- modal conta ---------- */}
-      <Modal open={accountModal} onClose={() => setAccountModal(false)}
+      <Modal open={accountModal} onClose={() => setAccountModal(false)} onSubmit={saveAccount} busy={busy}
              title={editingAccount ? 'Editar conta' : 'Nova conta corrente'}
              subtitle="Ex.: Santander, Trade Republic, Revolut."
              footer={
@@ -620,7 +620,7 @@ export default function ExpensesPage() {
       </Modal>
 
       {/* ---------- modal movimento ---------- */}
-      <Modal open={txModal} onClose={() => setTxModal(false)}
+      <Modal open={txModal} onClose={() => setTxModal(false)} onSubmit={saveTx} busy={busy}
              title={editingTx ? 'Editar movimento' : 'Novo movimento'}
              subtitle="Uma despesa ou receita de uma das tuas contas."
              footer={

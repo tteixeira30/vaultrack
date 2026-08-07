@@ -27,6 +27,23 @@ const goal = (over = {}) => ({
 describe('GoalsPage', () => {
   beforeEach(() => vi.resetAllMocks())
 
+  // Regressão: a condição que revela este campo lia o valor com Number(), por
+  // isso "250,25" dava NaN e o campo do dia nunca aparecia — sem erro nenhum.
+  it('o dia do depósito aparece com a alocação escrita com vírgula', async () => {
+    api.getGoals.mockResolvedValue([])
+    const user = userEvent.setup()
+    render(<GoalsPage />)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Novo objetivo/ })).toBeInTheDocument())
+    await user.click(screen.getByRole('button', { name: /Novo objetivo/ }))
+
+    const dialog = screen.getByRole('dialog')
+    await user.type(within(dialog).getByPlaceholderText('Ex: 300'), '250,25')
+    await user.click(within(dialog).getByRole('checkbox'))
+
+    expect(within(dialog).getByText('Dia do mês do depósito')).toBeInTheDocument()
+  })
+
   it('mostra o esqueleto enquanto carrega', () => {
     api.getGoals.mockReturnValue(new Promise(() => {}))
     const { container } = render(<GoalsPage />)

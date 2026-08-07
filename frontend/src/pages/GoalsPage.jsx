@@ -237,7 +237,7 @@ export default function GoalsPage() {
         </div>
       )}
 
-      <Modal open={addModal} onClose={() => setAddModal(false)}
+      <Modal open={addModal} onClose={() => setAddModal(false)} onSubmit={add} busy={busy}
              title="Novo objetivo" subtitle="Define a meta e quanto consegues alocar por mês."
              footer={
                <>
@@ -301,7 +301,7 @@ export default function GoalsPage() {
         </div>
       </Modal>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)}
+      <Modal open={!!editing} onClose={() => setEditing(null)} onSubmit={saveEdit} busy={busy}
              title="Editar objetivo" subtitle="Ajusta a meta, a alocação mensal e o depósito automático."
              footer={
                <>
