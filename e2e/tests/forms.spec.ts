@@ -41,6 +41,8 @@ test.describe('formulários', () => {
 
     await goalsPage.dialog.field('Ex: Fundo de emergência').fill('Objetivo por Enter')
     await goalsPage.dialog.field('Ex: 10000').fill('500')
+    // a alocação mensal é obrigatória: sem ela o guardar recusa e o modal fica
+    await goalsPage.dialog.field('Ex: 300').fill('50')
     await goalsPage.dialog.field('Ex: 300').press('Enter')
 
     await goalsPage.dialog.expectClosed()
@@ -53,6 +55,7 @@ test.describe('formulários', () => {
 
     await goalsPage.dialog.field('Ex: Fundo de emergência').fill('Sem duplicados')
     await goalsPage.dialog.field('Ex: 10000').fill('500')
+    await goalsPage.dialog.field('Ex: 300').fill('50')
     await goalsPage.dialog.field('Ex: 300').press('Enter')
     await goalsPage.dialog.expectClosed()
 
@@ -60,19 +63,26 @@ test.describe('formulários', () => {
     await expect(goalsPage.title('Sem duplicados')).toHaveCount(1)
   })
 
-  test('o formulário de sessão dá as pistas de preenchimento automático', async ({ authPage }) => {
-    await authPage.goto()
+  // A fixture `user` injeta o token antes da página abrir, por isso estes
+  // precisam de desligá-la — senão a app arranca com sessão e nunca mostra o
+  // formulário. Mesmo padrão do auth.spec.ts.
+  test.describe('sem sessão', () => {
+    test.use({ storageState: { cookies: [], origins: [] } })
 
-    await expect(authPage.emailField).toHaveAttribute('autocomplete', 'username')
-    await expect(authPage.emailField).toHaveAttribute('autocapitalize', 'none')
-    await expect(authPage.passwordField).toHaveAttribute('autocomplete', 'current-password')
-  })
+    test('o formulário de sessão dá as pistas de preenchimento automático', async ({ authPage }) => {
+      await authPage.goto()
 
-  test('no registo a palavra-passe é anunciada como nova', async ({ authPage }) => {
-    await authPage.goto()
-    await authPage.switchToRegister()
+      await expect(authPage.emailField).toHaveAttribute('autocomplete', 'username')
+      await expect(authPage.emailField).toHaveAttribute('autocapitalize', 'none')
+      await expect(authPage.passwordField).toHaveAttribute('autocomplete', 'current-password')
+    })
 
-    await expect(authPage.newPasswordField).toHaveAttribute('autocomplete', 'new-password')
-    await expect(authPage.nameField).toHaveAttribute('autocomplete', 'name')
+    test('no registo a palavra-passe é anunciada como nova', async ({ authPage }) => {
+      await authPage.goto()
+      await authPage.switchToRegister()
+
+      await expect(authPage.newPasswordField).toHaveAttribute('autocomplete', 'new-password')
+      await expect(authPage.nameField).toHaveAttribute('autocomplete', 'name')
+    })
   })
 })
