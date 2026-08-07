@@ -40,6 +40,28 @@ export class InvestmentsPage extends TabPage {
     })
   }
 
+  /** Abre o seletor de tipo dentro do modal (assume o modal já aberto). */
+  async openTypeSelector(): Promise<void> {
+    await this.dialog.root.getByRole('button', { name: 'Tipo' }).click()
+  }
+
+  /**
+   * Em mobile o Dropdown abre como bottom sheet — encostado ao fundo e à largura
+   * toda — em vez do popover ancorado que se usa no desktop.
+   */
+  async expectTypeSelectorIsSheet(): Promise<void> {
+    const sheet = this.page.getByRole('dialog', { name: 'Tipo' })
+    await expect(sheet.getByRole('listbox')).toBeVisible()
+
+    const viewport = this.page.viewportSize()
+    expect(viewport, 'o viewport tem de estar definido').not.toBeNull()
+
+    const box = await sheet.boundingBox()
+    expect(box, 'a sheet do seletor tem de estar visível').not.toBeNull()
+    expect(Math.round(box!.y + box!.height)).toBe(viewport!.height)
+    expect(Math.round(box!.width)).toBe(viewport!.width)
+  }
+
   async rename(from: string, to: string): Promise<void> {
     await this.row(from).getByRole('button', { name: 'Editar' }).click()
     await this.dialog.root.getByLabel('Nome').fill(to)

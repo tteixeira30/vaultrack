@@ -44,6 +44,29 @@ export class ModalDialog {
     expect(Math.round(box!.width)).toBe(viewport!.width)
   }
 
+  /** A pega de arrasto, presente só na variante sheet. */
+  get grabber(): Locator {
+    return this.root.locator('.sheet-grabber')
+  }
+
+  /**
+   * Arrasta o painel para baixo a partir da pega. `distance` acima de ~90px
+   * fecha; abaixo disso volta ao sítio.
+   */
+  async dragDown(distance: number): Promise<void> {
+    const box = await this.grabber.boundingBox()
+    expect(box, 'a pega tem de estar visível').not.toBeNull()
+
+    const x = box!.x + box!.width / 2
+    const y = box!.y + box!.height / 2
+
+    await this.page.mouse.move(x, y)
+    await this.page.mouse.down()
+    // em vários passos: um único move pode ser lido como salto, não como arrasto
+    for (let i = 1; i <= 5; i++) await this.page.mouse.move(x, y + (distance * i) / 5)
+    await this.page.mouse.up()
+  }
+
   /** Submete e espera o fecho — evita corridas com a re-renderização da página. */
   async save(): Promise<void> {
     await this.button('Guardar').click()

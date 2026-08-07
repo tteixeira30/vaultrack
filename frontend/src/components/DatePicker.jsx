@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IconCalendar, IconChevronLeft, IconChevronRight } from './Icons'
+import Sheet from './Sheet'
+import { useIsMobile } from './useMediaQuery'
 
 const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
@@ -28,11 +30,14 @@ export default function DatePicker({ value, onChange, placeholder = 'Seleciona a
   const [pos, setPos] = useState(null)
   const ref = useRef(null)
   const popRef = useRef(null)
+  // a grelha de 7 colunas é o pior caso num telemóvel: em popover dá células de
+  // ~34px. Em sheet há largura para as pôr nos 44px.
+  const isMobile = useIsMobile()
 
   // Posiciona o popover em coordenadas fixas (via portal) para não ser cortado
   // pelo overflow do modal — flutua por cima em vez de empurrar o conteúdo.
   useLayoutEffect(() => {
-    if (!open) return
+    if (!open || isMobile) return
     const place = () => {
       const el = ref.current
       if (!el) return
@@ -52,10 +57,10 @@ export default function DatePicker({ value, onChange, placeholder = 'Seleciona a
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
     }
-  }, [open])
+  }, [open, isMobile])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || isMobile) return
     const onDown = (e) => {
       if (ref.current?.contains(e.target)) return
       if (popRef.current?.contains(e.target)) return
@@ -63,7 +68,7 @@ export default function DatePicker({ value, onChange, placeholder = 'Seleciona a
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
+  }, [open, isMobile])
 
   const toggle = () => {
     if (!open) { setView((value || todayIso()).slice(0, 7)); setPos(null) }
@@ -86,6 +91,34 @@ export default function DatePicker({ value, onChange, placeholder = 'Seleciona a
   const cells = [...Array(lead).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)]
   const today = todayIso()
 
+  const calendar = (
+    <>
+      <div className="dp-head">
+        <button type="button" className="icon-btn" onClick={() => shift(-1)} aria-label="Mês anterior"><IconChevronLeft size={17} /></button>
+        <span className="dp-month">{fmtMonth(view)}</span>
+        <button type="button" className="icon-btn" onClick={() => shift(1)} aria-label="Mês seguinte"><IconChevronRight size={17} /></button>
+      </div>
+      <div className="dp-grid">
+        {WEEKDAYS.map((w) => <span key={w} className="dp-wd">{w}</span>)}
+        {cells.map((day, i) => {
+          if (!day) return <span key={i} className="dp-day empty" />
+          const cellIso = iso(y, m, day)
+          return (
+            <button key={i} type="button"
+                    className={`dp-day ${cellIso === value ? 'selected' : ''} ${cellIso === today ? 'today' : ''}`}
+                    onClick={() => pick(day)}>
+              {day}
+            </button>
+          )
+        })}
+      </div>
+      <div className="dp-foot">
+        <button type="button" onClick={() => { onChange(''); setOpen(false) }}>Limpar</button>
+        <button type="button" onClick={() => { const t = todayIso(); onChange(t); setView(t.slice(0, 7)); setOpen(false) }}>Hoje</button>
+      </div>
+    </>
+  )
+
   return (
     <div className={`datepicker ${open ? 'open' : ''}`} ref={ref}>
       <button type="button" className="dp-trigger" onClick={toggle}>
@@ -93,34 +126,18 @@ export default function DatePicker({ value, onChange, placeholder = 'Seleciona a
         <IconCalendar size={16} />
       </button>
 
-      {open && createPortal(
-        <div className="dp-pop" ref={popRef}
-             style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, visibility: pos ? 'visible' : 'hidden' }}>
-          <div className="dp-head">
-            <button type="button" className="icon-btn" onClick={() => shift(-1)} aria-label="Mês anterior"><IconChevronLeft size={17} /></button>
-            <span className="dp-month">{fmtMonth(view)}</span>
-            <button type="button" className="icon-btn" onClick={() => shift(1)} aria-label="Mês seguinte"><IconChevronRight size={17} /></button>
-          </div>
-          <div className="dp-grid">
-            {WEEKDAYS.map((w) => <span key={w} className="dp-wd">{w}</span>)}
-            {cells.map((day, i) => {
-              if (!day) return <span key={i} className="dp-day empty" />
-              const cellIso = iso(y, m, day)
-              return (
-                <button key={i} type="button"
-                        className={`dp-day ${cellIso === value ? 'selected' : ''} ${cellIso === today ? 'today' : ''}`}
-                        onClick={() => pick(day)}>
-                  {day}
-                </button>
-              )
-            })}
-          </div>
-          <div className="dp-foot">
-            <button type="button" onClick={() => { onChange(''); setOpen(false) }}>Limpar</button>
-            <button type="button" onClick={() => { const t = todayIso(); onChange(t); setView(t.slice(0, 7)); setOpen(false) }}>Hoje</button>
-          </div>
-        </div>,
-        document.body
+      {isMobile ? (
+        <Sheet open={open} title={placeholder} onClose={() => setOpen(false)} className="dp-sheet">
+          <div className="dp-pop dp-pop-sheet" ref={popRef}>{calendar}</div>
+        </Sheet>
+      ) : (
+        open && createPortal(
+          <div className="dp-pop" ref={popRef}
+               style={{ top: pos?.top ?? -9999, left: pos?.left ?? -9999, visibility: pos ? 'visible' : 'hidden' }}>
+            {calendar}
+          </div>,
+          document.body
+        )
       )}
     </div>
   )

@@ -46,6 +46,32 @@ describe('Toast', () => {
     expect(screen.queryByText('Guardado')).not.toBeInTheDocument()
   })
 
+  it('o temporizador pára enquanto o ponteiro está pousado no toast', () => {
+    vi.useFakeTimers()
+    try {
+      render(
+        <ToastProvider>
+          <Demo />
+        </ToastProvider>,
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'ok' }))
+      const toast = screen.getByText('Guardado').closest('.toast')
+
+      // com o dedo/rato pousado, os 4,5s não correm
+      fireEvent.pointerEnter(toast)
+      act(() => { vi.advanceTimersByTime(6000) })
+      expect(screen.getByText('Guardado')).toBeInTheDocument()
+
+      // ao sair, a contagem retoma
+      fireEvent.pointerLeave(toast)
+      act(() => { vi.advanceTimersByTime(5000) })
+      expect(screen.queryByText('Guardado')).not.toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('desaparece sozinho ao fim de ~4,5s', () => {
     // fireEvent (síncrono) em vez de userEvent — este último encrava com fake timers
     vi.useFakeTimers()

@@ -1,15 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { IconAlert, IconX } from './Icons'
+import { useFocusTrap } from './useFocusTrap'
+import { useIsMobile } from './useMediaQuery'
+import { useScrollLock } from './useScrollLock'
+import { useSheetDrag } from './useSheetDrag'
 
 export default function Modal({ open, title, subtitle, onClose, children, footer, width = 540, dirty = false }) {
   // quando o form tem alterações por guardar, pedir confirmação antes de descartar
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const titleId = useId()
+  const panelRef = useRef(null)
+  const isMobile = useIsMobile()
 
-  // tentativa de fechar "acidental" (clique fora, Escape, X): se estiver sujo, confirmar
+  // tentativa de fechar "acidental" (clique fora, Escape, X, arrasto): se estiver
+  // sujo, confirmar
   const requestClose = () => {
     if (dirty) setConfirmDiscard(true)
     else onClose()
   }
+
+  // em mobile o modal é um bottom sheet e arrasta-se para fechar, sempre pelo
+  // requestClose para a proteção de alterações por guardar continuar a valer
+  const drag = useSheetDrag(requestClose, { enabled: open && isMobile && !confirmDiscard })
+
+  useScrollLock(open)
+  // com a confirmação aberta é ela que prende o foco
+  useFocusTrap(panelRef, open && !confirmDiscard)
 
   useEffect(() => {
     if (!open) return
@@ -20,11 +37,7 @@ export default function Modal({ open, title, subtitle, onClose, children, footer
       else requestClose()
     }
     document.addEventListener('keydown', onKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose, dirty, confirmDiscard])
 
   // ao fechar (ou reabrir) o modal, limpar o estado da confirmação
@@ -32,40 +45,57 @@ export default function Modal({ open, title, subtitle, onClose, children, footer
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && requestClose()}>
-      <div className="modal" style={{ maxWidth: width }} role="dialog" aria-modal="true">
-        <div className="modal-head">
-          <div>
-            <h3>{title}</h3>
-            {subtitle && <p className="modal-subtitle">{subtitle}</p>}
+      <div className="modal" style={{ maxWidth: width, ...drag.style }}
+           role="dialog" aria-modal="true" aria-labelledby={titleId}
+           ref={panelRef} tabIndex={-1}>
+        {/* zona de arrasto: a pega fica fora da linha flex do cabeçalho, senão
+            um flex-basis de 100% esmagava o título contra o botão de fechar */}
+        <div className="modal-top" {...drag.handlers}>
+          {isMobile && <span className="sheet-grabber" aria-hidden="true" />}
+          <div className="modal-head">
+            <div className="modal-head-text">
+              <h3 id={titleId}>{title}</h3>
+              {subtitle && <p className="modal-subtitle">{subtitle}</p>}
+            </div>
+            <button className="icon-btn" onClick={requestClose} aria-label="Fechar">
+              <IconX size={18} />
+            </button>
           </div>
-          <button className="icon-btn" onClick={requestClose} aria-label="Fechar">
-            <IconX size={18} />
-          </button>
         </div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
 
       {confirmDiscard && (
-        <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && setConfirmDiscard(false)}>
-          <div className="modal modal-confirm" role="alertdialog" aria-modal="true">
-            <div className="confirm-icon"><IconAlert size={26} /></div>
-            <h3>Descartar alterações?</h3>
-            <p>Tens dados por guardar neste formulário. Se saíres agora, perdes o que escreveste.</p>
-            <div className="confirm-actions">
-              <button className="btn ghost" onClick={() => setConfirmDiscard(false)}>Continuar a editar</button>
-              <button className="btn danger" onClick={() => { setConfirmDiscard(false); onClose() }}>Descartar</button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          open
+          title="Descartar alterações?"
+          message="Tens dados por guardar neste formulário. Se saíres agora, perdes o que escreveste."
+          confirmLabel="Descartar"
+          cancelLabel="Continuar a editar"
+          onCancel={() => setConfirmDiscard(false)}
+          onConfirm={() => { setConfirmDiscard(false); onClose() }}
+        />
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }
 
-export function ConfirmDialog({ open, title, message, confirmLabel = 'Eliminar', onConfirm, onCancel, busy }) {
+export function ConfirmDialog({
+  open, title, message, confirmLabel = 'Eliminar', cancelLabel = 'Cancelar',
+  onConfirm, onCancel, busy,
+}) {
+  const titleId = useId()
+  const panelRef = useRef(null)
+
+  // Ao contrário das outras sobreposições, esta não se arrasta para fechar: uma
+  // confirmação destrutiva não deve ter uma saída acidental.
+  useScrollLock(open)
+  useFocusTrap(panelRef, open)
+
   useEffect(() => {
     if (!open) return
     const onKey = (e) => e.key === 'Escape' && onCancel()
@@ -74,19 +104,22 @@ export function ConfirmDialog({ open, title, message, confirmLabel = 'Eliminar',
   }, [open, onCancel])
 
   if (!open) return null
-  return (
+
+  return createPortal(
     <div className="modal-overlay" onMouseDown={(e) => e.target === e.currentTarget && onCancel()}>
-      <div className="modal modal-confirm" role="alertdialog" aria-modal="true">
+      <div className="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby={titleId}
+           ref={panelRef} tabIndex={-1}>
         <div className="confirm-icon"><IconAlert size={26} /></div>
-        <h3>{title}</h3>
+        <h3 id={titleId}>{title}</h3>
         <p>{message}</p>
         <div className="confirm-actions">
-          <button className="btn ghost" onClick={onCancel} disabled={busy}>Cancelar</button>
+          <button className="btn ghost" onClick={onCancel} disabled={busy}>{cancelLabel}</button>
           <button className="btn danger" onClick={onConfirm} disabled={busy}>
             {busy ? 'A eliminar…' : confirmLabel}
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

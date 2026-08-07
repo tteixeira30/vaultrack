@@ -813,6 +813,7 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   align-items: flex-start;
   padding: 20px 22px 0;
 }
+.modal-head-text { flex: 1; min-width: 0; }
 .modal-head h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
 .modal-subtitle { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
 .modal-body { padding: 18px 22px 22px; overflow-y: auto; }
@@ -850,6 +851,15 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   animation: fade-in 0.16s ease;
 }
 
+/* Uma sheet aberta por cima de um modal (ex.: o seletor de tipo dentro do
+   formulário) não volta a pintar o escurecimento: os dois scrims somavam-se e
+   deixavam o fundo praticamente preto. Ambos são filhos diretos do body, por
+   portal, por isso o combinador de irmãos apanha exatamente este caso. */
+.modal-overlay ~ .sheet-overlay {
+  background: transparent;
+  backdrop-filter: none;
+}
+
 .sheet {
   width: 100%;
   display: flex;
@@ -862,13 +872,24 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   box-shadow: var(--shadow);
   padding-bottom: calc(var(--sp-3) + var(--safe-b));
   animation: sheet-in var(--dur-3) var(--ease-spring);
+  /* volta ao sítio quando o arrasto não chega ao limiar de fecho */
+  transition: transform var(--dur-2) var(--ease-spring);
 }
+.sheet:focus { outline: none; }
 
-/* pega visual; o arrastar-para-fechar chega na fase das sobreposições */
+/* Zona de arrasto. Fica só aqui — no corpo competiria com o scroll do próprio
+   corpo. O touch-action: none impede o browser de tratar o gesto como scroll. */
+.sheet-head {
+  flex-shrink: 0;
+  touch-action: none;
+  cursor: grab;
+}
+.sheet-head:active { cursor: grabbing; }
+
 .sheet-grabber {
+  display: block;
   width: 38px;
   height: 4px;
-  flex-shrink: 0;
   margin: var(--sp-2) auto var(--sp-1);
   border-radius: 999px;
   background: var(--border-strong);
@@ -889,6 +910,31 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+/* Seletores em sheet (mobile): o conteúdo é o mesmo do popover, mas sem
+   posicionamento fixo, sem moldura própria e com alvos maiores. */
+.dd-pop-sheet,
+.dp-pop-sheet {
+  position: static;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.dd-pop-sheet .dd-option {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+}
+.dp-pop-sheet .dp-day { min-height: var(--tap); font-size: 14px; }
+.dp-pop-sheet .dp-grid { gap: var(--sp-1); }
+.dp-pop-sheet .dp-month { font-size: 14px; }
+.dp-pop-sheet .dp-foot button { min-height: var(--tap); padding: 0 var(--sp-3); font-size: 13.5px; }
 
 /* ---------- Toasts ---------- */
 
@@ -920,6 +966,8 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
 
 @keyframes toast-in { from { opacity: 0; transform: translateX(30px); } }
 @keyframes toast-out { to { opacity: 0; transform: translateX(30px); } }
+@keyframes toast-in-up { from { opacity: 0; transform: translateY(24px); } }
+@keyframes toast-out-down { to { opacity: 0; transform: translateY(24px); } }
 
 .toast-icon {
   width: 30px; height: 30px;
@@ -946,6 +994,8 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   transform-origin: left;
   animation: toast-timer 4.5s linear forwards;
 }
+/* a contagem pára enquanto o dedo (ou o rato) está pousado no toast */
+.toast-progress.paused { animation-play-state: paused; }
 .toast-success .toast-progress { background: var(--green); }
 .toast-error .toast-progress { background: var(--red); }
 .toast-info .toast-progress { background: var(--accent); }
@@ -1255,11 +1305,25 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   }
   .confirm-actions .btn { flex: 1; }
 
+  /* volta ao sítio quando o arrasto não chega ao limiar de fecho */
+  .modal { transition: transform var(--dur-2) var(--ease-spring); }
+  .modal:focus { outline: none; }
+  /* .modal-top é a zona de arrasto e envolve a pega + o cabeçalho */
+  .modal-top { touch-action: none; }
+  .modal-top .sheet-grabber { margin: var(--sp-2) auto 0; }
+  .modal-head { padding-top: var(--sp-3); }
+
+  /* em baixo e ao largo: à direita e estreito era um resto do desenho desktop */
   .toast-stack {
     top: auto;
     bottom: calc(var(--nav-h) + var(--safe-b) + var(--sp-3));
-    right: var(--sp-3);
+    left: calc(var(--sp-3) + var(--safe-l));
+    right: calc(var(--sp-3) + var(--safe-r));
+    width: auto;
   }
+  /* com a pilha em baixo, a animação passa para o eixo vertical */
+  .toast { animation-name: toast-in-up; touch-action: pan-x; }
+  .toast-leave { animation-name: toast-out-down; }
 
   /* rótulos da barra inferior encolhem para caber todos os separadores */
   .bottom-nav button { font-size: 9.5px; padding: var(--sp-1) 2px; }

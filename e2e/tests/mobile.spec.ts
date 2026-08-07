@@ -62,5 +62,43 @@ test.describe('mobile @mobile', () => {
     await goalsPage.dialog.expectOpen()
 
     await goalsPage.dialog.expectBottomSheet()
+    await expect(goalsPage.dialog.grabber).toBeVisible()
+  })
+
+  test('arrastar o modal para baixo fecha-o; um arrasto curto não', async ({ goalsPage }) => {
+    await goalsPage.goto()
+
+    await goalsPage.page.getByRole('button', { name: 'Novo objetivo' }).click()
+    await goalsPage.dialog.expectOpen()
+
+    // abaixo do limiar (~90px) volta ao sítio
+    await goalsPage.dialog.dragDown(40)
+    await goalsPage.dialog.expectOpen()
+
+    await goalsPage.dialog.dragDown(160)
+    await goalsPage.dialog.expectClosed()
+  })
+
+  test('a confirmação destrutiva não tem pega de arrasto', async ({ goalsPage }) => {
+    await goalsPage.goto()
+    await goalsPage.create({ name: 'Viagem', target: 1000, monthly: 50 })
+
+    await goalsPage.card('Viagem').getByRole('button', { name: 'Eliminar' }).click()
+
+    // é uma saída deliberada: só pelos botões, sem gesto que a feche por engano
+    await expect(goalsPage.confirmDialog.root).toBeVisible()
+    await expect(goalsPage.confirmDialog.grabber).toHaveCount(0)
+
+    await goalsPage.confirmDialog.dismiss('Eliminar objetivo?')
+  })
+
+  test('os seletores abrem como sheet em vez de popover ancorado', async ({ investmentsPage }) => {
+    await investmentsPage.goto()
+
+    await investmentsPage.page.getByRole('button', { name: 'Novo investimento' }).click()
+    await investmentsPage.dialog.expectOpen()
+
+    await investmentsPage.openTypeSelector()
+    await investmentsPage.expectTypeSelectorIsSheet()
   })
 })

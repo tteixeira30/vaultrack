@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import DatePicker from '../components/DatePicker'
+import { setMediaQuery } from './setup'
 
 // "Hoje" depende da data real do sistema; calculamos o valor esperado com a
 // mesma lógica do componente para o teste ser determinístico em qualquer dia.
@@ -65,5 +66,29 @@ describe('DatePicker', () => {
     await user.click(screen.getByRole('button', { name: '10/06/2025' }))
     await user.click(screen.getByRole('button', { name: 'Hoje' }))
     expect(onChange).toHaveBeenCalledWith(todayIso())
+  })
+
+  describe('em mobile', () => {
+    beforeEach(() => setMediaQuery('(max-width: 900px)', true))
+
+    it('abre como bottom sheet em vez de popover ancorado', async () => {
+      const user = userEvent.setup()
+      render(<DatePicker value="2025-06-15" onChange={() => {}} placeholder="Data do evento" />)
+      await user.click(screen.getByRole('button', { name: '15/06/2025' }))
+
+      const sheet = screen.getByRole('dialog', { name: 'Data do evento' })
+      expect(within(sheet).getByText('Junho de 2025')).toBeInTheDocument()
+    })
+
+    it('escolher um dia na sheet chama onChange e fecha', async () => {
+      const user = userEvent.setup()
+      const onChange = vi.fn()
+      render(<DatePicker value="2025-06-01" onChange={onChange} />)
+      await user.click(screen.getByRole('button', { name: '01/06/2025' }))
+      await user.click(screen.getByRole('button', { name: '20' }))
+
+      expect(onChange).toHaveBeenCalledWith('2025-06-20')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
   })
 })

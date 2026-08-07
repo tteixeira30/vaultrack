@@ -23,6 +23,15 @@ export class ConfirmDialog {
     return this.root.getByRole('button', { name: 'Cancelar' })
   }
 
+  /**
+   * Pega de arrasto. Ao contrário das outras sobreposições, esta **não a tem**:
+   * uma confirmação destrutiva não deve fechar-se por gesto acidental. O
+   * locator existe para o teste poder afirmar que continua ausente.
+   */
+  get grabber(): Locator {
+    return this.root.locator('.sheet-grabber')
+  }
+
   /** Confirma a ação, validando primeiro que é o diálogo esperado. */
   async accept(title: string | RegExp): Promise<void> {
     await expect(this.root.getByRole('heading', { name: title })).toBeVisible()

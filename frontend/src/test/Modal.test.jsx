@@ -50,6 +50,34 @@ describe('Modal', () => {
     fireEvent.mouseDown(screen.getByText('dentro'))
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('o diálogo tem nome acessível vindo do título', () => {
+    render(<Modal open title="Novo objetivo" onClose={() => {}} />)
+    expect(screen.getByRole('dialog', { name: 'Novo objetivo' })).toBeInTheDocument()
+  })
+
+  it('bloqueia o scroll da página enquanto está aberto e repõe ao fechar', () => {
+    const { rerender } = render(<Modal open title="X" onClose={() => {}} />)
+    expect(document.body.style.position).toBe('fixed')
+
+    rerender(<Modal open={false} title="X" onClose={() => {}} />)
+    expect(document.body.style.position).toBe('')
+  })
+
+  it('leva o foco para dentro do diálogo ao abrir', () => {
+    render(<Modal open title="X" onClose={() => {}}><button>primeiro</button></Modal>)
+    expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true)
+  })
+
+  it('com alterações por guardar, fechar pede confirmação em vez de descartar', () => {
+    const onClose = vi.fn()
+    render(<Modal open title="X" onClose={onClose} dirty />)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('alertdialog', { name: 'Descartar alterações?' })).toBeInTheDocument()
+  })
 })
 
 describe('ConfirmDialog', () => {
@@ -77,5 +105,16 @@ describe('ConfirmDialog', () => {
     render(<ConfirmDialog open title="T" message="M" busy onConfirm={() => {}} onCancel={() => {}} />)
     expect(screen.getByRole('button', { name: 'A eliminar…' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled()
+  })
+
+  // antes não bloqueava de todo: a página fazia scroll por trás da confirmação
+  it('bloqueia o scroll da página enquanto está aberto', () => {
+    const { rerender } = render(
+      <ConfirmDialog open title="T" message="M" onConfirm={() => {}} onCancel={() => {}} />,
+    )
+    expect(document.body.style.position).toBe('fixed')
+
+    rerender(<ConfirmDialog open={false} title="T" message="M" onConfirm={() => {}} onCancel={() => {}} />)
+    expect(document.body.style.position).toBe('')
   })
 })
