@@ -14,6 +14,11 @@ test.describe('painel (dashboard) — agregação', () => {
     investmentsPage,
     goalsPage,
   }) => {
+    // Percorre quatro páginas a semear dados antes de verificar a agregação:
+    // medido em ~56s numa máquina lenta, contra os 30s por omissão. É a folga
+    // mínima para o relógio não ser o que decide o resultado.
+    test.setTimeout(120_000)
+
     await incomePage.goto()
     await incomePage.setMonthlyIncome(2000)
     await incomePage.expectIncome(2000)

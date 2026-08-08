@@ -17,6 +17,12 @@ test('percurso completo: rendimento, despesas, investimento e objetivo agregam n
   goalsPage,
   dashboardPage,
 }) => {
+  // O teste mais pesado da suite: cinco passos por cinco páginas, com import de
+  // CSV pelo meio. Medido em ~70s numa máquina lenta, contra os 30s que o
+  // projeto dá por omissão — que continuam a servir todo o resto. A folga é só
+  // de relógio: qualquer regressão real de comportamento falha na mesma.
+  test.setTimeout(120_000)
+
   await test.step('1) rendimento mensal', async () => {
     await incomePage.goto()
     await incomePage.setMonthlyIncome(2000)
