@@ -128,8 +128,16 @@ Nunca comitar segredos. `.env`, `*.key`, `backup-*.sql` estão no `.gitignore`.
 
 Produção corre em VM (Docker) com `docker-compose.prod.yml` + **Caddy** (HTTPS automático via Let's Encrypt). Fluxo:
 
-1. `git push` a partir do PC de desenvolvimento.
-2. Na VM: `git pull` e `docker compose -f docker-compose.prod.yml up -d --build`.
+1. Merge no `main` (via PR) a partir do PC de desenvolvimento.
+2. Correr `scripts/deploy.ps1` no PC — faz por SSH o `git pull` (fast-forward) + `up -d --build`
+   na VM, com health check HTTPS no fim e comando de rollback em caso de falha. Opções úteis:
+   `-Status` (só diagnóstico), `-Backup` (pg_dump antes), `-Service <nome>`, `-Logs`, `-Force`.
+   O equivalente manual continua a ser `git pull` + `up -d --build` dentro da VM.
+
+O script **não contém segredos**: lê o IP, a chave SSH e o domínio de `.env.deploy` na raiz
+(ignorado pelo git — o template versionado é `.env.deploy.example`). Ficheiros `.ps1` têm de ficar
+com **CRLF** (regra no `.gitattributes`): o Windows PowerShell 5.1 não fecha here-strings em
+ficheiros só com LF.
 
 Os detalhes concretos (endereços, SSH, domínio) estão no `CHEATSHEET.md` local (não versionado). **Implementar e testar sempre localmente primeiro**; só fazer deploy quando validado.
 

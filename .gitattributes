@@ -1,3 +1,7 @@
 # Scripts shell têm de manter fins de linha LF, senão o shebang parte-se em
 # Linux (ex.: "/bin/sh^M: bad interpreter") quando editados no Windows.
 *.sh text eol=lf
+
+# Ao contrário dos .sh, os .ps1 precisam de CRLF: o Windows PowerShell 5.1 não
+# reconhece o fim de um here-string (@'...'@) em ficheiros só com LF.
+*.ps1 text eol=crlf
