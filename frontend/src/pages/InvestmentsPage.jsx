@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { api, fmtEur, fmtPct, fmtMoneyShort, toEur, fromEur, getCurrencySymbol } from '../api'
+import { api, fmtEur, fmtPct, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import Dropdown from '../components/Dropdown'
 import { useChartColors } from '../components/ThemeContext'
 import { useToast } from '../components/Toast'
-import { IconCoins, IconPencil, IconPlus, IconRefresh, IconTrendingUp, IconWallet, IconSparkle } from '../components/Icons'
+import { IconCoins, IconPencil, IconPlus, IconRefresh, IconTrendingUp, IconWallet, IconSparkle, IconTrash } from '../components/Icons'
 
 const RANGES = [
   { id: '1mo', label: '1M' },
@@ -130,8 +130,8 @@ export default function InvestmentsPage() {
     }
     setProjParams({
       months: Math.min(projUnit === 'anos' ? h * 12 : h, 600),
-      monthly: toEur(Number(projMonthly) || 0),
-      rate: projRate === '' ? null : Number(projRate),
+      monthly: toEur(parseAmount(projMonthly) || 0),
+      rate: projRate === '' ? null : parseAmount(projRate),
     })
   }
 
@@ -158,10 +158,10 @@ export default function InvestmentsPage() {
         name: form.name.trim(),
         symbol: form.symbol.trim() || null,
         type: form.type,
-        currentValue: toEur(Number(form.currentValue)),
-        gainPercent: Number(form.gainPercent) || 0,
-        monthlyContribution: Number(form.monthlyContribution) ? toEur(Number(form.monthlyContribution)) : null,
-        contributionDay: Number(form.monthlyContribution) ? (Number(form.contributionDay) || 1) : null,
+        currentValue: toEur(parseAmount(form.currentValue)),
+        gainPercent: parseAmount(form.gainPercent) || 0,
+        monthlyContribution: parseAmount(form.monthlyContribution) ? toEur(parseAmount(form.monthlyContribution)) : null,
+        contributionDay: parseAmount(form.monthlyContribution) ? (Number(form.contributionDay) || 1) : null,
       })
       setAddModal(false)
       setForm(EMPTY_FORM)
@@ -201,10 +201,10 @@ export default function InvestmentsPage() {
         name: editForm.name.trim(),
         symbol: isManualType(editForm.type) ? null : (editForm.symbol.trim() || null),
         type: editForm.type,
-        currentValue: toEur(Number(editForm.currentValue)),
-        gainPercent: Number(editForm.gainPercent) || 0,
-        monthlyContribution: Number(editForm.monthlyContribution) ? toEur(Number(editForm.monthlyContribution)) : null,
-        contributionDay: Number(editForm.monthlyContribution) ? (Number(editForm.contributionDay) || 1) : null,
+        currentValue: toEur(parseAmount(editForm.currentValue)),
+        gainPercent: parseAmount(editForm.gainPercent) || 0,
+        monthlyContribution: parseAmount(editForm.monthlyContribution) ? toEur(parseAmount(editForm.monthlyContribution)) : null,
+        contributionDay: parseAmount(editForm.monthlyContribution) ? (Number(editForm.contributionDay) || 1) : null,
       })
       setEditing(null)
       await load()
@@ -382,7 +382,7 @@ export default function InvestmentsPage() {
           <div className="proj-field">
             <label>Reforço mensal <span className="dim">(opcional)</span></label>
             <div className="input-affix wide" style={{ width: 140 }}>
-              <input type="number" min="0" step="10" placeholder="0" value={projMonthly}
+              <input type="text" inputMode="decimal" enterKeyHint="done" placeholder="0" value={projMonthly}
                      onChange={(e) => setProjMonthly(e.target.value)}
                      onKeyDown={(e) => e.key === 'Enter' && applyProjection()} aria-label="Reforço mensal" />
               <span className="affix">{cur}/mês</span>
@@ -391,7 +391,7 @@ export default function InvestmentsPage() {
           <div className="proj-field">
             <label>Taxa própria <span className="dim">(opcional)</span></label>
             <div className="input-affix wide" style={{ width: 130 }}>
-              <input type="number" step="0.5" min="-95" max="100" placeholder="ex: 7" value={projRate}
+              <input type="text" inputMode="decimal" enterKeyHint="done" placeholder="ex: 7" value={projRate}
                      onChange={(e) => setProjRate(e.target.value)}
                      onKeyDown={(e) => e.key === 'Enter' && applyProjection()} aria-label="Taxa personalizada" />
               <span className="affix">%/ano</span>
@@ -529,7 +529,7 @@ export default function InvestmentsPage() {
                         <button className="icon-btn" onClick={() => openEdit(inv)} aria-label="Editar" title="Editar">
                           <IconPencil size={16} />
                         </button>
-                        <button className="icon-btn danger" onClick={() => setToDelete(inv)} aria-label="Eliminar" title="Eliminar">✕</button>
+                        <button className="icon-btn danger" onClick={() => setToDelete(inv)} aria-label="Eliminar" title="Eliminar"><IconTrash size={15} /></button>
                       </td>
                     </tr>
                   )
@@ -540,7 +540,7 @@ export default function InvestmentsPage() {
         )}
       </div>
 
-      <Modal open={addModal} onClose={() => setAddModal(false)}
+      <Modal open={addModal} onClose={() => setAddModal(false)} onSubmit={add} busy={busy}
              title="Novo investimento"
              subtitle="Indica quanto vale agora e a % de ganho — calculamos o valor inicial, o lucro e as unidades."
              footer={
@@ -579,7 +579,7 @@ export default function InvestmentsPage() {
           <div className="field">
             <label>Valor atual</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" placeholder="Ex: 1500" value={form.currentValue}
+              <input type="text" inputMode="decimal" placeholder="Ex: 1500" value={form.currentValue}
                      onChange={(e) => setForm({ ...form, currentValue: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
@@ -587,20 +587,20 @@ export default function InvestmentsPage() {
           <div className="field">
             <label>Ganho até agora</label>
             <div className="input-affix">
-              <input type="number" step="0.01" placeholder="Ex: 12.5 ou -8" value={form.gainPercent}
+              <input type="text" inputMode="decimal" placeholder="Ex: 12.5 ou -8" value={form.gainPercent}
                      onChange={(e) => setForm({ ...form, gainPercent: e.target.value })} />
               <span className="affix">%</span>
             </div>
-            {form.currentValue && form.gainPercent && Number(form.gainPercent) > -100 && (
+            {form.currentValue && form.gainPercent && parseAmount(form.gainPercent) > -100 && (
               <span className="hint">
-                Investimento inicial ≈ {fmtEur(toEur(Number(form.currentValue)) / (1 + Number(form.gainPercent) / 100))}
+                Investimento inicial ≈ {fmtEur(toEur(parseAmount(form.currentValue)) / (1 + parseAmount(form.gainPercent) / 100))}
               </span>
             )}
           </div>
           <div className="field full">
             <label>Reforço mensal automático <span className="dim">(opcional)</span></label>
             <div className="input-affix">
-              <input type="number" min="0" step="10" placeholder="Ex: 100" value={form.monthlyContribution}
+              <input type="text" inputMode="decimal" placeholder="Ex: 100" value={form.monthlyContribution}
                      onChange={(e) => setForm({ ...form, monthlyContribution: e.target.value })} />
               <span className="affix">{cur}/mês</span>
             </div>
@@ -609,10 +609,10 @@ export default function InvestmentsPage() {
               Em ativos com cotação, compra unidades ao preço do momento.
             </span>
           </div>
-          {Number(form.monthlyContribution) > 0 && (
+          {parseAmount(form.monthlyContribution) > 0 && (
             <div className="field full">
               <label>Dia do mês do reforço</label>
-              <div className="input-affix" style={{ width: 110 }}>
+              <div className="input-affix field-narrow">
                 <input type="number" min="1" max="31" step="1" value={form.contributionDay}
                        onChange={(e) => setForm({ ...form, contributionDay: e.target.value })} />
                 <span className="affix">do mês</span>
@@ -623,7 +623,7 @@ export default function InvestmentsPage() {
         </div>
       </Modal>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)}
+      <Modal open={!!editing} onClose={() => setEditing(null)} onSubmit={saveEdit} busy={busy}
              title="Editar investimento"
              subtitle={editing?.live
                ? 'Ativo com cotação em tempo real — o valor atual ajusta a tua posição ao preço do momento.'
@@ -664,7 +664,7 @@ export default function InvestmentsPage() {
           <div className="field">
             <label>Valor atual</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" aria-label="Valor atual" value={editForm.currentValue}
+              <input type="text" inputMode="decimal" aria-label="Valor atual" value={editForm.currentValue}
                      onChange={(e) => setEditForm({ ...editForm, currentValue: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
@@ -672,29 +672,29 @@ export default function InvestmentsPage() {
           <div className="field">
             <label>Ganho até agora</label>
             <div className="input-affix">
-              <input type="number" step="0.01" aria-label="Ganho até agora" value={editForm.gainPercent}
+              <input type="text" inputMode="decimal" aria-label="Ganho até agora" value={editForm.gainPercent}
                      onChange={(e) => setEditForm({ ...editForm, gainPercent: e.target.value })} />
               <span className="affix">%</span>
             </div>
-            {editForm.currentValue && editForm.gainPercent && Number(editForm.gainPercent) > -100 && (
+            {editForm.currentValue && editForm.gainPercent && parseAmount(editForm.gainPercent) > -100 && (
               <span className="hint">
-                Investimento inicial ≈ {fmtEur(toEur(Number(editForm.currentValue)) / (1 + Number(editForm.gainPercent) / 100))}
+                Investimento inicial ≈ {fmtEur(toEur(parseAmount(editForm.currentValue)) / (1 + parseAmount(editForm.gainPercent) / 100))}
               </span>
             )}
           </div>
           <div className="field full">
             <label>Reforço mensal automático <span className="dim">(opcional)</span></label>
             <div className="input-affix">
-              <input type="number" min="0" step="10" placeholder="Sem reforço" value={editForm.monthlyContribution}
+              <input type="text" inputMode="decimal" placeholder="Sem reforço" value={editForm.monthlyContribution}
                      onChange={(e) => setEditForm({ ...editForm, monthlyContribution: e.target.value })} />
               <span className="affix">{cur}/mês</span>
             </div>
             <span className="hint">Deixa vazio ou 0 para desativar o reforço mensal.</span>
           </div>
-          {Number(editForm.monthlyContribution) > 0 && (
+          {parseAmount(editForm.monthlyContribution) > 0 && (
             <div className="field full">
               <label>Dia do mês do reforço</label>
-              <div className="input-affix" style={{ width: 110 }}>
+              <div className="input-affix field-narrow">
                 <input type="number" min="1" max="31" step="1" value={editForm.contributionDay}
                        onChange={(e) => setEditForm({ ...editForm, contributionDay: e.target.value })} />
                 <span className="affix">do mês</span>

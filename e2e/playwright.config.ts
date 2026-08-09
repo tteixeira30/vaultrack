@@ -40,5 +40,23 @@ export default defineConfig({
     ? [['github'], ['html', { open: 'never' }]]
     : [['list'], ['html', { open: 'never' }]],
 
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      // o spec de mobile assume a barra inferior, que no desktop está escondida
+      grepInvert: /@mobile/,
+    },
+    {
+      /**
+       * Subconjunto no viewport de telemóvel: o layout e a navegação mobile
+       * (@mobile), a bateria de acessibilidade e os testes @smoke. Os fluxos de
+       * CRUD não se repetem — a lógica é a mesma nos dois viewports e já corre
+       * em desktop, e duplicar a suite duplicava o tempo do job.
+       */
+      name: 'mobile',
+      use: { ...devices['Pixel 7'] },
+      grep: /@mobile|@smoke|acessibilidade/,
+    },
+  ],
 })

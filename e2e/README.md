@@ -36,10 +36,30 @@ Para apontar a outro ambiente: `BASE_URL=https://... npm test`.
 src/
 ├── fixtures/     `test` estendido do projeto — importa daqui, não de @playwright/test
 ├── pages/        Page Objects (um por página da app)
-├── components/   Peças partilhadas: Sidebar, ProfileMenu, ModalDialog, ConfirmDialog
+├── components/   Peças partilhadas: MainNav, ProfileMenu, ModalDialog, ConfirmDialog
 └── utils/        Dados de teste (emails, CSV, meses) e formatação monetária
 tests/            Os specs. Só orquestram Page Objects e fazem asserções.
 ```
+
+## Os dois viewports
+
+Há dois projetos no `playwright.config.ts`:
+
+| Projeto | Viewport | O que corre |
+|---|---|---|
+| `chromium` | Desktop Chrome | tudo menos `@mobile` |
+| `mobile` | Pixel 7 (412×839) | `@mobile` + a bateria axe + os `@smoke` |
+
+O projeto mobile é um **subconjunto de propósito**: os fluxos de CRUD têm a mesma lógica nos dois
+viewports e duplicar a suite duplicava o tempo do job. O que é específico do telemóvel — barra
+inferior, sheet "Mais", modais em bottom sheet, ausência de scroll horizontal — vive no
+`tests/mobile.spec.ts`, etiquetado `@mobile` e excluído do projeto de desktop.
+
+**`MainNav` é o Page Object da navegação nos dois casos.** A sidebar e a barra inferior têm os
+mesmos rótulos e o CSS garante que só uma está visível de cada vez, por isso a raiz do locator é
+`.sidebar .nav:visible, .bottom-nav:visible` — apanha a que está em uso sem depender do valor do
+breakpoint. Em mobile, `open('Rendimento')` passa sozinho pela sheet "Mais", onde os separadores
+secundários vivem.
 
 Aliases de importação (definidos em `tsconfig.json`): `@fixtures/*`, `@pages/*`,
 `@components/*`, `@utils/*`.

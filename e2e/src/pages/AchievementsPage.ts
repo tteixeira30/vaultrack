@@ -11,7 +11,7 @@ import { BasePage } from './BasePage'
 export class AchievementsPage extends BasePage {
   async goto(): Promise<void> {
     await this.page.goto('/')
-    await this.sidebar.expectVisible()
+    await this.nav.expectVisible()
     await this.profileMenu.select('Conquistas')
     await expect(this.levelHeading).toBeVisible()
   }

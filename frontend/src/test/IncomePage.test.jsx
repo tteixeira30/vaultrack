@@ -83,12 +83,33 @@ describe('IncomePage', () => {
     await user.click(screen.getByRole('button', { name: 'Editar' }))
 
     const dialog = screen.getByRole('dialog')
-    const input = within(dialog).getByRole('spinbutton')
+    // textbox, não spinbutton: os campos monetários são type=text com
+    // inputMode=decimal, para aceitarem a vírgula decimal do PT-PT
+    const input = within(dialog).getByRole('textbox', { name: 'Rendimento do mês' })
     await user.clear(input)
     await user.type(input, '2500')
     await user.click(within(dialog).getByRole('button', { name: 'Guardar' }))
 
     await waitFor(() => expect(api.setIncome).toHaveBeenCalledWith(2500, '2025-06'))
+  })
+
+  it('aceita a vírgula decimal do PT-PT no rendimento', async () => {
+    api.getIncome.mockResolvedValue(income())
+    api.setIncome.mockResolvedValue(income({ monthlyIncome: 2500.5 }))
+    const user = userEvent.setup()
+    render(<IncomePage />)
+
+    await waitFor(() => expect(screen.getAllByText('Poupança').length).toBeGreaterThan(0))
+    await user.click(screen.getByRole('button', { name: 'Editar' }))
+
+    const dialog = screen.getByRole('dialog')
+    const input = within(dialog).getByRole('textbox', { name: 'Rendimento do mês' })
+    await user.clear(input)
+    await user.type(input, '2500,50')
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar' }))
+
+    // com type=number isto chegava como NaN e o valor perdia-se
+    await waitFor(() => expect(api.setIncome).toHaveBeenCalledWith(2500.5, '2025-06'))
   })
 
   it('eliminar uma categoria confirma e chama a API', async () => {

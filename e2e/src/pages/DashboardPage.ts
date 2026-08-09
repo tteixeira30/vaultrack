@@ -1,6 +1,6 @@
 import { expect, type Locator } from '@playwright/test'
 import { KpiCards } from '../components/KpiCards'
-import { type TabLabel } from '../components/Sidebar'
+import { type TabLabel } from '../components/MainNav'
 import { eur } from '../utils/money'
 import { TabPage } from './BasePage'
 
@@ -24,7 +24,7 @@ export class DashboardPage extends TabPage {
    */
   override async goto(): Promise<void> {
     await this.page.goto('/')
-    await this.sidebar.expectVisible()
+    await this.nav.expectVisible()
     await this.waitForLoaded()
   }
 

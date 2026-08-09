@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IconChevronRight } from './Icons'
+import Sheet from './Sheet'
+import { useIsMobile } from './useMediaQuery'
 
 const POP_MAX = 300   // altura máxima do menu
 const POP_MIN_W = 140 // largura mínima (triggers estreitos, ex.: seletor de moeda)
@@ -19,6 +21,9 @@ export default function Dropdown({ value, onChange, options = [], placeholder = 
   const [pos, setPos] = useState(null)
   const ref = useRef(null)
   const popRef = useRef(null)
+  // no telemóvel um popover ancorado fica apertado e o teclado tapa-o; a sheet
+  // dá opções de 44px e não depende de haver espaço por baixo do campo
+  const isMobile = useIsMobile()
 
   const place = () => {
     if (!ref.current) return
@@ -37,7 +42,7 @@ export default function Dropdown({ value, onChange, options = [], placeholder = 
   }
 
   useEffect(() => {
-    if (!open) return
+    if (!open || isMobile) return
     const onDown = (e) => {
       if (ref.current?.contains(e.target) || popRef.current?.contains(e.target)) return
       setOpen(false)
@@ -55,13 +60,13 @@ export default function Dropdown({ value, onChange, options = [], placeholder = 
       window.removeEventListener('scroll', onMove, true)
       window.removeEventListener('resize', onMove)
     }
-  }, [open])
+  }, [open, isMobile])
 
   const selected = options.find((o) => o.value === value)
 
   const toggle = () => {
     setOpen((wasOpen) => {
-      if (!wasOpen) place()
+      if (!wasOpen && !isMobile) place()
       return !wasOpen
     })
   }
@@ -79,18 +84,34 @@ export default function Dropdown({ value, onChange, options = [], placeholder = 
         <IconChevronRight size={16} className="dd-chevron" />
       </button>
 
-      {open && pos && createPortal(
-        <div className="dd-pop" role="listbox" aria-label={label} ref={popRef}
-             style={{ position: 'fixed', left: pos.left, top: pos.top, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}>
-          {options.map((o) => (
-            <button key={o.value} type="button" role="option" aria-selected={o.value === value}
-                    className={`dd-option ${o.value === value ? 'selected' : ''}`}
-                    onClick={() => pick(o.value)}>
-              {o.label}
-            </button>
-          ))}
-        </div>,
-        document.body,
+      {/* A classe .dd-pop mantém-se nas duas variantes: o menu de perfil
+          (App.jsx) usa-a para ignorar cliques-fora que caem num dropdown. */}
+      {isMobile ? (
+        <Sheet open={open} title={label || placeholder} onClose={() => setOpen(false)} className="dd-sheet">
+          <div className="dd-pop dd-pop-sheet" role="listbox" aria-label={label} ref={popRef}>
+            {options.map((o) => (
+              <button key={o.value} type="button" role="option" aria-selected={o.value === value}
+                      className={`dd-option ${o.value === value ? 'selected' : ''}`}
+                      onClick={() => pick(o.value)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </Sheet>
+      ) : (
+        open && pos && createPortal(
+          <div className="dd-pop" role="listbox" aria-label={label} ref={popRef}
+               style={{ position: 'fixed', left: pos.left, top: pos.top, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}>
+            {options.map((o) => (
+              <button key={o.value} type="button" role="option" aria-selected={o.value === value}
+                      className={`dd-option ${o.value === value ? 'selected' : ''}`}
+                      onClick={() => pick(o.value)}>
+                {o.label}
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )
       )}
     </div>
   )

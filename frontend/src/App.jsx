@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import DashboardPage from './pages/DashboardPage'
 import IncomePage from './pages/IncomePage'
 import InvestmentsPage from './pages/InvestmentsPage'
@@ -11,6 +11,8 @@ import { ToastProvider } from './components/Toast'
 import { AuthProvider, useAuth } from './components/AuthContext'
 import { ThemeProvider, useTheme } from './components/ThemeContext'
 import Dropdown from './components/Dropdown'
+import BottomNav from './components/BottomNav'
+import MoreSheet from './components/MoreSheet'
 import { IconLogo, IconGrid, IconWallet, IconTrendingUp, IconTarget, IconCalendar, IconReceipt, IconTrophy, IconLogout, IconSun, IconMoon, IconEye, IconEyeOff, IconChevronRight } from './components/Icons'
 import { setPrivacyMode } from './api'
 
@@ -22,6 +24,29 @@ const TABS = [
   { id: 'goals', label: 'Objetivos', icon: IconTarget },
   { id: 'calendar', label: 'Calendário', icon: IconCalendar },
 ]
+
+/** Conquistas não é um separador da sidebar — chega-se pelo menu de perfil. */
+const ACHIEVEMENTS_TAB = { id: 'achievements', label: 'Conquistas', icon: IconTrophy }
+
+/**
+ * Em mobile só quatro separadores cabem com folga (a seis, cada botão ficava
+ * com ~60px num ecrã de 360px). Os restantes vão para a sheet "Mais", que é
+ * também onde as Conquistas passam a ser visíveis na navegação.
+ */
+const PRIMARY_IDS = ['dashboard', 'expenses', 'investments', 'goals']
+const PRIMARY_TABS = PRIMARY_IDS.map((id) => TABS.find((t) => t.id === id))
+const MORE_TABS = [...TABS.filter((t) => !PRIMARY_IDS.includes(t.id)), ACHIEVEMENTS_TAB]
+
+const ALL_TAB_IDS = [...TABS.map((t) => t.id), ACHIEVEMENTS_TAB.id]
+
+/** Separador inicial a partir do URL, para o refresh e as ligações diretas. */
+const tabFromHash = () => {
+  const id = window.location.hash.replace(/^#/, '')
+  return ALL_TAB_IDS.includes(id) ? id : 'dashboard'
+}
+
+const reducedMotion = () =>
+  window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
 
 const CURRENCIES = [
   { code: 'EUR', symbol: '€', name: 'Euro' },
@@ -132,12 +157,67 @@ function ProfileMenu({ user, initials, baseCurrency, changeCurrency, privacy, to
 
 function Shell() {
   const { user, loading, logout, baseCurrency, changeCurrency } = useAuth()
-  const [tab, setTab] = useState('dashboard')
+  const [tab, setTab] = useState(tabFromHash)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const [privacy, setPrivacy] = useState(() => {
     const on = localStorage.getItem('tracky_privacy') === '1'
     setPrivacyMode(on)
     return on
   })
+
+  /**
+   * Navegação com histórico: o voltar do browser (e, na app Android, o botão
+   * físico) percorre os separadores em vez de sair da aplicação. Chega
+   * `pushState` — um router seria uma dependência para trinta linhas.
+   */
+  const go = useCallback((id) => {
+    setMoreOpen(false)
+    if (id === tab) return
+    window.history.pushState({ tab: id }, '', `#${id}`)
+    setTab(id)
+  }, [tab])
+
+  useEffect(() => {
+    const onPop = (e) => {
+      const state = e.state
+      setMoreOpen(state?.sheet === 'more')
+      setTab(ALL_TAB_IDS.includes(state?.tab) ? state.tab : tabFromHash())
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  // a barra de topo ganha borda e sombra assim que o conteúdo passa por baixo
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 4)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // a sheet tem entrada própria no histórico, para o voltar a fechar em vez de
+  // mudar de separador
+  const openMore = () => {
+    window.history.pushState({ tab, sheet: 'more' }, '', `#${tab}`)
+    setMoreOpen(true)
+  }
+  const closeMore = () => {
+    if (window.history.state?.sheet === 'more') window.history.back()
+    else setMoreOpen(false)
+  }
+  // substitui a entrada da sheet (em vez de empilhar) para o voltar ir dar ao
+  // separador de onde se abriu o "Mais"
+  const selectFromMore = (id) => {
+    window.history.replaceState({ tab: id }, '', `#${id}`)
+    setTab(id)
+    setMoreOpen(false)
+  }
+
+  // tocar outra vez no separador ativo sobe ao topo, como nas apps nativas
+  const onNavSelect = (id) => {
+    if (id !== tab) return go(id)
+    window.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' })
+  }
 
   const togglePrivacy = () => {
     const next = !privacy
@@ -149,7 +229,7 @@ function Shell() {
   if (loading) {
     return (
       <div className="auth-wrap">
-        <div className="skeleton" style={{ width: 380, height: 420, borderRadius: 18 }} />
+        <div className="skeleton" style={{ width: 'min(380px, 100%)', height: 420, borderRadius: 18 }} />
       </div>
     )
   }
@@ -160,7 +240,7 @@ function Shell() {
 
   return (
     <div className="shell">
-      <aside className="sidebar">
+      <aside className={`sidebar ${scrolled ? 'scrolled' : ''}`}>
         <div className="brand">
           <IconLogo size={34} />
           <div>
@@ -173,7 +253,8 @@ function Shell() {
             <button
               key={t.id}
               className={`nav-item ${tab === t.id ? 'active' : ''}`}
-              onClick={() => setTab(t.id)}
+              aria-current={tab === t.id ? 'page' : undefined}
+              onClick={() => go(t.id)}
             >
               <t.icon size={18} />
               <span>{t.label}</span>
@@ -185,7 +266,7 @@ function Shell() {
             user={user} initials={initials}
             baseCurrency={baseCurrency} changeCurrency={changeCurrency}
             privacy={privacy} togglePrivacy={togglePrivacy}
-            onOpenAchievements={() => setTab('achievements')}
+            onOpenAchievements={() => go('achievements')}
             achievementsActive={tab === 'achievements'}
             onLogout={logout}
           />
@@ -196,26 +277,27 @@ function Shell() {
         </div>
       </aside>
       <main className="main" key={`${baseCurrency}-${privacy ? 'p1' : 'p0'}`}>
-        {tab === 'dashboard' && <DashboardPage />}
-        {tab === 'income' && <IncomePage />}
-        {tab === 'expenses' && <ExpensesPage />}
-        {tab === 'investments' && <InvestmentsPage />}
-        {tab === 'goals' && <GoalsPage />}
-        {tab === 'calendar' && <CalendarPage />}
-        {tab === 'achievements' && <AchievementsPage />}
+        {/* key={tab}: reinicia a animação de entrada a cada troca de separador */}
+        <div className="page-swap" key={tab}>
+          {tab === 'dashboard' && <DashboardPage />}
+          {tab === 'income' && <IncomePage />}
+          {tab === 'expenses' && <ExpensesPage />}
+          {tab === 'investments' && <InvestmentsPage />}
+          {tab === 'goals' && <GoalsPage />}
+          {tab === 'calendar' && <CalendarPage />}
+          {tab === 'achievements' && <AchievementsPage />}
+        </div>
       </main>
-      <nav className="bottom-nav" aria-label="Navegação">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={tab === t.id ? 'active' : ''}
-            onClick={() => setTab(t.id)}
-          >
-            <t.icon size={21} />
-            <span>{t.label}</span>
-          </button>
-        ))}
-      </nav>
+
+      <BottomNav
+        tabs={PRIMARY_TABS} tab={tab} onSelect={onNavSelect}
+        moreActive={moreOpen || MORE_TABS.some((t) => t.id === tab)}
+        onOpenMore={openMore}
+      />
+      <MoreSheet
+        open={moreOpen} tabs={MORE_TABS} tab={tab}
+        onSelect={selectFromMore} onClose={closeMore}
+      />
     </div>
   )
 }

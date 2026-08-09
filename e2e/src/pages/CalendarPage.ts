@@ -1,5 +1,5 @@
 import { test, type Locator } from '@playwright/test'
-import { type TabLabel } from '../components/Sidebar'
+import { type TabLabel } from '../components/MainNav'
 import { type MovementType } from './ExpensesPage'
 import { TabPage } from './BasePage'
 

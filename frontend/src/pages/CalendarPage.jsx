@@ -1,13 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmtEur, toEur, fromEur, getCurrencySymbol } from '../api'
+import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import DatePicker from '../components/DatePicker'
 import Dropdown from '../components/Dropdown'
 import { useToast } from '../components/Toast'
-import {
-  IconWallet, IconHome, IconRepeat, IconBell, IconCoins, IconInfo, IconTrendingUp, IconTarget,
-  IconChevronLeft, IconChevronRight, IconPlus, IconArrowUp, IconArrowDown, IconPencil,
-} from '../components/Icons'
+import { IconWallet, IconHome, IconRepeat, IconBell, IconCoins, IconInfo, IconTrendingUp, IconTarget, IconChevronLeft, IconChevronRight, IconPlus, IconArrowUp, IconArrowDown, IconPencil, IconTrash } from '../components/Icons'
 
 const CATEGORY_META = {
   INCOME: { label: 'Rendimento', icon: IconWallet },
@@ -92,7 +89,7 @@ export default function CalendarPage() {
       name: form.name.trim(),
       category: form.category,
       inflow: form.inflow,
-      amount: toEur(Number(form.amount)),
+      amount: toEur(parseAmount(form.amount)),
       frequency: form.frequency,
       dayOfMonth: form.frequency === 'MONTHLY' ? Number(form.dayOfMonth) : null,
       eventDate: form.frequency === 'MONTHLY' ? null : (form.eventDate || null),
@@ -289,7 +286,7 @@ export default function CalendarPage() {
                     <span className={e.inflow ? 'pos' : 'neg'}>{e.inflow ? '+' : '−'}{fmtEur(e.amount)}</span>
                     <div className="event-actions">
                       <button className="icon-btn" onClick={() => openEdit(e)} aria-label="Editar"><IconPencil size={14} /></button>
-                      <button className="icon-btn danger" onClick={() => setToDelete(e)} aria-label="Eliminar">✕</button>
+                      <button className="icon-btn danger" onClick={() => setToDelete(e)} aria-label="Eliminar"><IconTrash size={15} /></button>
                     </div>
                   </li>
                 )
@@ -299,7 +296,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <Modal open={addModal} onClose={() => setAddModal(false)}
+      <Modal open={addModal} onClose={() => setAddModal(false)} onSubmit={save} busy={busy}
              title={editing ? 'Editar evento' : 'Novo evento'}
              subtitle="Salário, renda, subscrições ou qualquer movimento recorrente."
              footer={
@@ -330,7 +327,7 @@ export default function CalendarPage() {
           <div className="field">
             <label>Valor</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" placeholder="0" aria-label="Valor" value={form.amount}
+              <input type="text" inputMode="decimal" placeholder="0" aria-label="Valor" value={form.amount}
                      onChange={(e) => setForm({ ...form, amount: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>

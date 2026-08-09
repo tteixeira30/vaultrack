@@ -11,6 +11,10 @@
   --text-dim: #8b93a7;
   --text-faint: #808aa0; /* AA: ≥4.5:1 sobre superfícies escuras (antes #5c6478 falhava) */
   --accent: #5457ee;     /* AA: texto branco ~5.3:1 (antes #6366f1 dava 4.47) */
+  /* Accent como TEXTO sobre fundo escuro: o --accent dá só 3.68:1, abaixo dos
+     4.5 exigidos. Este tom claro dá 8.9:1. No tema claro o problema inverte-se
+     e é o --accent que serve (5.3:1 sobre branco). */
+  --accent-text: #a5a8ff;
   --accent-soft: rgba(99, 102, 241, 0.14);
   --cyan: #22d3ee;
   --green: #10b981;
@@ -27,7 +31,58 @@
   --nav-bg: rgba(15, 18, 27, 0.88);
   --glow-1: rgba(99, 102, 241, 0.12);
   --glow-2: rgba(34, 211, 238, 0.07);
+
+  /* Escala de espaçamento */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* Camadas: manter esta ordem ao acrescentar sobreposições novas */
+  --z-sidebar: 40;
+  --z-nav: 50;
+  --z-pop: 60;      /* popovers no fluxo (menu de perfil) */
+  --z-modal: 100;
+  --z-portal: 200;  /* popovers em portal (Dropdown, DatePicker): acima dos modais */
+  --z-toast: 200;
+
+  /* Movimento */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 280ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.3, 1.05, 0.4, 1);
+
+  /* Alvo tátil mínimo (WCAG 2.2 AA: 24px; usamos 44px, a norma das apps móveis) */
+  --tap: 44px;
+
+  /* Altura do "chrome" mobile — a barra inferior e a barra de topo */
+  --nav-h: 62px;
+  --topbar-h: 56px;
+
+  /* Safe areas (notch). Precisam de viewport-fit=cover no index.html. */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+
+  /* Anel de foco visível (teclado) */
+  --ring: 0 0 0 3px rgba(99, 102, 241, 0.45);
 }
+
+/* ---------- Breakpoints ----------
+   As custom properties não funcionam dentro de @media, por isso os níveis
+   ficam aqui documentados. Usa SEMPRE um destes quatro — não inventes valores
+   intermédios, é assim que se chega a sete breakpoints desiguais.
+
+     <= 600px   telemóvel em retrato: uma coluna, modais viram bottom sheets
+     <= 760px   telemóvel em paisagem / tablet pequeno: tabelas viram cartões
+     <= 900px   fronteira "isto é mobile": sidebar → barra de topo + barra inferior
+     <= 1000px  desktop estreito: só ajustes de grelha
+*/
 
 /* Tema claro: sobrepõe os tokens; o resto do CSS usa var() e adapta-se sozinho. */
 :root[data-theme="light"] {
@@ -40,6 +95,7 @@
   --text: #1a1e2c;
   --text-dim: #5a6478;
   --text-faint: #646d84; /* AA: ≥4.5:1 sobre cartões claros (antes #8b93a7 falhava) */
+  --accent-text: var(--accent); /* sobre fundo claro é o tom escuro que contrasta */
   --green: #047d58;      /* AA como texto em fundo claro; o escuro mantém o verde vivo #10b981 */
   --accent-soft: rgba(99, 102, 241, 0.12);
   --green-soft: rgba(16, 185, 129, 0.12);
@@ -61,7 +117,9 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 14px;
   line-height: 1.5;
+  /* dvh acompanha a barra de endereço do browser móvel; vh fica de fallback */
   min-height: 100vh;
+  min-height: 100dvh;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -84,9 +142,72 @@ body::before {
 ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: 6px; border: 2px solid var(--bg); }
 ::-webkit-scrollbar-track { background: transparent; }
 
+/* ---------- Comportamento tátil e acessibilidade ---------- */
+
+/* O realce azul do toque (Android/iOS) é substituído por estados :active
+   próprios, definidos logo a seguir — sem isto perdia-se todo o feedback. */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Remove o atraso de 300ms em WebViews antigas e o duplo-toque para zoom
+   nos controlos. O zoom continua disponível no resto da página. */
+button, [role='button'], a, label, summary,
+input[type='checkbox'], input[type='radio'], select {
+  touch-action: manipulation;
+}
+
+/* Um toque longo num controlo não deve selecionar o rótulo. */
+button, .nav-item, .account-chip, .cal-cell {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Sem hover no telemóvel, o :active é o único sinal de que o toque pegou. */
+.icon-btn:active { background: var(--surface-3); }
+.account-chip:active,
+.seg button:active,
+.range-buttons button:active,
+.mode-toggle button:active,
+.auth-tabs button:active { filter: brightness(1.15); }
+
+/* O scroll dentro de sobreposições não arrasta a página por trás. */
+.modal-body, .dd-pop, .dp-pop, .import-preview { overscroll-behavior: contain; }
+.table-wrap { overscroll-behavior-x: contain; }
+
+/* Foco visível por teclado. Os campos já têm anel próprio (ver "Forms"). */
+.btn:focus-visible,
+.icon-btn:focus-visible,
+.nav-item:focus-visible,
+.bottom-nav button:focus-visible,
+.profile-trigger:focus-visible,
+.profile-item:focus-visible,
+.dd-trigger:focus-visible,
+.dd-option:focus-visible,
+.dp-trigger:focus-visible,
+.seg button:focus-visible,
+.range-buttons button:focus-visible,
+.mode-toggle button:focus-visible,
+.auth-tabs button:focus-visible,
+.account-chip:focus-visible,
+.toast-close:focus-visible,
+.alloc-toggle:focus-visible,
+.exp-back:focus-visible {
+  outline: none;
+  box-shadow: var(--ring);
+}
+
+/* Respeita a preferência do sistema por menos movimento. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ---------- Layout ---------- */
 
-.shell { display: flex; min-height: 100vh; }
+.shell { display: flex; min-height: 100vh; min-height: 100dvh; }
 
 .sidebar {
   width: var(--sidebar-w);
@@ -98,7 +219,7 @@ body::before {
   border-right: 1px solid var(--border);
   background: var(--sidebar-bg);
   backdrop-filter: blur(10px);
-  z-index: 40;
+  z-index: var(--z-sidebar);
 }
 
 .brand {
@@ -187,7 +308,7 @@ body::before {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.4);
-  z-index: 60;
+  z-index: var(--z-pop);
 }
 .profile-head { display: flex; align-items: center; gap: 10px; padding: 6px 8px 10px; }
 .profile-sep { height: 1px; background: var(--border); margin: 5px 2px; }
@@ -233,6 +354,12 @@ body::before {
   margin: 0 auto;
 }
 
+/* Entrada da página ao trocar de separador. O transform só existe durante os
+   200ms da animação — se alguma vez uma página abrir um modal logo à entrada,
+   passa-o para um portal, senão o position: fixed ancora aqui. */
+.page-swap { animation: page-in var(--dur-2) var(--ease-out); }
+@keyframes page-in { from { opacity: 0; transform: translateY(8px); } }
+
 .page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 26px; flex-wrap: wrap; }
 .page-head h2 { font-size: 23px; font-weight: 700; letter-spacing: -0.4px; }
 .page-head p { color: var(--text-dim); margin-top: 3px; font-size: 13.5px; }
@@ -260,10 +387,11 @@ body::before {
     align-items: center;
     justify-content: space-between;
     /* safe area de topo em ecrãs com notch (PWA/Capacitor, viewport-fit=cover) */
-    padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+    padding: calc(10px + var(--safe-t)) calc(var(--sp-4) + var(--safe-r))
+             10px calc(var(--sp-4) + var(--safe-l));
     border-right: none;
     border-bottom: 1px solid var(--border);
-    z-index: 40;
+    z-index: var(--z-sidebar);
   }
   .brand { padding: 0; gap: 9px; }
   .brand h1 { font-size: 17px; }
@@ -283,7 +411,13 @@ body::before {
   .profile-pop { bottom: auto; left: auto; right: 0; top: calc(100% + 10px); }
   .profile-pop .dd-pop { left: auto; right: 0; min-width: 140px; }
 
-  .main { margin-left: 0; padding: 20px 16px calc(96px + env(safe-area-inset-bottom)); }
+  .main {
+    margin-left: 0;
+    /* o fundo tem de limpar a barra inferior + a safe area do gesto de sistema */
+    padding: var(--sp-5) calc(var(--sp-4) + var(--safe-r))
+             calc(var(--nav-h) + var(--safe-b) + var(--sp-5))
+             calc(var(--sp-4) + var(--safe-l));
+  }
 
   /* navegação principal passa para o fundo, estilo app nativa */
   .bottom-nav {
@@ -292,31 +426,63 @@ body::before {
     left: 0;
     right: 0;
     bottom: 0;
-    z-index: 50;
+    z-index: var(--z-nav);
+    min-height: calc(var(--nav-h) + var(--safe-b));
     background: var(--nav-bg);
     backdrop-filter: blur(14px);
     border-top: 1px solid var(--border);
-    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    padding: var(--sp-2) calc(var(--sp-3) + var(--safe-r))
+             calc(var(--sp-2) + var(--safe-b))
+             calc(var(--sp-3) + var(--safe-l));
   }
   .bottom-nav button {
     flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 3px;
+    min-height: var(--tap);
     background: none;
     border: none;
     color: var(--text-dim);
     font-family: inherit;
     font-size: 10.5px;
     font-weight: 600;
-    padding: 6px 4px;
+    padding: var(--sp-1) var(--sp-1);
     border-radius: 10px;
     cursor: pointer;
-    transition: color 0.15s;
+    transition: color var(--dur-1);
   }
-  .bottom-nav button.active { color: var(--accent); }
+  /* --accent-text e não --accent: o rótulo tem 10.5px, é texto pequeno, e o
+     accent sobre a barra escura dava 3.68:1 — o axe apanhou isto. */
+  .bottom-nav button.active { color: var(--accent-text); }
+  .bottom-nav button.active svg { transform: scale(1.08); }
+  .bottom-nav button svg { transition: transform var(--dur-2) var(--ease-spring); }
   .bottom-nav button:active { background: var(--surface-2); }
+
+  /* Indicador do separador ativo: um só elemento deslocado por transform.
+     --i é o índice do botão ativo e --n o número de posições (ver BottomNav). */
+  .bn-indicator {
+    position: absolute;
+    top: var(--sp-1);
+    left: calc(var(--sp-3) + var(--safe-l));
+    width: calc((100% - var(--sp-3) * 2 - var(--safe-l) - var(--safe-r)) / var(--n));
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--accent);
+    transform: translateX(calc(var(--i) * 100%));
+    transition: transform var(--dur-2) var(--ease-spring);
+    pointer-events: none;
+  }
+
+  /* a barra de topo destaca-se do conteúdo assim que este passa por baixo */
+  .sidebar.scrolled {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+    border-bottom-color: var(--border-strong);
+  }
+
+  /* Os alvos táteis vivem no FIM do ficheiro — ver a secção lá em baixo. */
 }
 
 /* ---------- Cards ---------- */
@@ -337,9 +503,9 @@ body::before {
 .grid-2 { grid-template-columns: 1fr 1fr; }
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
 @media (max-width: 1000px) { .grid-4 { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 700px) {
+@media (max-width: 760px) {
   .grid-2 { grid-template-columns: 1fr; }
-  .grid-4 { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid-4 { grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
   /* no telemóvel o donut + lista de categorias sobem para o topo (a seguir ao total);
      a tabela editável fica por baixo para gestão detalhada */
   .income-grid .income-overview { order: -1; }
@@ -380,7 +546,7 @@ body::before {
 
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-grid .full { grid-column: 1 / -1; }
-@media (max-width: 560px) { .form-grid { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .form-grid { grid-template-columns: 1fr; } }
 
 input, select, textarea {
   background-color: var(--surface-2);
@@ -427,6 +593,11 @@ input[type='month']::-webkit-calendar-picker-indicator {
   cursor: pointer; opacity: 0.55; transition: opacity 0.15s; padding: 2px; border-radius: 4px;
 }
 input[type='date']::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+
+/* Campo estreito (dia do mês). Em desktop tem largura fixa; no telemóvel
+   solta-se, senão fica um campo de 110px perdido numa linha inteira. */
+.field-narrow { width: 110px; }
+@media (max-width: 600px) { .field-narrow { width: 100%; } }
 
 .input-affix { position: relative; }
 .input-affix input { padding-right: 38px; }
@@ -577,7 +748,7 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
 /* ---------- Goals ---------- */
 
 .goals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-@media (max-width: 860px) { .goals-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .goals-grid { grid-template-columns: 1fr; } }
 
 .goal-card { margin-bottom: 0; display: flex; flex-direction: column; gap: 14px; }
 .goal-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
@@ -608,8 +779,8 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  z-index: 100;
+  padding: var(--sp-5);
+  z-index: var(--z-modal);
   animation: fade-in 0.16s ease;
 }
 
@@ -621,6 +792,7 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   box-shadow: var(--shadow);
   animation: modal-in 0.22s cubic-bezier(0.3, 1.1, 0.4, 1);
   max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   display: flex;
   flex-direction: column;
 }
@@ -634,6 +806,7 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   align-items: flex-start;
   padding: 20px 22px 0;
 }
+.modal-head-text { flex: 1; min-width: 0; }
 .modal-head h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.2px; }
 .modal-subtitle { font-size: 12.5px; color: var(--text-dim); margin-top: 3px; }
 .modal-body { padding: 18px 22px 22px; overflow-y: auto; }
@@ -658,6 +831,104 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
 .modal-confirm p { color: var(--text-dim); font-size: 13.5px; }
 .confirm-actions { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
 
+/* ---------- Bottom sheets ---------- */
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  display: flex;
+  align-items: flex-end;
+  background: rgba(5, 7, 12, 0.66);
+  backdrop-filter: blur(5px);
+  animation: fade-in 0.16s ease;
+}
+
+/* Uma sheet aberta por cima de um modal (ex.: o seletor de tipo dentro do
+   formulário) não volta a pintar o escurecimento: os dois scrims somavam-se e
+   deixavam o fundo praticamente preto. Ambos são filhos diretos do body, por
+   portal, por isso o combinador de irmãos apanha exatamente este caso. */
+.modal-overlay ~ .sheet-overlay {
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.sheet {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 40px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 35%), var(--surface);
+  border: 1px solid var(--border-strong);
+  border-bottom: none;
+  border-radius: 20px 20px 0 0;
+  box-shadow: var(--shadow);
+  padding-bottom: calc(var(--sp-3) + var(--safe-b));
+  animation: sheet-in var(--dur-3) var(--ease-spring);
+  /* volta ao sítio quando o arrasto não chega ao limiar de fecho */
+  transition: transform var(--dur-2) var(--ease-spring);
+}
+.sheet:focus { outline: none; }
+
+/* Zona de arrasto. Fica só aqui — no corpo competiria com o scroll do próprio
+   corpo. O touch-action: none impede o browser de tratar o gesto como scroll. */
+.sheet-head {
+  flex-shrink: 0;
+  touch-action: none;
+  cursor: grab;
+}
+.sheet-head:active { cursor: grabbing; }
+
+.sheet-grabber {
+  display: block;
+  width: 38px;
+  height: 4px;
+  margin: var(--sp-2) auto var(--sp-1);
+  border-radius: 999px;
+  background: var(--border-strong);
+}
+
+.sheet-title {
+  padding: var(--sp-2) var(--sp-4) var(--sp-1);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Seletores em sheet (mobile): o conteúdo é o mesmo do popover, mas sem
+   posicionamento fixo, sem moldura própria e com alvos maiores. */
+.dd-pop-sheet,
+.dp-pop-sheet {
+  position: static;
+  width: 100%;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+.dd-pop-sheet .dd-option {
+  min-height: var(--tap);
+  display: flex;
+  align-items: center;
+  font-size: 15px;
+}
+.dp-pop-sheet .dp-day { min-height: var(--tap); font-size: 14px; }
+.dp-pop-sheet .dp-grid { gap: var(--sp-1); }
+.dp-pop-sheet .dp-month { font-size: 14px; }
+.dp-pop-sheet .dp-foot button { min-height: var(--tap); padding: 0 var(--sp-3); font-size: 13.5px; }
+
 /* ---------- Toasts ---------- */
 
 .toast-stack {
@@ -667,7 +938,7 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   display: flex;
   flex-direction: column;
   gap: 10px;
-  z-index: 200;
+  z-index: var(--z-toast);
   width: min(360px, calc(100vw - 36px));
 }
 
@@ -688,6 +959,8 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
 
 @keyframes toast-in { from { opacity: 0; transform: translateX(30px); } }
 @keyframes toast-out { to { opacity: 0; transform: translateX(30px); } }
+@keyframes toast-in-up { from { opacity: 0; transform: translateY(24px); } }
+@keyframes toast-out-down { to { opacity: 0; transform: translateY(24px); } }
 
 .toast-icon {
   width: 30px; height: 30px;
@@ -714,6 +987,8 @@ td .row-sub { font-size: 12px; color: var(--text-faint); margin-top: 1px; }
   transform-origin: left;
   animation: toast-timer 4.5s linear forwards;
 }
+/* a contagem pára enquanto o dedo (ou o rato) está pousado no toast */
+.toast-progress.paused { animation-play-state: paused; }
 .toast-success .toast-progress { background: var(--green); }
 .toast-error .toast-progress { background: var(--red); }
 .toast-info .toast-progress { background: var(--accent); }
@@ -955,8 +1230,8 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 
 /* ---------- Ajustes mobile ---------- */
 
-@media (max-width: 700px) {
-  .card { padding: 16px; border-radius: 12px; }
+@media (max-width: 760px) {
+  .card { padding: var(--sp-4); border-radius: 12px; }
   .page-head h2 { font-size: 20px; }
   /* `flex: 1` dava a mesma largura a todos os botões da linha, o que partia os
      rótulos longos ("Simular depósito mensal") em três linhas ao lado de um
@@ -1011,7 +1286,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 
 /* modais viram bottom sheets em ecrãs pequenos */
 @media (max-width: 600px) {
-  input, select { font-size: 16px; } /* evita o zoom automático no iOS */
+  input, select, textarea { font-size: 16px; } /* evita o zoom automático no iOS */
 
   .modal-overlay { align-items: flex-end; padding: 0; }
   .modal {
@@ -1019,18 +1294,40 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
     border-radius: 20px 20px 0 0;
     border-bottom: none;
     max-height: calc(100dvh - 40px);
-    animation: sheet-in 0.28s cubic-bezier(0.3, 1.05, 0.4, 1);
+    animation: sheet-in var(--dur-3) var(--ease-spring);
   }
-  .modal-foot { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .modal-foot { padding-bottom: calc(var(--sp-4) + var(--safe-b)); }
   .modal-foot .btn { flex: 1; }
 
   .modal-confirm {
     border-radius: 20px 20px 0 0;
-    padding-bottom: calc(26px + env(safe-area-inset-bottom));
+    padding-bottom: calc(26px + var(--safe-b));
   }
   .confirm-actions .btn { flex: 1; }
 
-  .toast-stack { top: auto; bottom: calc(78px + env(safe-area-inset-bottom)); right: 12px; }
+  /* volta ao sítio quando o arrasto não chega ao limiar de fecho */
+  .modal { transition: transform var(--dur-2) var(--ease-spring); }
+  .modal:focus { outline: none; }
+  /* .modal-top é a zona de arrasto e envolve a pega + o cabeçalho */
+  .modal-top { touch-action: none; }
+  .modal-top .sheet-grabber { margin: var(--sp-2) auto 0; }
+  .modal-head { padding-top: var(--sp-3); }
+
+  /* em baixo e ao largo: à direita e estreito era um resto do desenho desktop */
+  .toast-stack {
+    top: auto;
+    bottom: calc(var(--nav-h) + var(--safe-b) + var(--sp-3));
+    left: calc(var(--sp-3) + var(--safe-l));
+    right: calc(var(--sp-3) + var(--safe-r));
+    width: auto;
+  }
+  /* com a pilha em baixo, a animação passa para o eixo vertical */
+  .toast { animation-name: toast-in-up; touch-action: pan-x; }
+  .toast-leave { animation-name: toast-out-down; }
+
+  /* rótulos da barra inferior encolhem para caber todos os separadores */
+  .bottom-nav button { font-size: 9.5px; padding: var(--sp-1) 2px; }
+  .bottom-nav button span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 
 @keyframes sheet-in { from { opacity: 0.4; transform: translateY(60px); } }
@@ -1057,7 +1354,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 }
 .month-label strong { font-size: 13.5px; font-weight: 600; white-space: nowrap; }
 
-@media (max-width: 700px) {
+@media (max-width: 760px) {
   .month-nav { width: 100%; justify-content: space-between; }
 }
 
@@ -1175,10 +1472,12 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 
 .auth-wrap {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: calc(var(--sp-6) + var(--safe-t)) calc(var(--sp-6) + var(--safe-r))
+           calc(var(--sp-6) + var(--safe-b)) calc(var(--sp-6) + var(--safe-l));
 }
 
 .auth-card {
@@ -1301,9 +1600,9 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .hero-chart .empty-state.compact { padding: 24px 8px; }
 .hero-chart .empty-state.compact .empty-icon { width: 44px; height: 44px; }
 
-@media (max-width: 860px) {
-  .dash-hero { grid-template-columns: 1fr; gap: 20px; }
-  .hero-chart { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: 16px; }
+@media (max-width: 900px) {
+  .dash-hero { grid-template-columns: 1fr; gap: var(--sp-5); }
+  .hero-chart { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: var(--sp-4); }
 }
 
 .kpi-grid {
@@ -1392,7 +1691,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .dash-grid { grid-template-columns: minmax(0, 1fr); }
 }
-@media (max-width: 560px) {
+@media (max-width: 600px) {
   .kpi-grid { grid-template-columns: 1fr; }
 }
 
@@ -1414,7 +1713,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .datepicker.open .dp-trigger svg { color: var(--accent); }
 
 .dp-pop {
-  position: fixed; z-index: 200;
+  position: fixed; z-index: var(--z-portal);
   padding: 9px;
   width: 260px; max-width: calc(100vw - 32px);
   background: var(--surface); border: 1px solid var(--border-strong);
@@ -1467,7 +1766,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
      aqui ficam só o empilhamento e o visual. NÃO definir top/left/right: quando o
      menu abre para cima o inline só define `bottom`, e um `top` de CSS a sobrar
      empurrava o menu para fora do ecrã (ex.: seletor de moeda na barra lateral). */
-  z-index: 200; /* acima dos modais (z-index 100) */
+  z-index: var(--z-portal); /* acima dos modais */
   padding: 6px; display: flex; flex-direction: column; gap: 2px;
   background: var(--surface); border: 1px solid var(--border-strong);
   border-radius: var(--radius); box-shadow: var(--shadow);
@@ -1555,9 +1854,9 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .event-row > span.pos, .event-row > span.neg { font-variant-numeric: tabular-nums; font-weight: 600; font-size: 13px; }
 .event-actions { display: flex; gap: 2px; flex-shrink: 0; }
 
-@media (max-width: 560px) {
-  .cal-cell { min-height: 52px; padding: 4px 5px; }
-  .cal-grid { gap: 4px; }
+@media (max-width: 600px) {
+  .cal-cell { min-height: 52px; padding: var(--sp-1) 5px; }
+  .cal-grid { gap: var(--sp-1); }
 }
 
 /* ---------- Conquistas ---------- */
@@ -1601,10 +1900,8 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 @media (max-width: 900px) {
   .ach-grid { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 560px) {
+@media (max-width: 600px) {
   .ach-grid { grid-template-columns: 1fr; }
-  .bottom-nav button { font-size: 9.5px; padding: 6px 2px; }
-  .bottom-nav button span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
 
 /* ---------- Seletor de moeda ---------- */
@@ -1716,3 +2013,42 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 }
 .check-row input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); cursor: pointer; }
 .check-row strong { color: var(--text); font-weight: 600; }
+
+/* ---------- Alvos táteis (mobile) — MANTER NO FIM DO FICHEIRO ----------
+
+   Num telemóvel nada de interativo desce abaixo de --tap. Estas regras têm de
+   ser as últimas: são seletores de classe simples, por isso qualquer regra de
+   dimensão declarada depois ganha por ordem de cascata. Esteve a meio do
+   ficheiro e foi assim que a caixa de "depósito automático" ficou com 17px
+   durante duas fases sem ninguém dar por isso.
+
+   Se acrescentares um controlo novo, acrescenta-o aqui — não noutro sítio. */
+
+@media (max-width: 900px) {
+  .icon-btn,
+  .btn,
+  .seg button,
+  .mode-toggle button,
+  .range-buttons button,
+  .account-chip,
+  .dd-option,
+  .toast-close,
+  .alloc-toggle,
+  .exp-back,
+  /* os gatilhos dos seletores próprios: estão em todos os formulários e
+     ficavam nos 40px (dd) e 38px (dp) que o padding lhes dava */
+  .dd-trigger,
+  .dp-trigger {
+    min-width: var(--tap);
+    min-height: var(--tap);
+  }
+  /* os chips têm conteúdo largo: chega garantir a altura */
+  .account-chip, .exp-back { min-width: 0; }
+
+  .theme-toggle .tt-opt { width: 40px; height: 34px; }
+  .dp-day { min-height: 40px; }
+
+  /* A .check-row é um <label> que envolve a caixa: o alvo é a linha inteira. */
+  .check-row { min-height: var(--tap); align-items: center; }
+  .check-row input[type="checkbox"] { width: 22px; height: 22px; margin-top: 0; }
+}

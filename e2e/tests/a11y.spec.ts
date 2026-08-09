@@ -1,5 +1,5 @@
 import { expect, test } from '@fixtures/test'
-import { type TabLabel } from '@components/Sidebar'
+import { type TabLabel } from '@components/MainNav'
 import { formatViolations, scanA11y } from '@utils/axe'
 
 /**
@@ -31,7 +31,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     for (const tab of TABS) {
       test(`separador ${tab}`, async ({ dashboardPage }, testInfo) => {
         await dashboardPage.goto()
-        await dashboardPage.sidebar.open(tab)
+        await dashboardPage.nav.open(tab)
         // espera o conteúdo real (as páginas mostram um skeleton enquanto carregam)
         await dashboardPage.waitForLoaded()
 

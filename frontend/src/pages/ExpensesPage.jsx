@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, fmtEur, toEur, fromEur, getCurrencySymbol } from '../api'
+import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import DatePicker from '../components/DatePicker'
 import Dropdown from '../components/Dropdown'
@@ -100,12 +100,12 @@ export default function ExpensesPage() {
 
   const saveAccount = async () => {
     if (!accountName.trim()) { toast.error('Nome em falta', 'Indica o nome da conta.'); return }
-    if (accountBalance !== '' && !Number.isFinite(Number(accountBalance))) {
+    if (accountBalance !== '' && !Number.isFinite(parseAmount(accountBalance))) {
       toast.error('Saldo inválido', 'Indica um número válido (ou deixa em branco).'); return
     }
     const payload = {
       name: accountName.trim(),
-      currentBalance: accountBalance === '' ? null : toEur(Number(accountBalance)),
+      currentBalance: accountBalance === '' ? null : toEur(parseAmount(accountBalance)),
     }
     setBusy(true)
     try {
@@ -188,7 +188,7 @@ export default function ExpensesPage() {
       accountId: Number(txForm.accountId),
       date: txForm.date,
       description: txForm.description.trim(),
-      amount: toEur(Number(txForm.amount)),
+      amount: toEur(parseAmount(txForm.amount)),
       inflow: txForm.inflow,
       category: txForm.category,
       applyToSimilar: applySimilar,
@@ -388,7 +388,7 @@ export default function ExpensesPage() {
                 {a.currentBalance != null && <span className="account-chip-balance">{fmtEur(a.currentBalance)}</span>}
                 <span className="account-chip-actions">
                   <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); openAccountEdit(a) }} aria-label={`Editar ${a.name}`}><IconPencil size={12} /></span>
-                  <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setAccountToDelete(a) }} aria-label={`Eliminar ${a.name}`}>✕</span>
+                  <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setAccountToDelete(a) }} aria-label={`Eliminar ${a.name}`}><IconTrash size={12} /></span>
                 </span>
               </button>
             ))}
@@ -477,7 +477,7 @@ export default function ExpensesPage() {
                         <span className={t.inflow ? 'pos' : 'neg'}>{t.inflow ? '+' : '−'}{fmtEur(t.amount)}</span>
                         <div className="event-actions">
                           <button className="icon-btn" onClick={() => openTxEdit(t)} aria-label="Editar"><IconPencil size={14} /></button>
-                          <button className="icon-btn danger" onClick={() => setTxToDelete(t)} aria-label="Eliminar">✕</button>
+                          <button className="icon-btn danger" onClick={() => setTxToDelete(t)} aria-label="Eliminar"><IconTrash size={15} /></button>
                         </div>
                       </li>
                     ))}
@@ -593,7 +593,7 @@ export default function ExpensesPage() {
       </Modal>
 
       {/* ---------- modal conta ---------- */}
-      <Modal open={accountModal} onClose={() => setAccountModal(false)}
+      <Modal open={accountModal} onClose={() => setAccountModal(false)} onSubmit={saveAccount} busy={busy}
              title={editingAccount ? 'Editar conta' : 'Nova conta corrente'}
              subtitle="Ex.: Santander, Trade Republic, Revolut."
              footer={
@@ -611,7 +611,7 @@ export default function ExpensesPage() {
           <div className="field full">
             <label>Saldo atual (opcional)</label>
             <div className="input-affix">
-              <input type="number" step="0.01" placeholder="Deixa em branco se não quiseres registar" value={accountBalance}
+              <input type="text" inputMode="decimal" placeholder="Deixa em branco se não quiseres registar" value={accountBalance}
                      onChange={(e) => setAccountBalance(e.target.value)} />
               <span className="affix">{cur}</span>
             </div>
@@ -620,7 +620,7 @@ export default function ExpensesPage() {
       </Modal>
 
       {/* ---------- modal movimento ---------- */}
-      <Modal open={txModal} onClose={() => setTxModal(false)}
+      <Modal open={txModal} onClose={() => setTxModal(false)} onSubmit={saveTx} busy={busy}
              title={editingTx ? 'Editar movimento' : 'Novo movimento'}
              subtitle="Uma despesa ou receita de uma das tuas contas."
              footer={
@@ -656,7 +656,7 @@ export default function ExpensesPage() {
           <div className="field">
             <label>Valor</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" placeholder="0" aria-label="Valor" value={txForm.amount}
+              <input type="text" inputMode="decimal" placeholder="0" aria-label="Valor" value={txForm.amount}
                      onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>

@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Dropdown from '../components/Dropdown'
+import { setMediaQuery } from './setup'
 
 const OPTIONS = [
   { value: 'EUR', label: 'Euro' },
@@ -62,5 +63,35 @@ describe('Dropdown', () => {
     expect(screen.getByRole('listbox')).toBeInTheDocument()
     fireEvent.mouseDown(screen.getByRole('button', { name: 'fora' }))
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  describe('em mobile', () => {
+    beforeEach(() => setMediaQuery('(max-width: 900px)', true))
+
+    it('abre como bottom sheet em vez de popover ancorado', async () => {
+      render(<Dropdown value="EUR" onChange={() => {}} options={OPTIONS} label="Moeda" />)
+      await userEvent.click(screen.getByRole('button', { name: 'Moeda' }))
+
+      const sheet = screen.getByRole('dialog', { name: 'Moeda' })
+      expect(within(sheet).getByRole('listbox')).toBeInTheDocument()
+      expect(within(sheet).getAllByRole('option')).toHaveLength(3)
+    })
+
+    it('escolher uma opção na sheet chama onChange e fecha', async () => {
+      const onChange = vi.fn()
+      render(<Dropdown value="EUR" onChange={onChange} options={OPTIONS} label="Moeda" />)
+      await userEvent.click(screen.getByRole('button', { name: 'Moeda' }))
+      await userEvent.click(screen.getByRole('option', { name: 'Libra' }))
+
+      expect(onChange).toHaveBeenCalledWith('GBP')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('mantém a classe .dd-pop, de que depende o menu de perfil', async () => {
+      render(<Dropdown value="EUR" onChange={() => {}} options={OPTIONS} label="Moeda" />)
+      await userEvent.click(screen.getByRole('button', { name: 'Moeda' }))
+
+      expect(document.querySelector('.dd-pop')).toBeInTheDocument()
+    })
   })
 })

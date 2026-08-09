@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test'
-import { type TabLabel } from '../components/Sidebar'
+import { type TabLabel } from '../components/MainNav'
 import { TabPage } from './BasePage'
 
 export interface ManualInvestmentInput {
@@ -38,6 +38,33 @@ export class InvestmentsPage extends TabPage {
       await this.dialog.button('Adicionar').click()
       await expect(this.title(name)).toBeVisible()
     })
+  }
+
+  /** Abre o seletor de tipo dentro do modal (assume o modal já aberto). */
+  async openTypeSelector(): Promise<void> {
+    await this.dialog.root.getByRole('button', { name: 'Tipo' }).click()
+  }
+
+  /**
+   * Em mobile o Dropdown abre como bottom sheet — encostado ao fundo e à largura
+   * toda — em vez do popover ancorado que se usa no desktop.
+   */
+  async expectTypeSelectorIsSheet(): Promise<void> {
+    const sheet = this.page.getByRole('dialog', { name: 'Tipo' })
+    await expect(sheet.getByRole('listbox')).toBeVisible()
+
+    const viewport = this.page.viewportSize()
+    expect(viewport, 'o viewport tem de estar definido').not.toBeNull()
+
+    // poll: a sheet entra com uma animação de 280ms e estar visível não é o
+    // mesmo que ter chegado ao fundo
+    await expect.poll(async () => {
+      const box = await sheet.boundingBox()
+      return box ? Math.round(box.y + box.height) : null
+    }, { message: 'a sheet do seletor tem de assentar no fundo do ecrã' }).toBe(viewport!.height)
+
+    const box = await sheet.boundingBox()
+    expect(Math.round(box!.width)).toBe(viewport!.width)
   }
 
   async rename(from: string, to: string): Promise<void> {

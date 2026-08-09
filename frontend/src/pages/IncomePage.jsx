@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { api, fmtEur, toEur, fromEur, getCurrencySymbol } from '../api'
+import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { IconChevronLeft, IconChevronRight, IconPencil, IconPlus, IconPie, IconWallet, IconTrash } from '../components/Icons'
@@ -77,7 +77,7 @@ export default function IncomePage() {
   const saveIncome = async () => {
     setBusy(true)
     try {
-      const eur = toEur(Number(incomeInput) || 0)
+      const eur = toEur(parseAmount(incomeInput) || 0)
       setData(await api.setIncome(eur, data.month))
       setIncomeModal(false)
       toast.success('Rendimento atualizado', `${fmtMonth(data.month)}: ${fmtEur(eur)}.`)
@@ -113,7 +113,7 @@ export default function IncomePage() {
   const allocDirty = JSON.stringify(allocForm) !== JSON.stringify(allocBaseline)
 
   const saveAlloc = async () => {
-    const value = Number(allocForm.value)
+    const value = parseAmount(allocForm.value)
     if (!allocForm.name.trim() || !value || value <= 0) {
       toast.error('Campos em falta', allocForm.mode === 'percentage'
         ? 'Indica o nome da categoria e a percentagem.'
@@ -171,7 +171,7 @@ export default function IncomePage() {
   }
 
   const saveItem = async () => {
-    const value = Number(itemForm.value)
+    const value = parseAmount(itemForm.value)
     if (!itemForm.name.trim() || itemForm.value === '' || Number.isNaN(value) || value < 0) {
       toast.error('Campos em falta', 'Indica o nome e um valor (0 ou maior) para o item.')
       return
@@ -239,7 +239,7 @@ export default function IncomePage() {
   }
 
   const isPct = allocForm.mode === 'percentage'
-  const formValue = Number(allocForm.value) || 0
+  const formValue = parseAmount(allocForm.value) || 0
   const formHint = !formValue ? null
     : isPct
       ? (income > 0 ? `≈ ${fmtEur(income * formValue / 100)} por mês` : null)
@@ -474,7 +474,7 @@ export default function IncomePage() {
         </div>
       </div>
 
-      <Modal open={incomeModal} onClose={() => setIncomeModal(false)}
+      <Modal open={incomeModal} onClose={() => setIncomeModal(false)} onSubmit={saveIncome} busy={busy}
              title={`Rendimento de ${fmtMonth(data.month)}`}
              subtitle="Valor líquido que recebeste (ou vais receber) neste mês." width={420}
              footer={
@@ -486,15 +486,14 @@ export default function IncomePage() {
         <div className="field">
           <label>Rendimento do mês</label>
           <div className="input-affix">
-            <input type="number" min="0" step="0.01" autoFocus aria-label="Rendimento do mês" value={incomeInput}
-                   onChange={(e) => setIncomeInput(e.target.value)}
-                   onKeyDown={(e) => e.key === 'Enter' && saveIncome()} />
+            <input type="text" inputMode="decimal" enterKeyHint="done" autoFocus aria-label="Rendimento do mês" value={incomeInput}
+                   onChange={(e) => setIncomeInput(e.target.value)} />
             <span className="affix">{cur}</span>
           </div>
         </div>
       </Modal>
 
-      <Modal open={allocModal} onClose={closeAllocModal} dirty={allocDirty}
+      <Modal open={allocModal} onClose={closeAllocModal} dirty={allocDirty} onSubmit={saveAlloc} busy={busy}
              title={allocEditId ? 'Editar categoria' : 'Nova categoria'}
              subtitle={allocEditId
                ? `Ajusta a categoria de ${fmtMonth(data.month)}.`
@@ -534,10 +533,9 @@ export default function IncomePage() {
           <div className="field full">
             <label>{isPct ? 'Percentagem do rendimento' : 'Valor mensal'}</label>
             <div className="input-affix">
-              <input type="number" min="0" max={isPct ? 100 : undefined} step={isPct ? 0.5 : 0.01}
+              <input type="text" inputMode="decimal" enterKeyHint="done"
                      placeholder={isPct ? 'Ex: 30' : 'Ex: 400'} value={allocForm.value}
-                     onChange={(e) => setAllocForm({ ...allocForm, value: e.target.value })}
-                     onKeyDown={(e) => e.key === 'Enter' && saveAlloc()} />
+                     onChange={(e) => setAllocForm({ ...allocForm, value: e.target.value })} />
               <span className="affix">{isPct ? '%' : cur}</span>
             </div>
             {formHint && <span className="hint">{formHint}</span>}
@@ -562,7 +560,7 @@ export default function IncomePage() {
         </div>
       </Modal>
 
-      <Modal open={!!itemModal} onClose={() => setItemModal(null)}
+      <Modal open={!!itemModal} onClose={() => setItemModal(null)} onSubmit={saveItem} busy={busy}
              title={itemModal?.item ? 'Editar item' : 'Novo item'}
              subtitle={itemModal ? `Dentro de "${itemModal.alloc.name}".` : ''} width={420}
              footer={
@@ -577,15 +575,13 @@ export default function IncomePage() {
           <div className="field full">
             <label>Nome</label>
             <input placeholder="Ex: Netflix, Claude, HBO…" autoFocus value={itemForm.name}
-                   onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-                   onKeyDown={(e) => e.key === 'Enter' && saveItem()} />
+                   onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} />
           </div>
           <div className="field full">
             <label>Valor mensal</label>
             <div className="input-affix">
-              <input type="number" min="0" step="0.01" placeholder="Ex: 12" value={itemForm.value}
-                     onChange={(e) => setItemForm({ ...itemForm, value: e.target.value })}
-                     onKeyDown={(e) => e.key === 'Enter' && saveItem()} />
+              <input type="text" inputMode="decimal" enterKeyHint="done" placeholder="Ex: 12" value={itemForm.value}
+                     onChange={(e) => setItemForm({ ...itemForm, value: e.target.value })} />
               <span className="affix">{cur}</span>
             </div>
           </div>

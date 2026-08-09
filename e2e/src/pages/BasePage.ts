@@ -2,7 +2,7 @@ import { expect, type Page } from '@playwright/test'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { ModalDialog } from '../components/ModalDialog'
 import { ProfileMenu } from '../components/ProfileMenu'
-import { Sidebar, type TabLabel } from '../components/Sidebar'
+import { MainNav, type TabLabel } from '../components/MainNav'
 
 /**
  * Base de todos os Page Objects. Concentra aqui o acesso à navegação, ao menu de
@@ -10,13 +10,13 @@ import { Sidebar, type TabLabel } from '../components/Sidebar'
  * seletores CSS.
  */
 export abstract class BasePage {
-  readonly sidebar: Sidebar
+  readonly nav: MainNav
   readonly profileMenu: ProfileMenu
   readonly dialog: ModalDialog
   readonly confirmDialog: ConfirmDialog
 
   constructor(readonly page: Page) {
-    this.sidebar = new Sidebar(page)
+    this.nav = new MainNav(page)
     this.profileMenu = new ProfileMenu(page)
     this.dialog = new ModalDialog(page)
     this.confirmDialog = new ConfirmDialog(page)
@@ -25,6 +25,20 @@ export abstract class BasePage {
   /** As páginas mostram um skeleton enquanto carregam os dados. */
   async waitForLoaded(): Promise<void> {
     await expect(this.page.locator('.skeleton')).toHaveCount(0)
+  }
+
+  /**
+   * Nenhuma página pode fazer scroll horizontal. Em mobile isso não é só feio:
+   * um layout viewport esticado desposiciona a barra inferior fixa e deixa-a
+   * inacessível (ver os comentários no styles.css).
+   */
+  async expectNoHorizontalScroll(): Promise<void> {
+    const { scrollWidth, clientWidth } = await this.page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }))
+    expect(scrollWidth, `scroll horizontal: ${scrollWidth} > ${clientWidth}`)
+      .toBeLessThanOrEqual(clientWidth + 1)
   }
 }
 
@@ -39,8 +53,8 @@ export abstract class TabPage extends BasePage {
 
   async goto(): Promise<void> {
     await this.page.goto('/')
-    await this.sidebar.expectVisible()
-    await this.sidebar.open(this.tab)
+    await this.nav.expectVisible()
+    await this.nav.open(this.tab)
     await this.waitForLoaded()
   }
 }
