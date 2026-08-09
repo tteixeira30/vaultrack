@@ -1233,8 +1233,15 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 @media (max-width: 760px) {
   .card { padding: var(--sp-4); border-radius: 12px; }
   .page-head h2 { font-size: 20px; }
-  .page-actions { width: 100%; }
-  .page-actions .btn { flex: 1; justify-content: center; }
+  /* `flex: 1` dava a mesma largura a todos os botões da linha, o que partia os
+     rótulos longos ("Simular depósito mensal") em três linhas ao lado de um
+     curto. Com a base no conteúdo e `nowrap`, o botão que não couber passa
+     inteiro para a linha seguinte em vez de se desdobrar. */
+  .page-actions { width: 100%; flex-wrap: wrap; }
+  .page-actions .btn {
+    flex: 1 1 auto; justify-content: center; white-space: nowrap;
+    padding-left: 14px; padding-right: 14px;
+  }
   .stat-value { font-size: 19px; }
   .stat-icon { width: 32px; height: 32px; }
   .income-hero .amount { font-size: 27px; }

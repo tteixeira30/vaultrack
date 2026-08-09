@@ -4,9 +4,11 @@ target/
 .idea/
 .vscode/
 *.log
-# segredos de ambiente — apanha .env, .env.prod, .env.local, etc. (menos o exemplo)
+# segredos de ambiente — apanha .env, .env.prod, .env.local, .env.deploy, etc.
+# (menos os exemplos, que não têm valores)
 .env*
 !.env.example
+!.env.deploy.example
 
 # IDE metadata
 .metals/
