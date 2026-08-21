@@ -18,6 +18,7 @@ import BottomNav from './components/BottomNav'
 import Segments from './components/Segments'
 import CommandPalette from './components/CommandPalette'
 import { SCREENS, SCREEN_IDS, NAV_GROUPS, MOBILE_TABS, tabOfScreen } from './components/nav'
+import { useIsMobile } from './components/useMediaQuery'
 import {
   IconLogo, IconSun, IconMoon, IconEye, IconEyeOff, IconSearch, IconPlus, IconChevronLeft,
 } from './components/Icons'
@@ -46,10 +47,10 @@ const ADD_ACTIONS = [
   { id: 'newAccount', code: 'CT', label: 'Conta corrente', note: 'para importar extratos', screen: 'accounts', tone: 'cyan' },
 ]
 
-function MonthStepper() {
+function MonthStepper({ compact = false }) {
   const { month, step } = useMonth()
   return (
-    <div className="month-stepper">
+    <div className={`month-stepper${compact ? ' compact' : ''}`}>
       <button type="button" onClick={() => step(-1)} aria-label="Mês anterior">‹</button>
       <span className="ms-label">{fmtMonthShort(month)}</span>
       <button type="button" onClick={() => step(1)} aria-label="Mês seguinte">›</button>
@@ -103,6 +104,7 @@ function Shell() {
   const { theme, toggle: toggleTheme } = useTheme()
   const { month } = useMonth()
   const setIntent = useIntentSetter()
+  const isMobile = useIsMobile()
 
   const [screen, setScreen] = useState(screenFromHash)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -188,6 +190,10 @@ function Shell() {
 
   const initials = user.name.split(' ').filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('')
   const meta = SCREENS[screen]
+  // em mobile o título é o do separador — são os segmentos por baixo que dizem
+  // em que ecrã se está; em desktop o título é o do próprio ecrã
+  const hasSegments = !!activeTab && activeTab.screens.length > 1
+  const title = isMobile && hasSegments ? activeTab.label : meta.label
   const isSystemScreen = screen === 'profile' || screen === 'accounts'
   const nextCurrency = () => {
     const i = CURRENCIES.findIndex((c) => c.code === baseCurrency)
@@ -251,8 +257,12 @@ function Shell() {
             </button>
           )}
           <div className="tb-title">
-            <span className="tb-eyebrow">{fmtMonthShort(month)}</span>
-            <h2>{meta.label}</h2>
+            {/* em mobile a sobrancelha é o mês — e nos ecrãs mensais é também
+                a forma de o trocar, já que a barra de ferramentas não cabe */}
+            {isMobile && meta.monthly
+              ? <MonthStepper compact />
+              : <span className="tb-eyebrow">{fmtMonthShort(month)}</span>}
+            <h2>{title}</h2>
             <span className="tb-sub">{meta.subtitle}</span>
           </div>
 
@@ -282,7 +292,7 @@ function Shell() {
           </button>
         </header>
 
-        {activeTab && activeTab.screens.length > 1 && (
+        {hasSegments && (
           <Segments
             items={activeTab.screens.map((id) => ({ id, label: SCREENS[id].label }))}
             active={screen} onSelect={go} label={activeTab.label}

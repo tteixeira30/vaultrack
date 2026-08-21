@@ -1,17 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
-import Modal, { ConfirmDialog } from '../components/Modal'
-import DatePicker from '../components/DatePicker'
-import Dropdown from '../components/Dropdown'
-import { useToast } from '../components/Toast'
-import { analyzeStatement, analyzeRows, buildTransactions, categoryKey } from '../statementParser'
+import { useEffect, useMemo, useState } from 'react'
+import { api, fmtEur, fromEur, toEur, parseAmount, getCurrencySymbol } from '../api'
 import { DEFAULT_CATEGORIES, catLabel, catColor, setCustomCategories } from '../categories'
+import { useToast } from '../components/Toast'
+import Modal, { ConfirmDialog } from '../components/Modal'
+import Dropdown from '../components/Dropdown'
+import DatePicker from '../components/DatePicker'
+import StatementImport, { AccountModal, validateAccount } from '../components/StatementImport'
+import { useMonth, fmtMonth } from '../components/MonthContext'
+import { useIntent } from '../components/IntentContext'
 import {
-  IconBank, IconReceipt, IconUpload, IconPlus, IconPencil, IconWallet,
-  IconChevronLeft, IconChevronRight, IconArrowUp, IconArrowDown, IconCoins, IconPie, IconTrash,
+  IconPlus, IconPencil, IconTrash, IconUpload, IconBank, IconArrowUp, IconArrowDown,
+  IconSearch, IconReceipt,
 } from '../components/Icons'
 
-// Paleta para as categorias personalizadas (swatches do seletor de cor).
 const CATEGORY_COLORS = [
   '#f59e0b', '#fb7185', '#a78bfa', '#818cf8', '#f472b6', '#34d399',
   '#fbbf24', '#22d3ee', '#60a5fa', '#4ade80', '#f87171', '#c084fc',
@@ -19,27 +20,37 @@ const CATEGORY_COLORS = [
 
 const EMPTY_TX = { accountId: '', date: '', description: '', amount: '', inflow: false, category: 'OTHER' }
 
-function fmtMonth(m) {
-  const [y, mo] = m.split('-').map(Number)
-  const s = new Date(y, mo - 1, 1).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
 const todayIso = () => new Date().toISOString().slice(0, 10)
-const shiftMonth = (m, delta) => {
-  const [y, mo] = m.split('-').map(Number)
-  const d = new Date(y, mo - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
 const fmtDay = (iso) => new Date(iso).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' })
+const fmtShortDate = (iso) => new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' })
+
+/** Ignora acentos e maiúsculas na pesquisa por descrição. */
+const fold = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+
+/** Código mono de duas letras a partir do nome da categoria ("Supermercado" → "SU"). */
+const catCode = (c) => catLabel(c).replace(/[^\p{L}]/gu, '').slice(0, 2).toUpperCase()
+
+const SORTS = {
+  date: (a, b) => a.date.localeCompare(b.date),
+  desc: (a, b) => a.description.localeCompare(b.description, 'pt'),
+  amount: (a, b) => Number(a.amount) - Number(b.amount),
+}
 
 export default function ExpensesPage() {
   const toast = useToast()
   const cur = getCurrencySymbol()
-  const [month, setMonth] = useState(() => todayIso().slice(0, 7))
+  const { month } = useMonth()
   const [accountFilter, setAccountFilter] = useState('')
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
   const [categories, setCategories] = useState([]) // categorias personalizadas do utilizador
+
+  // filtros e ordenação (tudo do lado do cliente — o mês já vem filtrado do backend)
+  const [q, setQ] = useState('')
+  const [catFilter, setCatFilter] = useState('')
+  const [sort, setSort] = useState('date')
+  const [dir, setDir] = useState(-1)
+  const [selected, setSelected] = useState(() => new Set())
 
   // gestão de categorias
   const [catModal, setCatModal] = useState(false)
@@ -49,38 +60,29 @@ export default function ExpensesPage() {
   // modais
   const [accountModal, setAccountModal] = useState(false)
   const [editingAccount, setEditingAccount] = useState(null)
-  const [accountName, setAccountName] = useState('')
-  const [accountBalance, setAccountBalance] = useState('')
   const [accountToDelete, setAccountToDelete] = useState(null)
   const [txModal, setTxModal] = useState(false)
   const [editingTx, setEditingTx] = useState(null)
   const [txForm, setTxForm] = useState(EMPTY_TX)
   const [txApplyAll, setTxApplyAll] = useState(true)
   const [txToDelete, setTxToDelete] = useState(null)
-
-  // importação de extrato
-  const fileRef = useRef(null)
   const [importModal, setImportModal] = useState(false)
-  const [importAccountId, setImportAccountId] = useState('')
-  const [importFile, setImportFile] = useState(null) // { name, analysis }
-  const [mapping, setMapping] = useState(null)
-  const [categoryRules, setCategoryRules] = useState(null) // { matchKey: category }
+  const [bulkCat, setBulkCat] = useState(null) // { category, applyRule } enquanto o modal está aberto
 
-  const load = () =>
-    api.getExpenses(month, accountFilter || null).then(setData)
+  const load = () => api.getExpenses(month, accountFilter || null).then(setData)
 
-  // categorias personalizadas: guarda no estado local (seletores) e no registo global
-  // (catLabel/catColor usados também no painel)
+  // categorias personalizadas: estado local (seletores) + registo global (catLabel/catColor)
   const loadCategories = () =>
     api.getExpenseCategories().then((list) => { setCategories(list); setCustomCategories(list) })
 
   useEffect(() => {
-    load().catch(() => toast.error('Erro', 'Não foi possível carregar as despesas.'))
+    setSelected(new Set())
+    load().catch(() => toast.error('Erro', 'Não foi possível carregar os movimentos.'))
   }, [month, accountFilter])
 
-  useEffect(() => {
-    loadCategories().catch(() => {})
-  }, [])
+  useEffect(() => { loadCategories().catch(() => {}) }, [])
+
+  useIntent('newTransaction', () => openTxAdd())
 
   // opções de categoria para os seletores: por omissão + personalizadas
   const catOptions = useMemo(() => [
@@ -90,22 +92,18 @@ export default function ExpensesPage() {
 
   // ---------- contas ----------
 
-  const openAccountAdd = () => { setEditingAccount(null); setAccountName(''); setAccountBalance(''); setAccountModal(true) }
+  const openAccountAdd = () => { setEditingAccount(null); setAccountModal(true) }
   const openAccountEdit = (a) => {
-    setEditingAccount(a)
-    setAccountName(a.name)
-    setAccountBalance(a.currentBalance != null ? String(fromEur(a.currentBalance)) : '')
+    setEditingAccount({ ...a, balanceInput: a.currentBalance != null ? String(fromEur(a.currentBalance)) : '' })
     setAccountModal(true)
   }
 
-  const saveAccount = async () => {
-    if (!accountName.trim()) { toast.error('Nome em falta', 'Indica o nome da conta.'); return }
-    if (accountBalance !== '' && !Number.isFinite(parseAmount(accountBalance))) {
-      toast.error('Saldo inválido', 'Indica um número válido (ou deixa em branco).'); return
-    }
+  const saveAccount = async (form) => {
+    const problem = validateAccount(form)
+    if (problem) { toast.error('Campos em falta', problem); return }
     const payload = {
-      name: accountName.trim(),
-      currentBalance: accountBalance === '' ? null : toEur(parseAmount(accountBalance)),
+      name: form.name,
+      currentBalance: form.balance === '' ? null : toEur(parseAmount(form.balance)),
     }
     setBusy(true)
     try {
@@ -113,7 +111,7 @@ export default function ExpensesPage() {
       else await api.addExpenseAccount(payload)
       setAccountModal(false)
       await load()
-      toast.success(editingAccount ? 'Conta atualizada' : 'Conta criada', `"${accountName.trim()}" guardada.`)
+      toast.success(editingAccount ? 'Conta atualizada' : 'Conta criada', `"${form.name}" guardada.`)
     } catch (e) { toast.error('Erro ao guardar', e.message) }
     finally { setBusy(false) }
   }
@@ -218,121 +216,44 @@ export default function ExpensesPage() {
     finally { setBusy(false) }
   }
 
-  // ---------- importação ----------
+  // ---------- seleção múltipla ----------
 
-  const openImport = () => {
-    setImportAccountId(accountFilter || String(data?.accounts[0]?.id || ''))
-    setImportFile(null)
-    setMapping(null)
-    setImportModal(true)
-    // regras aprendidas, para a pré-visualização mostrar as categorias finais
-    api.getCategoryRules()
-      .then((list) => setCategoryRules(Object.fromEntries(list.map((r) => [r.matchKey, r.category]))))
-      .catch(() => setCategoryRules(null))
-  }
+  const toggleSel = (id) => setSelected((s) => {
+    const next = new Set(s)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    return next
+  })
 
-  const onFile = async (e) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    try {
-      let analysis
-      if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
-        const { extractPdfRows } = await import('../pdfStatement')
-        const { rows, hasText } = await extractPdfRows(await file.arrayBuffer())
-        if (!hasText) {
-          toast.error('PDF digitalizado', 'Este PDF não tem texto (é uma imagem). Usa o PDF original do banco ou exporta em CSV.')
-          return
-        }
-        analysis = analyzeRows(rows)
-      } else {
-        analysis = analyzeStatement(await file.text())
-      }
-      if (!analysis || analysis.dataRows.length === 0) {
-        toast.error('Ficheiro vazio', 'Não foram encontradas linhas de movimentos no ficheiro.')
-        return
-      }
-      setImportFile({ name: file.name, analysis })
-      setMapping(analysis.mapping)
-    } catch {
-      toast.error('Erro ao ler', 'Não foi possível ler o ficheiro. Usa o extrato em CSV ou PDF do banco.')
-    }
-  }
-
-  const preview = useMemo(() => {
-    if (!importFile || !mapping) return null
-    if (mapping.date === -1 || mapping.description === -1 || (mapping.amount === -1 && mapping.debit === -1)) return null
-    const result = buildTransactions(importFile.analysis.dataRows, mapping, importFile.analysis.dateHint, importFile.analysis.openingBalance)
-    if (categoryRules) {
-      for (const r of result.rows) {
-        const ruled = categoryRules[categoryKey(r.description)]
-        if (ruled) r.category = ruled
-      }
-    }
-    return result
-  }, [importFile, mapping, categoryRules])
-
-  // período coberto pelo extrato (usado no resumo e no aviso de sobreposição)
-  const previewRange = useMemo(() => {
-    if (!preview || preview.rows.length === 0) return null
-    let min = preview.rows[0].date, max = preview.rows[0].date
-    for (const r of preview.rows) {
-      if (r.date < min) min = r.date
-      if (r.date > max) max = r.date
-    }
-    return { min, max }
-  }, [preview])
-
-  // Movimentos que a conta escolhida já tem neste período. A deduplicação da
-  // importação exige data, valor, sentido e descrição iguais, por isso o mesmo
-  // extrato noutro formato pode passar-lhe ao lado e duplicar movimentos — mais
-  // vale avisar antes de importar do que deixar descobrir depois.
-  // A contagem guarda a conta e o período a que pertence: assim não é preciso
-  // limpá-la ao mudar de conta (bastam a chave e o render deixarem de bater
-  // certo) e nunca se mostra o número de uma consulta anterior.
-  const usageKey = importModal && importAccountId && previewRange
-    ? `${importAccountId}|${previewRange.min}|${previewRange.max}`
-    : null
-  const [periodUsage, setPeriodUsage] = useState(null) // { key, count }
-  useEffect(() => {
-    if (!usageKey) return undefined
-    let cancelled = false
-    api.getPeriodUsage(Number(importAccountId), previewRange.min, previewRange.max)
-      .then((r) => { if (!cancelled) setPeriodUsage({ key: usageKey, count: r.transactionCount }) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [usageKey, importAccountId, previewRange])
-
-  const doImport = async () => {
-    if (!importAccountId) { toast.error('Conta em falta', 'Escolhe a conta a que pertence o extrato.'); return }
-    if (!preview || preview.rows.length === 0) { toast.error('Sem movimentos', 'Não há movimentos válidos para importar.'); return }
+  /**
+   * Categoria em massa. Não há endpoint de lote: percorre-se a seleção com
+   * `updateTransaction`. Com `applyRule`, o primeiro pedido leva
+   * `applyToSimilar` e o backend memoriza a regra para futuras importações.
+   */
+  const applyBulkCategory = async () => {
+    const rows = (data?.transactions || []).filter((t) => selected.has(t.id))
+    if (rows.length === 0) return
     setBusy(true)
     try {
-      const res = await api.importTransactions({
-        accountId: Number(importAccountId), rows: preview.rows, closingBalance: preview.closingBalance,
-      })
-      setImportModal(false)
+      for (const [i, t] of rows.entries()) {
+        await api.updateTransaction(t.id, {
+          accountId: t.accountId, date: t.date, description: t.description,
+          amount: t.amount, inflow: t.inflow, category: bulkCat.category,
+          applyToSimilar: bulkCat.applyRule && i === 0,
+        })
+      }
+      setBulkCat(null)
+      setSelected(new Set())
       await load()
-      toast.success('Extrato importado',
-        `${res.imported} movimento(s) adicionados${res.skipped ? ` · ${res.skipped} duplicado(s) ignorados` : ''}.`
-        + (preview.closingBalance != null ? ` Saldo da conta atualizado para ${fmtEur(res.balance)}.` : ''))
-    } catch (e) { toast.error('Erro ao importar', e.message) }
+      toast.success('Categoria aplicada',
+        `${rows.length} movimento(s) passaram para "${catLabel(bulkCat.category)}"`
+        + (bulkCat.applyRule ? ' e a regra ficou memorizada.' : '.'))
+    } catch (e) { toast.error('Erro ao aplicar', e.message) }
     finally { setBusy(false) }
   }
 
-  const mappingOptions = (headers) => [
-    { value: '-1', label: '— nenhuma —' },
-    ...headers.map((h, i) => ({ value: String(i), label: h || `Coluna ${i + 1}` })),
-  ]
-  const setMap = (key, v) => setMapping((m) => ({ ...m, [key]: Number(v) }))
-
-  const FORMAT_LABEL = { revolut: 'Revolut', santander: 'Santander', traderepublic: 'Trade Republic', generic: 'genérico', unknown: 'não reconhecido' }
-
   // ---------- render ----------
 
-  if (!data) {
-    return <div className="skeleton" style={{ height: 460, borderRadius: 16 }} />
-  }
+  if (!data) return <div className="skeleton" style={{ height: 460, borderRadius: 20 }} />
 
   const hasAccounts = data.accounts.length > 0
   const totalOut = Number(data.outflows) || 0
@@ -344,181 +265,268 @@ export default function ExpensesPage() {
     ? selectedAccount.currentBalance
     : (balancesDefined.length > 0 ? balancesDefined.reduce((s, a) => s + Number(a.currentBalance), 0) : null)
 
-  // agrupar movimentos por dia
+  // categorias presentes no mês, para os chips de filtro
+  const monthCats = data.byCategory.map((c) => c.category)
+
+  const rows = data.transactions
+    .filter((t) => (!catFilter || t.category === catFilter)
+      && (!q.trim() || fold(t.description).includes(fold(q.trim()))))
+    .slice()
+    .sort((a, b) => SORTS[sort](a, b) * dir)
+
+  const allSelected = rows.length > 0 && rows.every((t) => selected.has(t.id))
+  const selectedRows = rows.filter((t) => selected.has(t.id))
+  const selectedTotal = selectedRows.reduce((s, t) => s + (t.inflow ? 1 : -1) * Number(t.amount), 0)
+
+  const setSortKey = (key) => {
+    if (key === sort) setDir((d) => -d)
+    else { setSort(key); setDir(key === 'desc' ? 1 : -1) }
+  }
+  const arrow = (key) => (sort === key ? (dir === 1 ? ' ↑' : ' ↓') : '')
+
+  // agrupar movimentos por dia (a vista mobile é uma lista de cartões por dia)
   const byDay = []
-  for (const t of data.transactions) {
+  for (const t of rows) {
     const last = byDay[byDay.length - 1]
     if (last && last.date === t.date) last.txs.push(t)
     else byDay.push({ date: t.date, txs: [t] })
   }
 
   return (
-    <div>
-      <div className="page-head">
-        <div>
-          <h2>Despesas</h2>
-          <p>Movimentos das tuas contas correntes — manuais ou importados do extrato bancário.</p>
-        </div>
-        <div className="page-actions">
-          <button className="btn ghost" onClick={openImport} disabled={!hasAccounts} title={hasAccounts ? '' : 'Cria primeiro uma conta'}>
-            <IconUpload size={15} /> Importar extrato
+    <div className="mov">
+      {/* ---------- contas + importar ---------- */}
+      <div className="chip-row">
+        <button className={`account-chip ${accountFilter === '' ? 'active' : ''}`} onClick={() => setAccountFilter('')}>
+          Todas as contas
+        </button>
+        {data.accounts.map((a) => (
+          <button key={a.id} data-testid="account-chip"
+                  className={`account-chip ${accountFilter === String(a.id) ? 'active' : ''}`}
+                  onClick={() => setAccountFilter(String(a.id))}>
+            {a.name}
+            {a.currentBalance != null && <span className="mono account-chip-balance">{fmtEur(a.currentBalance)}</span>}
+            <span className="account-chip-actions">
+              <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); openAccountEdit(a) }} aria-label={`Editar ${a.name}`}><IconPencil size={12} /></span>
+              <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setAccountToDelete(a) }} aria-label={`Eliminar ${a.name}`}><IconTrash size={12} /></span>
+            </span>
           </button>
-          <button className="btn" onClick={openTxAdd} disabled={!hasAccounts} title={hasAccounts ? '' : 'Cria primeiro uma conta'}>
-            <IconPlus size={15} /> Novo movimento
+        ))}
+        <button data-testid="account-chip-add" className="account-chip add" onClick={openAccountAdd} aria-label="Nova conta">
+          <IconPlus size={13} />
+        </button>
+
+        <div className="chip-row-end">
+          <button className="btn ghost" onClick={() => setImportModal(true)} disabled={!hasAccounts}
+                  title={hasAccounts ? '' : 'Cria primeiro uma conta'}>
+            <IconUpload size={14} /> Importar extrato
+          </button>
+          <button className="btn" onClick={openTxAdd} disabled={!hasAccounts}
+                  title={hasAccounts ? '' : 'Cria primeiro uma conta'}>
+            <IconPlus size={14} /> Novo movimento
           </button>
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="cal-head">
-          <div className="month-nav">
-            <button className="icon-btn" onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Mês anterior"><IconChevronLeft size={18} /></button>
-            <span className="month-label">{fmtMonth(month)}</span>
-            <button className="icon-btn" onClick={() => setMonth((m) => shiftMonth(m, 1))} aria-label="Mês seguinte"><IconChevronRight size={18} /></button>
-          </div>
-          <div className="account-chips">
-            <button className={`account-chip ${accountFilter === '' ? 'active' : ''}`} onClick={() => setAccountFilter('')}>
-              Todas as contas
-            </button>
-            {data.accounts.map((a) => (
-              <button key={a.id} data-testid="account-chip"
-                      className={`account-chip ${accountFilter === String(a.id) ? 'active' : ''}`}
-                      onClick={() => setAccountFilter(String(a.id))}>
-                <IconBank size={13} /> {a.name}
-                {a.currentBalance != null && <span className="account-chip-balance">{fmtEur(a.currentBalance)}</span>}
-                <span className="account-chip-actions">
-                  <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); openAccountEdit(a) }} aria-label={`Editar ${a.name}`}><IconPencil size={12} /></span>
-                  <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setAccountToDelete(a) }} aria-label={`Eliminar ${a.name}`}><IconTrash size={12} /></span>
-                </span>
+      {/* ---------- KPIs do mês ---------- */}
+      <div className="mini-kpis">
+        <div className="card mini-kpi">
+          <span className="eyebrow">Entradas</span>
+          <div className="mono pos">{fmtEur(data.inflows)}</div>
+        </div>
+        <div className="card mini-kpi">
+          <span className="eyebrow">Saídas</span>
+          <div className="mono neg">{fmtEur(data.outflows)}</div>
+        </div>
+        <div className="card mini-kpi">
+          <span className="eyebrow">Saldo do mês</span>
+          <div className={`mono ${Number(data.net) >= 0 ? 'pos' : 'neg'}`}>{fmtEur(data.net)}</div>
+        </div>
+        <div className="card mini-kpi">
+          <span className="eyebrow">{selectedAccount ? 'Saldo da conta' : 'Saldo em contas'}</span>
+          <div className="mono">{balanceValue != null ? fmtEur(balanceValue) : '—'}</div>
+          <small>
+            {balanceValue != null
+              ? (selectedAccount ? 'Registado por ti' : `${balancesDefined.length} de ${data.accounts.length} conta(s)`)
+              : 'Define o saldo ao editar a conta'}
+          </small>
+        </div>
+      </div>
+
+      <div className="mov-body">
+        <div className="mov-main">
+          {/* ---------- filtros ---------- */}
+          {hasAccounts && data.transactions.length > 0 && (
+            <div className="filter-row">
+              <div className="search-box">
+                <IconSearch size={14} />
+                <input value={q} onChange={(e) => setQ(e.target.value)}
+                       placeholder="Filtrar descrição…" aria-label="Filtrar descrição" />
+              </div>
+              <div className="filter-chips">
+                {monthCats.map((c) => (
+                  <button key={c} className={`filter-chip ${catFilter === c ? 'active' : ''}`}
+                          aria-pressed={catFilter === c}
+                          onClick={() => setCatFilter((f) => (f === c ? '' : c))}>
+                    <span className="tx-cat-dot" style={{ background: catColor(c) }} />
+                    {catLabel(c)}
+                  </button>
+                ))}
+              </div>
+              <button className="btn ghost small filter-manage" onClick={() => setCatModal(true)}>
+                Gerir categorias
               </button>
-            ))}
-            <button data-testid="account-chip-add" className="account-chip add" onClick={openAccountAdd}><IconPlus size={13} /> Conta</button>
-          </div>
-        </div>
+            </div>
+          )}
 
-        <div className="kpi-grid" style={{ marginTop: 14 }}>
-          <div className="card kpi-card">
-            <div className="kpi-top">
-              <span className="kpi-icon"><IconArrowUp size={17} /></span>
-              <span className="kpi-label">Entradas</span>
+          {/* ---------- barra de seleção ---------- */}
+          {rows.length > 0 && (
+            <div className={`sel-bar ${selected.size > 0 ? 'on' : ''}`}>
+              <label className="sel-all">
+                <input type="checkbox" checked={allSelected}
+                       onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((t) => t.id)))} />
+                <span className="mono">
+                  {selected.size > 0
+                    ? `${selected.size} selecionado(s) · ${fmtEur(Math.abs(selectedTotal))}`
+                    : `${rows.length} movimento(s)`}
+                </span>
+              </label>
+              {selected.size > 0 && (
+                <>
+                  <button className="btn ghost small" onClick={() => setBulkCat({ category: 'OTHER', applyRule: false })}>
+                    Definir categoria
+                  </button>
+                  <button className="btn ghost small" onClick={() => setSelected(new Set())}>Limpar</button>
+                </>
+              )}
             </div>
-            <div className="kpi-value pos">{fmtEur(data.inflows)}</div>
-          </div>
-          <div className="card kpi-card">
-            <div className="kpi-top">
-              <span className="kpi-icon"><IconArrowDown size={17} /></span>
-              <span className="kpi-label">Saídas</span>
-            </div>
-            <div className="kpi-value neg">{fmtEur(data.outflows)}</div>
-          </div>
-          <div className="card kpi-card">
-            <div className="kpi-top">
-              <span className="kpi-icon"><IconWallet size={17} /></span>
-              <span className="kpi-label">Saldo do mês</span>
-            </div>
-            <div className={`kpi-value ${Number(data.net) >= 0 ? 'pos' : 'neg'}`}>{fmtEur(data.net)}</div>
-          </div>
-          <div className="card kpi-card">
-            <div className="kpi-top">
-              <span className="kpi-icon"><IconBank size={17} /></span>
-              <span className="kpi-label">{selectedAccount ? 'Saldo da conta' : 'Saldo em contas'}</span>
-            </div>
-            <div className="kpi-value">{balanceValue != null ? fmtEur(balanceValue) : '—'}</div>
-            <div className="kpi-sub">
-              {balanceValue != null
-                ? (selectedAccount ? 'Registado por ti' : `${balancesDefined.length} de ${data.accounts.length} conta(s) com saldo`)
-                : 'Define o saldo ao editar a conta'}
-              {' '}· {data.transactions.length} movimento(s)
-            </div>
-          </div>
-        </div>
-      </div>
+          )}
 
-      <div className="dash-grid">
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <h3><IconReceipt size={16} /> Movimentos</h3>
-              <div className="sub">{accountFilter ? data.accounts.find((a) => String(a.id) === accountFilter)?.name : 'Todas as contas'} · {fmtMonth(month)}</div>
-            </div>
-          </div>
+          {/* ---------- lista ---------- */}
           {!hasAccounts ? (
-            <div className="empty-state">
-              <div className="empty-icon"><IconBank size={22} /></div>
-              <h4>Começa por criar as tuas contas</h4>
-              <p>Adiciona as tuas contas correntes (ex.: Santander, Trade Republic, Revolut) e depois importa o extrato de cada uma.</p>
-              <button className="btn" onClick={openAccountAdd}><IconPlus size={14} /> Criar conta</button>
+            <div className="card">
+              <div className="empty-state">
+                <div className="empty-icon"><IconBank size={22} /></div>
+                <h4>Começa por criar as tuas contas</h4>
+                <p>Adiciona as tuas contas correntes (ex.: Santander, Trade Republic, Revolut) e depois importa o extrato de cada uma.</p>
+                <button className="btn" onClick={openAccountAdd}><IconPlus size={14} /> Criar conta</button>
+              </div>
             </div>
           ) : data.transactions.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon"><IconReceipt size={22} /></div>
-              <h4>Sem movimentos em {fmtMonth(month)}</h4>
-              <p>Importa o extrato bancário do mês ou adiciona movimentos manualmente.</p>
-              <button className="btn" onClick={openImport}><IconUpload size={14} /> Importar extrato</button>
+            <div className="card">
+              <div className="empty-state">
+                <div className="empty-icon"><IconReceipt size={22} /></div>
+                <h4>Sem movimentos em {fmtMonth(month)}</h4>
+                <p>Importa o extrato bancário do mês ou adiciona movimentos manualmente.</p>
+                <button className="btn" onClick={() => setImportModal(true)}><IconUpload size={14} /> Importar extrato</button>
+              </div>
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="card">
+              <p className="dim" style={{ padding: '8px 2px' }}>Nenhum movimento corresponde ao filtro.</p>
             </div>
           ) : (
-            <div className="tx-list">
-              {byDay.map((g) => (
-                <div key={g.date}>
-                  <div className="tx-day">{fmtDay(g.date)}</div>
-                  <ul className="event-list">
-                    {g.txs.map((t) => (
-                      <li key={t.id} data-testid="movement-row" className="event-row">
-                        <span className={`tl-icon ${t.inflow ? 'in' : 'out'}`}>
-                          {t.inflow ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />}
-                        </span>
-                        <div className="event-main">
-                          <strong>{t.description}</strong>
-                          <span>
-                            <span className="tx-cat-dot" style={{ background: catColor(t.category) }} />
-                            {catLabel(t.category)}{!accountFilter && t.accountName ? ` · ${t.accountName}` : ''}
+            <>
+              {/* desktop: tabela com colunas ordenáveis */}
+              <div className="tx-table desktop-only">
+                <div className="tx-head">
+                  <span />
+                  <button onClick={() => setSortKey('desc')}>Descrição{arrow('desc')}</button>
+                  <span>Categoria</span>
+                  <span>Conta</span>
+                  <button onClick={() => setSortKey('date')}>Data{arrow('date')}</button>
+                  <button className="right" onClick={() => setSortKey('amount')}>Valor{arrow('amount')}</button>
+                  <span />
+                </div>
+                {rows.map((t) => (
+                  <div key={t.id} data-testid="movement-row"
+                       className={`tx-row ${selected.has(t.id) ? 'sel' : ''}`}>
+                    <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleSel(t.id)}
+                           aria-label={`Selecionar ${t.description}`} />
+                    <div className="tx-desc">
+                      <span className="code-chip" style={{ background: `${catColor(t.category)}26`, color: catColor(t.category) }}>
+                        {catCode(t.category)}
+                      </span>
+                      <button className="tx-open" onClick={() => openTxEdit(t)}>{t.description}</button>
+                    </div>
+                    <span className="tx-cat">
+                      <span className="tx-cat-dot" style={{ background: catColor(t.category) }} />
+                      {catLabel(t.category)}
+                    </span>
+                    <span className="tx-acc">{t.accountName}</span>
+                    <span className="mono tx-date">{fmtShortDate(t.date)}</span>
+                    <span className={`mono tx-amt ${t.inflow ? 'pos' : 'neg'}`}>
+                      {t.inflow ? '+' : '−'}{fmtEur(t.amount)}
+                    </span>
+                    <span className="event-actions">
+                      <button className="icon-btn" onClick={() => openTxEdit(t)} aria-label={`Editar ${t.description}`}><IconPencil size={14} /></button>
+                      <button className="icon-btn danger" onClick={() => setTxToDelete(t)} aria-label={`Eliminar ${t.description}`}><IconTrash size={14} /></button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* mobile: cartões agrupados por dia */}
+              <div className="tx-days mobile-only">
+                {byDay.map((g) => (
+                  <div key={g.date} className="tx-day-group">
+                    <div className="tx-day">{fmtDay(g.date)}</div>
+                    <div className="card flush">
+                      {g.txs.map((t) => (
+                        <div key={t.id} data-testid="movement-row" className="tx-card-row" onClick={() => openTxEdit(t)}>
+                          <span className="code-chip" style={{ background: `${catColor(t.category)}26`, color: catColor(t.category) }}>
+                            {catCode(t.category)}
+                          </span>
+                          <div className="row-main">
+                            <strong>{t.description}</strong>
+                            <small>{catLabel(t.category)}{t.accountName ? ` · ${t.accountName}` : ''}</small>
+                          </div>
+                          <span className={`mono ${t.inflow ? 'pos' : 'neg'}`}>
+                            {t.inflow ? '+' : '−'}{fmtEur(t.amount)}
                           </span>
                         </div>
-                        <span className={t.inflow ? 'pos' : 'neg'}>{t.inflow ? '+' : '−'}{fmtEur(t.amount)}</span>
-                        <div className="event-actions">
-                          <button className="icon-btn" onClick={() => openTxEdit(t)} aria-label="Editar"><IconPencil size={14} /></button>
-                          <button className="icon-btn danger" onClick={() => setTxToDelete(t)} aria-label="Eliminar"><IconTrash size={15} /></button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
 
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <h3><IconCoins size={16} /> Despesas por categoria</h3>
-              <div className="sub">{fmtMonth(month)}</div>
-            </div>
-            <button className="btn ghost small" onClick={() => setCatModal(true)}>
-              <IconPie size={14} /> Gerir categorias
-            </button>
-          </div>
-          {data.byCategory.length === 0 ? (
-            <p className="dim" style={{ padding: '4px 2px' }}>Ainda sem despesas neste mês.</p>
-          ) : (
-            <ul className="cat-bars">
-              {data.byCategory.map((c) => {
-                const pct = totalOut > 0 ? (Number(c.total) / totalOut) * 100 : 0
-                return (
-                  <li key={c.category}>
-                    <div className="cat-bar-head">
-                      <span><span className="tx-cat-dot" style={{ background: catColor(c.category) }} /> {catLabel(c.category)}</span>
-                      <span>{fmtEur(c.total)} · {pct.toFixed(0)}%</span>
-                    </div>
-                    <div className="cat-bar-track">
-                      <div className="cat-bar-fill" style={{ width: `${pct}%`, background: catColor(c.category) }} />
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
+        {/* ---------- coluna lateral ---------- */}
+        <aside className="mov-side">
+          <section className="card">
+            <div className="card-header"><div><h3>Despesas por categoria</h3><div className="sub">{fmtMonth(month)}</div></div></div>
+            {data.byCategory.length === 0 ? (
+              <p className="dim" style={{ padding: '4px 2px' }}>Ainda sem despesas neste mês.</p>
+            ) : (
+              <ul className="cat-bars">
+                {data.byCategory.map((c) => {
+                  const pct = totalOut > 0 ? (Number(c.total) / totalOut) * 100 : 0
+                  return (
+                    <li key={c.category}>
+                      <div className="cat-bar-head">
+                        <span><span className="tx-cat-dot" style={{ background: catColor(c.category) }} />{catLabel(c.category)}</span>
+                        <span className="mono">{fmtEur(c.total)}</span>
+                      </div>
+                      <div className="cat-bar-track">
+                        <div className="cat-bar-fill" style={{ width: `${pct}%`, background: catColor(c.category) }} />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section className="card">
+            <div className="card-header"><div><h3>Regras aprendidas</h3></div></div>
+            <p className="dim" style={{ margin: 0, lineHeight: 1.5 }}>
+              Ao mudares a categoria de um movimento, a Vaultrack aplica-a a todos com a mesma
+              descrição e memoriza-a para as próximas importações.
+            </p>
+          </section>
+        </aside>
       </div>
 
       {/* ---------- modal categorias ---------- */}
@@ -592,33 +600,6 @@ export default function ExpensesPage() {
         </div>
       </Modal>
 
-      {/* ---------- modal conta ---------- */}
-      <Modal open={accountModal} onClose={() => setAccountModal(false)} onSubmit={saveAccount} busy={busy}
-             title={editingAccount ? 'Editar conta' : 'Nova conta corrente'}
-             subtitle="Ex.: Santander, Trade Republic, Revolut."
-             footer={
-               <>
-                 <button className="btn ghost" onClick={() => setAccountModal(false)}>Cancelar</button>
-                 <button className="btn" onClick={saveAccount} disabled={busy}>{busy ? 'A guardar…' : 'Guardar'}</button>
-               </>
-             }>
-        <div className="form-grid">
-          <div className="field full">
-            <label>Nome da conta</label>
-            <input placeholder="Ex: Santander" autoFocus value={accountName}
-                   onChange={(e) => setAccountName(e.target.value)} />
-          </div>
-          <div className="field full">
-            <label>Saldo atual (opcional)</label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" placeholder="Deixa em branco se não quiseres registar" value={accountBalance}
-                     onChange={(e) => setAccountBalance(e.target.value)} />
-              <span className="affix">{cur}</span>
-            </div>
-          </div>
-        </div>
-      </Modal>
-
       {/* ---------- modal movimento ---------- */}
       <Modal open={txModal} onClose={() => setTxModal(false)} onSubmit={saveTx} busy={busy}
              title={editingTx ? 'Editar movimento' : 'Novo movimento'}
@@ -674,114 +655,36 @@ export default function ExpensesPage() {
         </div>
       </Modal>
 
-      {/* ---------- modal importação ---------- */}
-      <Modal open={importModal} onClose={() => setImportModal(false)}
-             title="Importar extrato bancário"
-             subtitle="Exporta o extrato do teu banco em CSV ou PDF e carrega-o aqui. Movimentos duplicados são ignorados automaticamente."
+      {/* ---------- modal categoria em massa ---------- */}
+      <Modal open={!!bulkCat} onClose={() => setBulkCat(null)} onSubmit={applyBulkCategory} busy={busy}
+             title="Definir categoria"
+             subtitle={`${selected.size} movimento(s) selecionados.`}
              footer={
                <>
-                 <button className="btn ghost" onClick={() => setImportModal(false)}>Cancelar</button>
-                 <button className="btn" onClick={doImport} disabled={busy || !preview || preview.rows.length === 0}>
-                   {busy ? 'A importar…' : `Importar${preview ? ` ${preview.rows.length} movimento(s)` : ''}`}
-                 </button>
+                 <button className="btn ghost" onClick={() => setBulkCat(null)}>Cancelar</button>
+                 <button className="btn" onClick={applyBulkCategory} disabled={busy}>{busy ? 'A aplicar…' : 'Aplicar'}</button>
                </>
              }>
-        <div className="form-grid">
-          <div className="field">
-            <label>Conta do extrato</label>
-            <Dropdown value={importAccountId} onChange={setImportAccountId}
-                      options={data.accounts.map((a) => ({ value: String(a.id), label: a.name }))} />
+        {bulkCat && (
+          <div className="form-grid">
+            <div className="field full">
+              <label>Categoria</label>
+              <Dropdown label="Categoria" value={bulkCat.category}
+                        onChange={(category) => setBulkCat({ ...bulkCat, category })} options={catOptions} />
+            </div>
+            <label className="field full check-row">
+              <input type="checkbox" checked={bulkCat.applyRule}
+                     onChange={(e) => setBulkCat({ ...bulkCat, applyRule: e.target.checked })} />
+              <span>Memorizar a <strong>regra da descrição</strong> para futuras importações</span>
+            </label>
           </div>
-          <div className="field">
-            <label>Ficheiro (CSV ou PDF)</label>
-            <input ref={fileRef} type="file" accept=".csv,.txt,.pdf,text/csv,application/pdf" style={{ display: 'none' }} onChange={onFile} />
-            <button className="btn ghost" style={{ width: '100%' }} onClick={() => fileRef.current?.click()}>
-              <IconUpload size={14} /> {importFile ? importFile.name : 'Escolher ficheiro…'}
-            </button>
-          </div>
-        </div>
-
-        {importFile && (
-          <>
-            <p className="dim" style={{ margin: '10px 2px 6px' }}>
-              Formato detetado: <strong>{FORMAT_LABEL[importFile.analysis.format]}</strong>
-              {importFile.analysis.format === 'unknown' && ' — indica abaixo a que corresponde cada coluna.'}
-              {' '}Valores assumidos em EUR (linhas noutra moeda são ignoradas).
-            </p>
-
-            {(importFile.analysis.format === 'unknown' || !preview) && (
-              <div className="form-grid">
-                <div className="field">
-                  <label>Coluna da data</label>
-                  <Dropdown value={String(mapping.date)} onChange={(v) => setMap('date', v)} options={mappingOptions(importFile.analysis.headers)} />
-                </div>
-                <div className="field">
-                  <label>Coluna da descrição</label>
-                  <Dropdown value={String(mapping.description)} onChange={(v) => setMap('description', v)} options={mappingOptions(importFile.analysis.headers)} />
-                </div>
-                <div className="field">
-                  <label>Coluna do montante (com sinal)</label>
-                  <Dropdown value={String(mapping.amount)} onChange={(v) => setMap('amount', v)} options={mappingOptions(importFile.analysis.headers)} />
-                </div>
-                <div className="field">
-                  <label>…ou Débito / Crédito</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <Dropdown value={String(mapping.debit)} onChange={(v) => setMap('debit', v)} options={mappingOptions(importFile.analysis.headers)} />
-                    <Dropdown value={String(mapping.credit)} onChange={(v) => setMap('credit', v)} options={mappingOptions(importFile.analysis.headers)} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {preview && preview.rows.length > 0 && previewRange && (() => {
-              const { min: minDate, max: maxDate } = previewRange
-              const months = (Number(maxDate.slice(0, 4)) - Number(minDate.slice(0, 4))) * 12
-                + Number(maxDate.slice(5, 7)) - Number(minDate.slice(5, 7)) + 1
-              const fmtD = (iso) => new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' })
-              return (
-              <div className="import-preview">
-                <div className="import-summary">
-                  <span>{preview.rows.length} movimento(s) prontos a importar</span>
-                  {preview.ignored > 0 && <span className="dim">{preview.ignored} linha(s) ignoradas</span>}
-                </div>
-                <p className="dim import-range">
-                  Período: {fmtD(minDate)} a {fmtD(maxDate)}{months > 1 ? ` · ${months} meses` : ''}
-                  {preview.closingBalance != null
-                    ? ` · saldo da conta passa a ${fmtEur(preview.closingBalance)}`
-                    : ' · sem saldo no extrato, o saldo da conta fica como está'}
-                </p>
-                {periodUsage?.key === usageKey && periodUsage.count > 0 && (
-                  <p className="import-overlap" role="status">
-                    Esta conta já tem {periodUsage.count} movimento(s) neste período. Os que forem
-                    exatamente iguais (data, valor, sentido e descrição) são ignorados, mas o
-                    mesmo extrato noutro formato pode trazer datas ou descrições ligeiramente
-                    diferentes e entrar duas vezes.
-                  </p>
-                )}
-                <ul className="event-list">
-                  {preview.rows.slice(0, 8).map((r, i) => (
-                    <li key={i} className="event-row">
-                      <span className={`tl-icon ${r.inflow ? 'in' : 'out'}`}>
-                        {r.inflow ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />}
-                      </span>
-                      <div className="event-main">
-                        <strong>{r.description}</strong>
-                        <span>{r.date} · {catLabel(r.category)}</span>
-                      </div>
-                      <span className={r.inflow ? 'pos' : 'neg'}>{r.inflow ? '+' : '−'}{fmtEur(r.amount)}</span>
-                    </li>
-                  ))}
-                </ul>
-                {preview.rows.length > 8 && <p className="dim" style={{ margin: '6px 2px 0' }}>… e mais {preview.rows.length - 8} movimento(s).</p>}
-              </div>
-              )
-            })()}
-            {preview && preview.rows.length === 0 && (
-              <p className="dim" style={{ margin: '10px 2px' }}>Nenhum movimento válido encontrado — verifica o mapeamento das colunas.</p>
-            )}
-          </>
         )}
       </Modal>
+
+      <AccountModal open={accountModal} account={editingAccount} busy={busy} currencySymbol={cur}
+                    onClose={() => setAccountModal(false)} onSave={saveAccount} />
+      <StatementImport open={importModal} onClose={() => setImportModal(false)}
+                       accounts={data.accounts} defaultAccountId={accountFilter} onImported={load} />
 
       <ConfirmDialog open={!!txToDelete} busy={busy}
                      title="Eliminar movimento?"
