@@ -298,6 +298,27 @@ export const IconMore = (p) => (
   </Icon>
 )
 
+/** Barras decrescentes — o separador "Dinheiro" da navegação mobile. */
+export const IconLines = (p) => (
+  <Icon {...p}>
+    <path d="M4 7h16M4 12h11M4 17h7" />
+  </Icon>
+)
+
+export const IconSearch = (p) => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Icon>
+)
+
+export const IconUser = (p) => (
+  <Icon {...p}>
+    <path d="M12 13a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z" />
+    <path d="M4 21c1.5-4 4.5-5.5 8-5.5s6.5 1.5 8 5.5" />
+  </Icon>
+)
+
 export const IconLogo = (p) => (
   <svg width={p?.size ?? 30} height={p?.size ?? 30} viewBox="0 0 64 64">
     <defs>

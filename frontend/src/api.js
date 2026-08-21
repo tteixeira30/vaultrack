@@ -136,10 +136,20 @@ export const setDisplayCurrency = (currency, rateFromEur) => {
 }
 export const getDisplayCurrency = () => displayCurrency
 
+// Moedas suportadas (código, símbolo e nome em PT-PT). A ordem é a do seletor.
+export const CURRENCIES = [
+  { code: 'EUR', symbol: '€', name: 'Euro' },
+  { code: 'USD', symbol: '$', name: 'Dólar EUA' },
+  { code: 'GBP', symbol: '£', name: 'Libra' },
+  { code: 'BRL', symbol: 'R$', name: 'Real' },
+  { code: 'CHF', symbol: 'Fr', name: 'Franco suíço' },
+  { code: 'CAD', symbol: 'C$', name: 'Dólar canadiano' },
+  { code: 'AUD', symbol: 'A$', name: 'Dólar australiano' },
+  { code: 'JPY', symbol: '¥', name: 'Iene' },
+]
+
 // Símbolos das moedas suportadas — usados nos afixos dos campos de input.
-export const CURRENCY_SYMBOLS = {
-  EUR: '€', USD: '$', GBP: '£', BRL: 'R$', CHF: 'Fr', CAD: 'C$', AUD: 'A$', JPY: '¥',
-}
+export const CURRENCY_SYMBOLS = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.symbol]))
 
 /** Símbolo da moeda base ativa (ex: '€', '$'), para rótulos de campos monetários. */
 export const getCurrencySymbol = () => CURRENCY_SYMBOLS[displayCurrency] || displayCurrency
