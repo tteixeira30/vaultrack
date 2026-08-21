@@ -217,8 +217,8 @@ export default function StatementImport({ open, onClose, accounts, defaultAccoun
                 <ul className="event-list">
                   {preview.rows.slice(0, 8).map((r, i) => (
                     <li key={i} className="event-row">
-                      <span className={`tl-icon ${r.inflow ? 'in' : 'out'}`}>
-                        {r.inflow ? <IconArrowUp size={14} /> : <IconArrowDown size={14} />}
+                      <span className={`code-chip ${r.inflow ? 'green' : 'red'}`}>
+                        {r.inflow ? <IconArrowUp size={13} /> : <IconArrowDown size={13} />}
                       </span>
                       <div className="event-main">
                         <strong>{r.description}</strong>

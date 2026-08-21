@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react'
 import { api, fmtEur } from '../api'
-import {
-  IconTrophy, IconCoins, IconTrendingUp, IconTarget, IconRepeat, IconSparkle,
-  IconCheck, IconWallet, IconCalendar, IconFlame, IconStar, IconLock, IconInfo,
-} from '../components/Icons'
+import { IconLock, IconInfo } from '../components/Icons'
 
-const ICONS = {
-  trophy: IconTrophy, coins: IconCoins, trending: IconTrendingUp, target: IconTarget,
-  repeat: IconRepeat, sparkle: IconSparkle, check: IconCheck, wallet: IconWallet,
-  calendar: IconCalendar, flame: IconFlame, star: IconStar,
+/** Código mono de duas letras do título ("Carteira diversificada" → "CD"). */
+const achCode = (title) => {
+  const words = title.split(/\s+/).filter((w) => w.length > 2)
+  const letters = (words.length >= 2 ? words.slice(0, 2) : title.split(/\s+/).slice(0, 2)).map((w) => w[0])
+  return (letters.join('') || title.slice(0, 2)).toUpperCase()
 }
+
 const CATEGORY_ORDER = ['Investimento', 'Poupança', 'Consistência', 'Objetivos', 'Rentabilidade', 'Planeamento']
 
 function fmtValue(v, unit) {
@@ -41,10 +40,10 @@ export default function AchievementsPage() {
 
   if (!data) {
     return (
-      <div>
-        <div className="skeleton" style={{ height: 150, borderRadius: 16, marginBottom: 20 }} />
+      <div className="ach">
+        <div className="skeleton" style={{ height: 108, borderRadius: 20 }} />
         <div className="ach-grid">
-          {[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="skeleton" style={{ height: 120 }} />)}
+          {[0, 1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 140, borderRadius: 16 }} />)}
         </div>
       </div>
     )
@@ -55,25 +54,16 @@ export default function AchievementsPage() {
     .filter((g) => g.items.length > 0)
 
   return (
-    <div>
-      <div className="page-head">
-        <div>
-          <h2>Conquistas</h2>
-          <p>Sobe de nível à medida que constróis o teu futuro financeiro.</p>
-        </div>
-      </div>
-
-      <div className="card level-card">
-        <div className="level-badge">
-          <IconTrophy size={26} />
-          <span className="level-num">{data.level}</span>
-        </div>
+    <div className="ach">
+      {/* ---------- nível ---------- */}
+      <section className="card level-card">
+        <div className="mono level-badge">{data.level}</div>
         <div className="level-info">
           <div className="level-top">
             <h3>Nível {data.level} · {data.levelName}</h3>
-            <span className="level-points">{data.points} pontos</span>
+            <span className="mono level-points">{data.points} pontos</span>
           </div>
-          <div className="progress-track" style={{ marginTop: 10 }}>
+          <div className="progress-track">
             <div className="progress-fill" style={{ width: `${Math.round(data.pointsIntoLevel / data.pointsForNextLevel * 100)}%` }} />
           </div>
           <div className="level-foot">
@@ -81,39 +71,40 @@ export default function AchievementsPage() {
             <span>{data.unlocked}/{data.total} desbloqueadas · {data.percentUnlocked}%</span>
           </div>
         </div>
-      </div>
+      </section>
 
+      {/* ---------- medalhas por categoria ---------- */}
       {byCategory.map((group) => (
         <div key={group.cat} className="ach-section">
-          <h3 className="ach-cat">{group.cat}</h3>
+          <div className="section-label">{group.cat}</div>
           <div className="ach-grid">
-            {group.items.map((a) => {
-              const Icon = ICONS[a.icon] || IconTrophy
-              return (
-                <div key={a.id} className={`ach-card ${a.unlocked ? 'unlocked' : 'locked'}`}>
-                  <div className="ach-top">
-                    <span className="ach-icon">{a.unlocked ? <Icon size={20} /> : <IconLock size={18} />}</span>
-                    <span className="ach-points">{a.points} pt</span>
-                  </div>
-                  <div className="ach-body">
-                    <strong>{a.title}</strong>
-                    <span>{a.description}</span>
-                  </div>
-                  {a.unlocked ? (
-                    <div className="ach-done"><IconCheck size={13} /> Desbloqueada</div>
-                  ) : a.unit !== 'bool' ? (
-                    <div className="ach-progress">
-                      <div className="progress-track">
-                        <div className="progress-fill" style={{ width: `${a.progress}%` }} />
-                      </div>
-                      <span>{fmtValue(a.current, a.unit)} / {fmtValue(a.target, a.unit)}</span>
-                    </div>
-                  ) : (
-                    <div className="ach-progress"><span className="dim">Por desbloquear</span></div>
-                  )}
+            {group.items.map((a) => (
+              <div key={a.id} className={`card ach-card ${a.unlocked ? 'unlocked' : 'locked'}`}>
+                <div className="ach-top">
+                  <span className={`code-chip ${a.unlocked ? 'accent' : ''}`}>
+                    {a.unlocked ? achCode(a.title) : <IconLock size={14} />}
+                  </span>
+                  <span className="mono ach-points">{a.points} pt</span>
                 </div>
-              )
-            })}
+                <div className="ach-body">
+                  <strong>{a.title}</strong>
+                  <span>{a.description}</span>
+                </div>
+                <div className="ach-progress">
+                  <div className="progress-track">
+                    <div className={`progress-fill ${a.unlocked ? 'done' : ''}`}
+                         style={{ width: `${a.unlocked ? 100 : a.progress}%` }} />
+                  </div>
+                  <span className={`mono ${a.unlocked ? 'pos' : ''}`}>
+                    {a.unlocked
+                      ? 'Desbloqueada'
+                      : a.unit !== 'bool'
+                        ? `${fmtValue(a.current, a.unit)} / ${fmtValue(a.target, a.unit)}`
+                        : 'Por desbloquear'}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ))}

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
+import { api, fmtEur, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import DatePicker from '../components/DatePicker'
 import Dropdown from '../components/Dropdown'
 import { useToast } from '../components/Toast'
-import { IconWallet, IconHome, IconRepeat, IconBell, IconCoins, IconInfo, IconTrendingUp, IconTarget, IconChevronLeft, IconChevronRight, IconPlus, IconArrowUp, IconArrowDown, IconPencil, IconTrash } from '../components/Icons'
+import { useMonth, fmtMonthShort as fmtMonth } from '../components/MonthContext'
+import { useIntent } from '../components/IntentContext'
+import { IconWallet, IconHome, IconRepeat, IconBell, IconCoins, IconInfo, IconPlus, IconArrowUp, IconArrowDown, IconPencil, IconTrash } from '../components/Icons'
 
 const CATEGORY_META = {
   INCOME: { label: 'Rendimento', icon: IconWallet },
@@ -18,32 +20,23 @@ const CATEGORY_META = {
 }
 const CATEGORIES = Object.keys(CATEGORY_META)
 const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
-const SOURCE_ICON = { INVESTMENT: IconTrendingUp, GOAL: IconTarget }
 
 const EMPTY_FORM = { name: '', category: 'OTHER', inflow: false, amount: '', frequency: 'MONTHLY', dayOfMonth: '1', eventDate: '' }
 
-function fmtMonth(m) {
-  if (!m) return ''
-  const [y, mo] = m.split('-').map(Number)
-  const s = new Date(y, mo - 1, 1).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
 const todayIso = () => new Date().toISOString().slice(0, 10)
-const shiftMonth = (m, delta) => {
-  const [y, mo] = m.split('-').map(Number)
-  const d = new Date(y, mo - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
 
-function occIcon(o) {
-  if (o.source && SOURCE_ICON[o.source]) return SOURCE_ICON[o.source]
-  return (CATEGORY_META[o.category] || CATEGORY_META.OTHER).icon
+/** Código mono de duas letras para o quadrado de cada evento. */
+const occCode = (o) => {
+  if (o.source === 'INVESTMENT') return 'IN'
+  if (o.source === 'GOAL') return 'OB'
+  const label = (CATEGORY_META[o.category] || CATEGORY_META.OTHER).label
+  return label.replace(/[^\p{L}]/gu, '').slice(0, 2).toUpperCase()
 }
 
 export default function CalendarPage() {
   const toast = useToast()
   const cur = getCurrencySymbol()
-  const [month, setMonth] = useState(() => todayIso().slice(0, 7))
+  const { month } = useMonth()
   const [data, setData] = useState(null)
   const [forecast, setForecast] = useState(null)
   const [addModal, setAddModal] = useState(false)
@@ -65,6 +58,8 @@ export default function CalendarPage() {
   const reloadAll = async () => { await Promise.all([loadMonth(month), loadForecast()]) }
 
   const openAdd = () => { setEditing(null); setForm(EMPTY_FORM); setAddModal(true) }
+
+  useIntent('newEvent', openAdd)
   const openAddForDay = (day) => {
     const iso = `${month}-${String(day).padStart(2, '0')}`
     setEditing(null)
@@ -135,7 +130,11 @@ export default function CalendarPage() {
     }
     const cells = []
     for (let i = 0; i < lead; i++) cells.push(null)
-    for (let d = 1; d <= days; d++) cells.push({ day: d, occ: byDay[d] || [] })
+    for (let d = 1; d <= days; d++) {
+      const occ = byDay[d] || []
+      const net = occ.reduce((t, o) => t + (o.inflow ? 1 : -1) * Number(o.amount), 0)
+      cells.push({ day: d, occ, net })
+    }
     while (cells.length % 7 !== 0) cells.push(null)
     return cells
   }, [month, data])
@@ -146,7 +145,7 @@ export default function CalendarPage() {
   }
 
   if (!data) {
-    return <div className="skeleton" style={{ height: 460, borderRadius: 16 }} />
+    return <div className="skeleton" style={{ height: 460, borderRadius: 20 }} />
   }
 
   const reminders = (forecast?.points || []).filter((p) => {
@@ -155,23 +154,13 @@ export default function CalendarPage() {
   })
 
   return (
-    <div>
-      <div className="page-head">
-        <div>
-          <h2>Calendário financeiro</h2>
-          <p>Eventos recorrentes, previsão de saldo e próximos movimentos.</p>
-        </div>
-        <div className="page-actions">
-          <button className="btn" onClick={openAdd}><IconPlus size={15} /> Novo evento</button>
-        </div>
-      </div>
-
+    <div className="cal">
       {reminders.length > 0 && (
         <div className="reminders">
-          <span className="reminders-title"><IconBell size={14} /> Lembretes · próximos 7 dias</span>
+          <span className="reminders-title">Lembretes · 7 dias</span>
           <div className="reminders-list">
             {reminders.map((p, i) => (
-              <span key={i} className={`reminder-chip ${p.inflow ? 'in' : 'out'}`}>
+              <span key={i} className={`mono reminder-chip ${p.inflow ? 'in' : 'out'}`}>
                 {new Date(p.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })} · {p.name} · {p.inflow ? '+' : '−'}{fmtEur(p.amount)}
               </span>
             ))}
@@ -179,120 +168,119 @@ export default function CalendarPage() {
         </div>
       )}
 
-      <div className="card">
-        <div className="cal-head">
-          <div className="month-nav">
-            <button className="icon-btn" onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Mês anterior"><IconChevronLeft size={18} /></button>
-            <span className="month-label">{fmtMonth(month)}</span>
-            <button className="icon-btn" onClick={() => setMonth((m) => shiftMonth(m, 1))} aria-label="Mês seguinte"><IconChevronRight size={18} /></button>
-          </div>
-          <div className="cal-summary">
-            <span className="pos">↑ {fmtEur(data.inflows)}</span>
-            <span className="neg">↓ {fmtEur(data.outflows)}</span>
-            <span className={Number(data.net) >= 0 ? 'pos' : 'neg'}>= {fmtEur(data.net)}</span>
-          </div>
-        </div>
-
-        <div className="cal-grid">
-          {WEEKDAYS.map((w) => <div key={w} className="cal-weekday">{w}</div>)}
-          {grid.map((cell, i) => (
-            <div key={i}
-                 className={`cal-cell ${cell ? '' : 'empty'} ${cell && isToday(cell.day) ? 'today' : ''}`}
-                 role={cell ? 'button' : undefined}
-                 tabIndex={cell ? 0 : undefined}
-                 aria-label={cell ? `Adicionar evento no dia ${cell.day}` : undefined}
-                 onClick={cell ? () => openAddForDay(cell.day) : undefined}
-                 onKeyDown={cell ? (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openAddForDay(cell.day) } } : undefined}>
-              {cell && (
-                <>
-                  <span className="cal-daynum">{cell.day}</span>
-                  <div className="cal-dots">
-                    {cell.occ.slice(0, 4).map((o, j) => (
-                      <span key={j} className={`cal-dot ${o.inflow ? 'in' : 'out'}`}
-                            title={`${o.name} · ${o.inflow ? '+' : '−'}${fmtEur(o.amount)}`} />
-                    ))}
-                    {cell.occ.length > 4 && <span className="cal-more">+{cell.occ.length - 4}</span>}
-                  </div>
-                </>
-              )}
+      <div className="cal-body">
+        <section className="card">
+          <div className="cal-head">
+            <h3>{fmtMonth(month)}</h3>
+            <div className="mono cal-summary">
+              <span className="pos">↑ {fmtEur(data.inflows)}</span>
+              <span className="neg">↓ {fmtEur(data.outflows)}</span>
+              <span className={Number(data.net) >= 0 ? 'pos' : 'neg'}>= {fmtEur(data.net)}</span>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      <div className="dash-grid">
-        <div className="card">
-          <div className="card-header">
-            <div>
-              <h3><IconTrendingUp size={16} /> Próximos movimentos</h3>
-              <div className="sub">
-                {forecast?.hasBalance
-                  ? `Saldo em contas ${fmtEur(forecast.startingBalance)} · previsto a 60 dias ${fmtEur(forecast.endBalance)}`
-                  : 'Fluxo acumulado (define o saldo das tuas contas em Despesas para veres a previsão do saldo)'}
+          <div className="cal-grid">
+            {WEEKDAYS.map((w) => <div key={w} className="cal-weekday">{w}</div>)}
+            {grid.map((cell, i) => (
+              <div key={i}
+                   className={`cal-cell ${cell ? '' : 'empty'} ${cell && isToday(cell.day) ? 'today' : ''}`}
+                   role={cell ? 'button' : undefined}
+                   tabIndex={cell ? 0 : undefined}
+                   aria-label={cell ? `Adicionar evento no dia ${cell.day}` : undefined}
+                   onClick={cell ? () => openAddForDay(cell.day) : undefined}
+                   onKeyDown={cell ? (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openAddForDay(cell.day) } } : undefined}>
+                {cell && (
+                  <>
+                    <span className="mono cal-daynum">{cell.day}</span>
+                    <div className="cal-dots">
+                      {cell.occ.slice(0, 4).map((o, j) => (
+                        <span key={j} className={`cal-dot ${o.inflow ? 'in' : 'out'}`}
+                              title={`${o.name} · ${o.inflow ? '+' : '−'}${fmtEur(o.amount)}`} />
+                      ))}
+                      {cell.occ.length > 4 && <span className="cal-more">+{cell.occ.length - 4}</span>}
+                    </div>
+                    {cell.occ.length > 0 && (
+                      <span className={`mono cal-sum ${cell.net >= 0 ? 'pos' : 'neg'}`}>
+                        {cell.net >= 0 ? '+' : '−'}{fmtMoneyShort(Math.abs(cell.net))}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="cal-side">
+          <section className="card">
+            <div className="card-header">
+              <div>
+                <h3>Próximos movimentos</h3>
+                <div className="sub">
+                  {forecast?.hasBalance
+                    ? `Saldo em contas ${fmtEur(forecast.startingBalance)} · previsto a 60 dias ${fmtEur(forecast.endBalance)}`
+                    : 'Fluxo acumulado (define o saldo das tuas contas em Contas para veres a previsão do saldo)'}
+                </div>
               </div>
             </div>
-          </div>
-          {(!forecast || forecast.points.length === 0) ? (
-            <p className="dim" style={{ padding: '4px 2px' }}>Sem movimentos previstos nos próximos 60 dias.</p>
-          ) : (
-            <ul className="timeline">
-              {forecast.points.map((p, i) => {
-                const Icon = occIcon(p)
-                const soon = Math.round((new Date(p.date) - new Date(todayIso())) / 86400000) <= 7
-                return (
-                  <li key={i} className={`tl-item ${soon ? 'soon' : ''}`}>
-                    <div className="tl-date">
+            {(!forecast || forecast.points.length === 0) ? (
+              <p className="dim" style={{ padding: '4px 2px' }}>Sem movimentos previstos nos próximos 60 dias.</p>
+            ) : (
+              <ul className="agenda">
+                {forecast.points.map((p, i) => (
+                  <li key={i}>
+                    <div className="mono agenda-date">
                       <strong>{new Date(p.date).toLocaleDateString('pt-PT', { day: '2-digit' })}</strong>
                       <span>{new Date(p.date).toLocaleDateString('pt-PT', { month: 'short' })}</span>
                     </div>
-                    <span className={`tl-icon ${p.inflow ? 'in' : 'out'}`}><Icon size={14} /></span>
-                    <div className="tl-main">
+                    <span className={`code-chip ${p.inflow ? 'green' : 'red'}`}>{occCode(p)}</span>
+                    <div className="agenda-main">
                       <strong>{p.name}</strong>
                       {p.source !== 'MANUAL' && <span className="badge">auto</span>}
                     </div>
-                    <div className="tl-amounts">
-                      <span className={p.inflow ? 'pos' : 'neg'}>{p.inflow ? '+' : '−'}{fmtEur(p.amount)}</span>
-                      {forecast.hasBalance && <span className="tl-balance">{fmtEur(p.balanceAfter)}</span>}
+                    <div className="agenda-amounts">
+                      <span className={`mono ${p.inflow ? 'pos' : 'neg'}`}>{p.inflow ? '+' : '−'}{fmtEur(p.amount)}</span>
+                      {forecast.hasBalance && <span className="mono agenda-balance">{fmtEur(p.balanceAfter)}</span>}
                     </div>
                   </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
+                ))}
+              </ul>
+            )}
+          </section>
 
-        <div className="card">
-          <div className="card-header">
-            <div><h3><IconRepeat size={16} /> Os teus eventos</h3></div>
-            <button className="btn small ghost" onClick={openAdd}><IconPlus size={13} /> Novo</button>
-          </div>
-          {data.events.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon"><IconBell size={22} /></div>
-              <h4>Ainda sem eventos</h4>
-              <p>Adiciona o teu salário, a renda, subscrições e outras despesas recorrentes.</p>
+          <section className="card">
+            <div className="card-header">
+              <div><h3>Os teus eventos</h3></div>
+              <button className="btn small" onClick={openAdd}><IconPlus size={13} /> Novo evento</button>
             </div>
-          ) : (
-            <ul className="event-list">
-              {data.events.map((e) => {
-                const meta = CATEGORY_META[e.category] || CATEGORY_META.OTHER
-                return (
-                  <li key={e.id} className="event-row">
-                    <span className={`tl-icon ${e.inflow ? 'in' : 'out'}`}><meta.icon size={14} /></span>
-                    <div className="event-main">
-                      <strong>{e.name}</strong>
-                      <span>{meta.label} · {e.frequency === 'MONTHLY' ? `todo dia ${e.dayOfMonth}` : e.frequency === 'YEARLY' ? `anual · ${e.eventDate}` : e.eventDate}</span>
-                    </div>
-                    <span className={e.inflow ? 'pos' : 'neg'}>{e.inflow ? '+' : '−'}{fmtEur(e.amount)}</span>
-                    <div className="event-actions">
-                      <button className="icon-btn" onClick={() => openEdit(e)} aria-label="Editar"><IconPencil size={14} /></button>
-                      <button className="icon-btn danger" onClick={() => setToDelete(e)} aria-label="Eliminar"><IconTrash size={15} /></button>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
+            {data.events.length === 0 ? (
+              <div className="empty-state compact">
+                <div className="empty-icon"><IconBell size={22} /></div>
+                <h4>Ainda sem eventos</h4>
+                <p>Adiciona o teu salário, a renda, subscrições e outras despesas recorrentes.</p>
+              </div>
+            ) : (
+              <ul className="event-list">
+                {data.events.map((e) => {
+                  const meta = CATEGORY_META[e.category] || CATEGORY_META.OTHER
+                  return (
+                    <li key={e.id} className="event-row">
+                      <span className={`code-chip ${e.inflow ? 'green' : 'red'}`}>{occCode(e)}</span>
+                      <div className="event-main">
+                        <strong>{e.name}</strong>
+                        <span>{meta.label} · {e.frequency === 'MONTHLY' ? `todo dia ${e.dayOfMonth}` : e.frequency === 'YEARLY' ? `anual · ${e.eventDate}` : e.eventDate}</span>
+                      </div>
+                      <span className={`mono ${e.inflow ? 'pos' : 'neg'}`}>{e.inflow ? '+' : '−'}{fmtEur(e.amount)}</span>
+                      <div className="event-actions">
+                        <button className="icon-btn" onClick={() => openEdit(e)} aria-label={`Editar ${e.name}`}><IconPencil size={14} /></button>
+                        <button className="icon-btn danger" onClick={() => setToDelete(e)} aria-label={`Eliminar ${e.name}`}><IconTrash size={14} /></button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
         </div>
       </div>
 
