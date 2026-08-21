@@ -1,18 +1,19 @@
 import { expect, type Locator } from '@playwright/test'
-import { BasePage } from './BasePage'
+import { type TabLabel } from '../components/MainNav'
+import { TabPage } from './BasePage'
 
 /**
- * Conquistas (gamificação). Vive no menu de perfil, não na navegação principal,
- * por isso não estende `TabPage`.
+ * Conquistas (gamificação). Passou a ser um ecrã da navegação — em desktop no
+ * grupo "Análise" da sidebar, em mobile no separador "Crescer".
  *
  * Não tem entidade própria no backend: o nível e os pontos são calculados a partir
  * dos dados existentes.
  */
-export class AchievementsPage extends BasePage {
-  async goto(): Promise<void> {
-    await this.page.goto('/')
-    await this.nav.expectVisible()
-    await this.profileMenu.select('Conquistas')
+export class AchievementsPage extends TabPage {
+  protected readonly tab: TabLabel = 'Conquistas'
+
+  override async goto(): Promise<void> {
+    await super.goto()
     await expect(this.levelHeading).toBeVisible()
   }
 

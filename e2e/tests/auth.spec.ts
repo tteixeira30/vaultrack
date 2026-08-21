@@ -11,10 +11,9 @@ test.describe('autenticação', () => {
   test('registo → painel → logout → login de novo @smoke', async ({ authPage }) => {
     const { email, password } = await authPage.register({ name: 'Maria Teste' })
 
-    // sessão iniciada: brand, separadores e identidade visíveis
-    await expect(authPage.nav.brand).toContainText('Vaultrack')
-    await expect(authPage.nav.tab('Investimentos')).toBeVisible()
-    await expect(authPage.profileMenu.identity).toContainText('Maria Teste')
+    // sessão iniciada: o chrome da app e a identidade certa
+    await authPage.nav.expectVisible()
+    await authPage.profileMenu.expectIdentity('Maria Teste')
 
     await authPage.profileMenu.logout()
     await authPage.expectLoggedOut()

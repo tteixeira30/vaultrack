@@ -344,7 +344,7 @@ export default function ExpensesPage() {
           <div className="mono">{balanceValue != null ? fmtEur(balanceValue) : '—'}</div>
           <small>
             {balanceValue != null
-              ? (selectedAccount ? 'Registado por ti' : `${balancesDefined.length} de ${data.accounts.length} conta(s)`)
+              ? (selectedAccount ? 'Registado por ti' : `${balancesDefined.length} de ${data.accounts.length} conta(s) com saldo`)
               : 'Define o saldo ao editar a conta'}
           </small>
         </div>

@@ -14,14 +14,14 @@ export interface MovementInput {
 
 /** Despesas — contas correntes, movimentos manuais e importação de extratos. */
 export class ExpensesPage extends TabPage {
-  protected readonly tab: TabLabel = 'Despesas'
+  protected readonly tab: TabLabel = 'Movimentos'
   readonly kpis = new KpiCards(this.page)
 
   // ---- locators ----------------------------------------------------------
 
-  /** O botão do cabeçalho; o estado vazio tem outro com o mesmo label. */
+  /** O botão da linha de contas; o estado vazio tem outro com o mesmo label. */
   get importButton(): Locator {
-    return this.page.locator('.page-actions').getByRole('button', { name: 'Importar extrato' })
+    return this.page.locator('.chip-row-end').getByRole('button', { name: 'Importar extrato' })
   }
 
   get newMovementButton(): Locator {
@@ -40,8 +40,15 @@ export class ExpensesPage extends TabPage {
     return this.page.getByTestId('account-chip').filter({ hasText: name })
   }
 
+  /**
+   * Um movimento da lista.
+   *
+   * A página desenha as duas vistas ao mesmo tempo — a tabela do desktop e os
+   * cartões por dia do telemóvel — e é o CSS que escolhe qual se vê. Daí o
+   * `:visible`: sem ele o locator apanha as duas cópias.
+   */
   movement(description: string): Locator {
-    return this.page.getByTestId('movement-row').filter({ hasText: description })
+    return this.page.locator('[data-testid="movement-row"]:visible', { hasText: description })
   }
 
   /** Barra do gráfico de despesas por categoria. */
@@ -91,13 +98,13 @@ export class ExpensesPage extends TabPage {
   }
 
   async renameMovement(from: string, to: string): Promise<void> {
-    await this.movement(from).getByRole('button', { name: 'Editar' }).click()
+    await this.movement(from).getByRole('button', { name: `Editar ${from}` }).click()
     await this.dialog.field('Ex: Supermercado Continente').fill(to)
     await this.dialog.save()
   }
 
   async deleteMovement(description: string): Promise<void> {
-    await this.movement(description).getByRole('button', { name: 'Eliminar' }).click()
+    await this.movement(description).getByRole('button', { name: `Eliminar ${description}` }).click()
     await this.confirmDialog.accept('Eliminar movimento?')
   }
 

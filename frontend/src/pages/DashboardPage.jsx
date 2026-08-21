@@ -222,6 +222,12 @@ export default function DashboardPage({ onGo }) {
             </>
           )}
 
+          {compTotal === 0 && (
+            <p className="hint" style={{ marginTop: 12 }}>
+              Adiciona investimentos ou objetivos para veres a composição do teu património.
+            </p>
+          )}
+
           {compTotal > 0 && (
             <div className="composition">
               <div className="comp-bar">

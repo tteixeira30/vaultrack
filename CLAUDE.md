@@ -98,7 +98,17 @@ testes e os leitores de ecrã ao mesmo tempo.
 
 ## Convenções do frontend
 
-- **Sem router.** `App.jsx` alterna páginas por um estado `tab`. Novos separadores: adicionar ao array `TABS` e ao `main`.
+- **Sem router.** `App.jsx` alterna ecrãs por um estado `screen` (sincronizado com o hash e o
+  histórico). O mapa de ecrãs vive em `components/nav.js` — para acrescentar um, junta-o a
+  `SCREENS`, ao grupo certo de `NAV_GROUPS` (sidebar do desktop) e, se for para telemóvel, ao
+  separador certo de `MOBILE_TABS`; depois renderiza-o no `page-swap` do `App.jsx`.
+- **Duas navegações, um mapa.** Em desktop é a sidebar agrupada (Principal · Análise · Sistema);
+  em mobile são três separadores no fundo (Início · Dinheiro · Crescer), e o ecrã dentro de cada
+  um escolhe-se nos segmentos por baixo do cabeçalho. As duas coexistem no DOM — é o CSS que
+  decide qual se vê — por isso têm nomes de landmark diferentes.
+- **Estado partilhado pelo shell**: `MonthContext` (o mês ativo, que a barra de topo troca e as
+  páginas mensais consomem) e `IntentContext` (o menu "Adicionar" e a paleta ⌘K navegam para um
+  ecrã e deixam lá a intenção; a página consome-a com `useIntent`).
 - **`api.js`** é o único cliente HTTP. Anexa o Bearer token, trata 401 (limpa sessão). Exporta `fmtEur`, `fmtMoneyShort`, `fmtPct`, `toEur`, `setDisplayCurrency`.
 - **Contextos/components**: `AuthContext` (sessão + moeda), `Toast` (`useToast()`), `Modal` + `ConfirmDialog`. `Icons.jsx` são SVG inline (adiciona novos aqui).
 - **Estilos**: um único `styles.css` com design tokens em `:root`. Segue as classes/tokens existentes; evita estilos inline exceto valores dinâmicos.
@@ -106,21 +116,34 @@ testes e os leitores de ecrã ao mesmo tempo.
 
 ### Tokens de `styles.css`
 
-Além das cores (`--bg`, `--surface*`, `--text*`, `--accent`, `--cyan`, `--green`, `--red`, `--amber`,
-`--radius`, `--shadow`), existem escalas que **devem** ser usadas em vez de números soltos:
+A paleta vem do design **Vaultrack v3**: escuro assente em `#0a0b10` e claro "papel" (cinzentos
+quentes, `#f6f5f1`) — não um claro azulado. Além das cores (`--bg`, `--panel`, `--surface*`,
+`--sel`, `--track`, `--text*`, `--accent*`, `--cyan`, `--green`, `--red`, `--amber`), existem
+escalas que **devem** ser usadas em vez de números soltos:
 
 | Grupo | Tokens |
 |---|---|
+| Tipografia | `--font` (Manrope, interface), `--font-mono` (JetBrains Mono, números) |
+| Forma | `--radius` 20px (cartões), `--radius-md` 16px, `--radius-sm` 11px, `--radius-xs` 9px |
 | Espaçamento | `--sp-1` (4px) … `--sp-8` (32px) |
 | Camadas | `--z-sidebar` 40, `--z-nav` 50, `--z-pop` 60, `--z-modal` 100, `--z-portal` 200, `--z-toast` 200 |
 | Movimento | `--dur-1/2/3` (120/200/280ms), `--ease-out`, `--ease-spring` |
 | Toque | `--tap` (44px, alvo tátil mínimo) |
-| Chrome mobile | `--nav-h` (62px), `--topbar-h` (56px) |
+| Chrome | `--topbar-h` (60px), `--nav-h` (66px), `--seg-h` (46px) |
 | Safe areas | `--safe-t/-b/-l/-r` (envolvem `env(safe-area-inset-*)`) |
 | Foco | `--ring` (anel de `:focus-visible`) |
 
-`--z-pop` é para popovers no fluxo (menu de perfil); `--z-portal` é para os popovers em portal
-(`Dropdown`, `DatePicker`), que têm de ficar **acima** dos modais.
+`--z-pop` é para popovers no fluxo (menu "Adicionar"); `--z-portal` é para os popovers em portal
+(`Dropdown`, `DatePicker`, paleta ⌘K), que têm de ficar **acima** dos modais.
+
+**Números são mono.** Todo o dinheiro, data e percentagem leva `.mono` (que é o `--font-mono` com
+`tabular-nums`). É o que dá o alinhamento das colunas de valores em toda a app.
+
+**Contraste é regra, não gosto.** O `e2e/tests/a11y.spec.ts` corre o axe nos nove ecrãs em tema
+claro e escuro e bloqueia em qualquer violação de contraste. Por isso `--text-dim` e `--text-faint`
+são mais claros (escuro) e mais escuros (claro) do que os do design: os originais davam 3.1–3.7:1.
+Ao pôr texto sobre um fundo com tinte (`--accent-soft` e afins), verifica — foi aí que o nome da
+moeda ativa caiu para 4.39:1.
 
 ### Breakpoints (só estes quatro)
 
@@ -131,9 +154,19 @@ sete breakpoints desiguais.
 - `<= 600px` — telemóvel em retrato: uma coluna, modais viram bottom sheets, `font-size: 16px` nos
   campos (evita o zoom automático do iOS).
 - `<= 760px` — telemóvel em paisagem / tablet pequeno: `table.responsive` vira lista de cartões.
-- `<= 900px` — **fronteira "isto é mobile"**: a sidebar vira barra de topo, surge a `.bottom-nav`,
-  e todo o interativo passa a ter pelo menos `--tap` de altura.
+- `<= 900px` — **fronteira "isto é mobile"**: a sidebar desaparece, o cabeçalho da página passa a
+  ser a barra de topo, surgem a `.bottom-nav` e os `.segments`, e todo o interativo passa a ter
+  pelo menos `--tap` de altura.
 - `<= 1000px` — desktop estreito: só ajustes de grelha.
+
+**Grelhas**: usa sempre `minmax(0, 1fr)`, nunca `1fr`. Itens de grelha têm `min-width: auto` e não
+encolhem abaixo do conteúdo — com `1fr` os cartões passavam dos 390px e ficavam cortados pelo
+`overflow-x: hidden` do body, sem sintoma visível a não ser conteúdo a desaparecer à direita.
+
+**Vistas duplicadas**: quando um ecrã tem duas apresentações (a tabela de Movimentos e os cartões
+por dia, por exemplo), as duas ficam no DOM e é o `.desktop-only` / `.mobile-only` que escolhe.
+Essas duas classes vivem **no fim** do ficheiro, mesmo antes do bloco dos alvos táteis: são
+seletores de classe simples e qualquer `display` declarado depois ganharia por cascata.
 
 Regras globais que já existem e não precisam de ser repetidas: supressão do realce de toque com
 `:active` próprios, `touch-action: manipulation`, `overscroll-behavior` nas sobreposições,

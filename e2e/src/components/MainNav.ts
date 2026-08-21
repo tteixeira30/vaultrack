@@ -1,78 +1,44 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
-/** Os separadores da navegação principal (App.jsx → TABS). */
+/** Os ecrãs da aplicação (frontend: components/nav.js → SCREENS). */
 export type TabLabel =
   | 'Painel'
-  | 'Rendimento'
-  | 'Despesas'
-  | 'Investimentos'
+  | 'Movimentos'
+  | 'Carteira'
   | 'Objetivos'
+  | 'Rendimento'
   | 'Calendário'
+  | 'Conquistas'
+  | 'Contas'
+  | 'Perfil'
 
 /**
- * Em mobile só os primários cabem na barra inferior; estes vivem dentro da
- * sheet "Mais" (App.jsx → MORE_TABS). No desktop estão todos na sidebar.
+ * Separadores da barra inferior em mobile e os ecrãs que cada um agrupa
+ * (frontend: components/nav.js → MOBILE_TABS).
  */
-const SECONDARY: readonly TabLabel[] = ['Rendimento', 'Calendário']
+const MOBILE_TABS: ReadonlyArray<{ label: string; screens: readonly TabLabel[] }> = [
+  { label: 'Início', screens: ['Painel'] },
+  { label: 'Dinheiro', screens: ['Movimentos', 'Rendimento', 'Calendário'] },
+  { label: 'Crescer', screens: ['Carteira', 'Objetivos', 'Conquistas'] },
+]
+
+/** Contas e Perfil não estão na barra inferior: chega-se lá pelo avatar. */
+const VIA_PROFILE: readonly TabLabel[] = ['Contas', 'Perfil']
 
 /**
  * Navegação principal, seja qual for o viewport.
  *
- * A sidebar e a barra inferior têm os mesmos rótulos e o CSS garante que só uma
- * delas está visível de cada vez (fronteira dos 900px). Em vez de decidir pela
- * largura do viewport — que ficaria acoplada ao valor do breakpoint — a raiz usa
- * `:visible` e apanha a que estiver em uso, mantendo `tab()` síncrono.
+ * Em desktop é a sidebar agrupada; em mobile são três separadores no fundo, e o
+ * ecrã concreto escolhe-se nos segmentos por baixo do cabeçalho. Em vez de
+ * decidir pela largura do viewport — que ficaria acoplada ao valor do
+ * breakpoint — pergunta-se ao DOM qual das duas está visível.
  */
 export class MainNav {
   constructor(private readonly page: Page) {}
 
-  private get root(): Locator {
-    return this.page.locator('.sidebar .nav:visible, .bottom-nav:visible')
-  }
-
-  private get moreButton(): Locator {
-    return this.root.getByRole('button', { name: 'Mais' })
-  }
-
-  private get moreSheet(): Locator {
-    return this.page.getByRole('dialog', { name: 'Mais' })
-  }
-
-  tab(label: TabLabel): Locator {
-    return this.root.getByRole('button', { name: label })
-  }
-
-  /** A marca vive na sidebar, que em mobile é a barra de topo. */
-  get brand(): Locator {
-    return this.page.locator('.sidebar .brand')
-  }
-
-  /** Abre um separador e espera que fique ativo, passando pelo "Mais" se preciso. */
-  async open(label: TabLabel): Promise<void> {
-    const viaSheet = SECONDARY.includes(label) && (await this.page.locator('.bottom-nav').isVisible())
-
-    if (viaSheet) {
-      await this.moreButton.click()
-      await this.moreSheet.getByRole('button', { name: label }).click()
-      // num separador secundário é o "Mais" que fica em destaque
-      await expect(this.moreButton).toHaveClass(/active/)
-      return
-    }
-
-    await this.tab(label).click()
-    await expect(this.tab(label)).toHaveClass(/active/)
-  }
-
-  /** A navegação só existe com sessão iniciada — serve de sinal de "autenticado". */
-  async expectVisible(): Promise<void> {
-    await expect(this.tab('Painel')).toBeVisible()
-  }
-
-  async expectActive(label: TabLabel): Promise<void> {
-    const active = SECONDARY.includes(label) && (await this.bottomNav.isVisible())
-      ? this.moreButton
-      : this.tab(label)
-    await expect(active).toHaveClass(/active/)
+  /** A sidebar do desktop. Em mobile está `display: none`. */
+  get sidebarTabs(): Locator {
+    return this.page.locator('.sidebar .nav')
   }
 
   /** A barra inferior (mobile). No desktop está no DOM mas escondida por CSS. */
@@ -80,9 +46,88 @@ export class MainNav {
     return this.page.locator('.bottom-nav')
   }
 
-  /** A lista de separadores da sidebar, que em mobile desaparece. */
-  get sidebarTabs(): Locator {
-    return this.page.locator('.sidebar .nav')
+  /** Os segmentos que escolhem o ecrã dentro de um separador mobile. */
+  get segments(): Locator {
+    return this.page.getByRole('tablist')
+  }
+
+  /** O avatar do cabeçalho, que abre o Perfil. */
+  get profileButton(): Locator {
+    return this.page.getByRole('button', { name: 'Perfil e definições' })
+  }
+
+  /** A marca vive na sidebar — só existe em desktop. */
+  get brand(): Locator {
+    return this.page.locator('.sidebar .brand')
+  }
+
+  private async isMobile(): Promise<boolean> {
+    return this.bottomNav.isVisible()
+  }
+
+  private mobileTabOf(label: TabLabel) {
+    return MOBILE_TABS.find((t) => t.screens.includes(label))
+  }
+
+  /** O item de navegação de um ecrã, no sítio onde ele existe neste viewport. */
+  tab(label: TabLabel): Locator {
+    return this.sidebarTabs.getByRole('button', { name: label, exact: true })
+  }
+
+  /** O separador da barra inferior (mobile). */
+  mobileTab(label: string): Locator {
+    return this.bottomNav.getByRole('button', { name: label, exact: true })
+  }
+
+  /**
+   * Abre um ecrã e espera que fique ativo.
+   *
+   * Em mobile passa pelo separador que o contém e, se esse separador agrupar
+   * mais do que um ecrã, pelo segmento respetivo. Contas e Perfil chegam-se
+   * pelo avatar do cabeçalho.
+   */
+  async open(label: TabLabel): Promise<void> {
+    if (!(await this.isMobile())) {
+      await this.tab(label).click()
+      await expect(this.tab(label)).toHaveClass(/active/)
+      return
+    }
+
+    if (VIA_PROFILE.includes(label)) {
+      await this.profileButton.click()
+      if (label === 'Contas') {
+        await this.page.getByRole('button', { name: /Contas e importação/ }).click()
+      }
+      await expect(this.page.locator('.tb-title h2')).toHaveText(label)
+      return
+    }
+
+    const group = this.mobileTabOf(label)
+    expect(group, `"${label}" tem de pertencer a um separador mobile`).toBeDefined()
+
+    await this.mobileTab(group!.label).click()
+    await expect(this.mobileTab(group!.label)).toHaveClass(/active/)
+
+    if (group!.screens.length > 1) {
+      const segment = this.segments.getByRole('tab', { name: label, exact: true })
+      await segment.click()
+      await expect(segment).toHaveAttribute('aria-selected', 'true')
+    }
+  }
+
+  /** A navegação só existe com sessão iniciada — serve de sinal de "autenticado". */
+  async expectVisible(): Promise<void> {
+    await expect(this.page.locator('.topbar')).toBeVisible()
+  }
+
+  async expectActive(label: TabLabel): Promise<void> {
+    if (!(await this.isMobile())) {
+      await expect(this.tab(label)).toHaveClass(/active/)
+      return
+    }
+    const group = this.mobileTabOf(label)
+    if (group) await expect(this.mobileTab(group.label)).toHaveClass(/active/)
+    await expect(this.page.locator('.tb-title h2')).toHaveText(group && group.screens.length > 1 ? group.label : label)
   }
 
   /**

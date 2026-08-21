@@ -8,7 +8,10 @@ import { type TabLabel } from '@components/MainNav'
  * `@mobile`, que o projeto `chromium` exclui. A lógica de negócio não se repete
  * aqui: é a mesma nos dois viewports e já está coberta pelos outros specs.
  */
-const TABS: TabLabel[] = ['Painel', 'Rendimento', 'Despesas', 'Investimentos', 'Objetivos', 'Calendário']
+const TABS: TabLabel[] = [
+  'Painel', 'Movimentos', 'Rendimento', 'Calendário',
+  'Carteira', 'Objetivos', 'Conquistas',
+]
 
 test.describe('mobile @mobile', () => {
   test('a barra inferior substitui a navegação lateral', async ({ dashboardPage }) => {
@@ -16,12 +19,12 @@ test.describe('mobile @mobile', () => {
 
     await expect(dashboardPage.nav.bottomNav).toBeVisible()
     await expect(dashboardPage.nav.sidebarTabs).toBeHidden()
-    // a marca fica na barra de topo, que é a sidebar reconfigurada
-    await expect(dashboardPage.nav.brand).toContainText('Vaultrack')
+    // três separadores largos, em vez de quatro apertados mais um "Mais"
+    await expect(dashboardPage.nav.bottomNav.getByRole('button')).toHaveText(['Início', 'Dinheiro', 'Crescer'])
     await dashboardPage.nav.expectAnchoredToBottom()
   })
 
-  test('todos os separadores abrem sem esticar a página', async ({ dashboardPage }) => {
+  test('todos os ecrãs abrem sem esticar a página', async ({ dashboardPage }) => {
     await dashboardPage.goto()
 
     for (const tab of TABS) {
@@ -34,21 +37,33 @@ test.describe('mobile @mobile', () => {
     }
   })
 
-  test('os separadores secundários vivem na sheet "Mais"', async ({ dashboardPage }) => {
+  test('os ecrãs de um separador chegam-se pelos segmentos, não por um menu', async ({ dashboardPage }) => {
     await dashboardPage.goto()
 
-    // Rendimento não está na barra: só se lá chega pelo "Mais"
-    await expect(dashboardPage.nav.tab('Rendimento')).toHaveCount(0)
+    // "Início" só tem um ecrã, por isso não mostra segmentos
+    await expect(dashboardPage.nav.segments).toHaveCount(0)
+
+    await dashboardPage.nav.mobileTab('Dinheiro').click()
+    await expect(dashboardPage.nav.segments.getByRole('tab'))
+      .toHaveText(['Movimentos', 'Rendimento', 'Calendário'])
 
     await dashboardPage.nav.open('Rendimento')
     await dashboardPage.nav.expectActive('Rendimento')
   })
 
+  test('o Perfil chega-se pelo avatar do cabeçalho', async ({ dashboardPage }) => {
+    await dashboardPage.goto()
+
+    await dashboardPage.profileMenu.open()
+    await expect(dashboardPage.profileMenu.identity).toBeVisible()
+    await dashboardPage.expectNoHorizontalScroll()
+  })
+
   test('o voltar do browser devolve o separador anterior', async ({ dashboardPage }) => {
     await dashboardPage.goto()
 
-    await dashboardPage.nav.open('Investimentos')
-    await dashboardPage.nav.expectActive('Investimentos')
+    await dashboardPage.nav.open('Carteira')
+    await dashboardPage.nav.expectActive('Carteira')
 
     await dashboardPage.page.goBack()
 
@@ -83,7 +98,7 @@ test.describe('mobile @mobile', () => {
     await goalsPage.goto()
     await goalsPage.create({ name: 'Viagem', target: 1000, monthly: 50 })
 
-    await goalsPage.card('Viagem').getByRole('button', { name: 'Eliminar' }).click()
+    await goalsPage.card('Viagem').getByRole('button', { name: 'Eliminar Viagem' }).click()
 
     // é uma saída deliberada: só pelos botões, sem gesto que a feche por engano
     await expect(goalsPage.confirmDialog.root).toBeVisible()
