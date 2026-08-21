@@ -255,7 +255,7 @@ export default function IncomePage() {
             <div className="table-wrap">
               <table className="responsive">
                 <thead>
-                  <tr><th>Categoria</th><th>%</th><th>Valor</th><th></th></tr>
+                  <tr><th>Categoria</th><th>%</th><th>Valor</th><th>Itens</th><th></th></tr>
                 </thead>
                 <tbody>
                   {data.allocations.map((a, i) => {
@@ -284,12 +284,19 @@ export default function IncomePage() {
                                      onChange={(e) => recolor(a, e.target.value)} />
                             </label>
                             <span className="row-title">{a.name}</span>
+                            <span className="rule-chip">
+                              {a.fixedAmount != null ? 'fixo' : `${Number(a.percentage ?? 0)}%`}
+                            </span>
                             {items.length > 0 && <span className="item-count">{items.length}</span>}
                           </td>
                           <td data-label="% do rendimento" className={`mono ${a.fixedAmount != null ? 'dim' : ''}`}>
                             {a.effectivePercentage != null ? `${Number(a.effectivePercentage).toFixed(1)}%` : '—'}
                           </td>
                           <td data-label="Valor" className="mono">{fmtEur(a.amount)}</td>
+                          {/* o que já está escrutinado em itens, face ao orçamento da categoria */}
+                          <td data-label="Itens" className={`mono ${items.length === 0 ? 'dim' : overspent ? 'neg' : ''}`}>
+                            {items.length === 0 ? '—' : `${fmtEur(spent)} / ${fmtEur(budget)}`}
+                          </td>
                           <td className="actions-cell" style={{ textAlign: 'right' }}>
                             <button className="icon-btn" onClick={() => openEditAlloc(a, i)}
                                     aria-label={`Editar ${a.name}`} title="Editar categoria"><IconPencil size={14} /></button>
@@ -308,6 +315,7 @@ export default function IncomePage() {
                                 </td>
                                 <td></td>
                                 <td></td>
+                                <td></td>
                               </tr>
                             ) : (
                               items.map((it) => (
@@ -318,6 +326,7 @@ export default function IncomePage() {
                                     </div>
                                   </td>
                                   <td className="mono subrow-amount">{fmtEur(it.amount)}</td>
+                                  <td></td>
                                   <td className="subrow-actions">
                                     <button className="icon-btn" onClick={() => openEditItem(a, it)}
                                             aria-label={`Editar ${it.name}`}><IconPencil size={13} /></button>
@@ -348,6 +357,7 @@ export default function IncomePage() {
                                 </div>
                               </td>
                               <td></td>
+                              <td></td>
                             </tr>
                           </>
                         )}
@@ -358,6 +368,7 @@ export default function IncomePage() {
                     <td className="dim">Não alocado</td>
                     <td data-label="% do rendimento" className="mono dim">{income > 0 ? `${Math.max(0, 100 - totalPct).toFixed(1)}%` : '—'}</td>
                     <td data-label="Valor" className={`mono ${Number(data.unallocated) < 0 ? 'neg' : 'dim'}`}>{fmtEur(data.unallocated)}</td>
+                    <td></td>
                     <td></td>
                   </tr>
                 </tbody>

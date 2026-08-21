@@ -22,7 +22,7 @@ import { useIsMobile } from './components/useMediaQuery'
 import {
   IconLogo, IconSun, IconMoon, IconEye, IconEyeOff, IconSearch, IconPlus, IconChevronLeft,
 } from './components/Icons'
-import { setPrivacyMode, CURRENCIES, CURRENCY_SYMBOLS } from './api'
+import { api, setPrivacyMode, CURRENCIES, CURRENCY_SYMBOLS } from './api'
 
 /** Ecrã inicial a partir do URL, para o refresh e as ligações diretas. */
 const screenFromHash = () => {
@@ -109,6 +109,7 @@ function Shell() {
   const [screen, setScreen] = useState(screenFromHash)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  const [counts, setCounts] = useState(null)
   const [privacy, setPrivacy] = useState(() => {
     const on = localStorage.getItem('tracky_privacy') === '1'
     setPrivacyMode(on)
@@ -132,6 +133,20 @@ function Shell() {
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, [])
+
+  /**
+   * Contagens dos indicadores da sidebar. Recarregam ao trocar de ecrã porque é
+   * aí que os números podem ter mudado (criar um objetivo, importar um extrato).
+   * São decorativas: se o pedido falhar, os itens ficam simplesmente sem número.
+   */
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    api.getNavCounts()
+      .then((c) => { if (!cancelled) setCounts(c) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [user, screen])
 
   const togglePrivacy = useCallback(() => {
     setPrivacy((p) => {
@@ -214,6 +229,7 @@ function Shell() {
               <p className="nav-group-name">{g.name}</p>
               {g.ids.map((id) => {
                 const S = SCREENS[id]
+                const badge = counts && S.badge ? S.badge(counts) : null
                 return (
                   <button key={id} type="button"
                           className={`nav-item ${screen === id ? 'active' : ''}`}
@@ -221,6 +237,15 @@ function Shell() {
                           onClick={() => go(id)}>
                     <S.icon size={18} />
                     <span>{S.label}</span>
+                    {badge && (
+                      <>
+                        {/* o número é decorativo: quem ouve recebe a frase abaixo */}
+                        <span className={`nav-badge mono ${badge.tone ?? ''}`} aria-hidden="true">
+                          {badge.text}
+                        </span>
+                        <span className="sr-only">, {badge.spoken}</span>
+                      </>
+                    )}
                   </button>
                 )
               })}

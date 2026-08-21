@@ -296,6 +296,21 @@ button, .nav-item, .account-chip, .cal-cell {
 .nav-item.active { color: var(--text); background: var(--sel); }
 .nav-item.active svg { color: var(--accent-text); }
 
+/* Indicador do item de navegação: quantos movimentos tem o mês, quantos ativos
+   há em carteira, quantas conquistas estão desbloqueadas. O "!" das Contas é o
+   único âmbar — é um aviso, não uma contagem. */
+.nav-badge {
+  flex: none;
+  padding: 2px 6px; border-radius: 6px;
+  font-size: 10px; font-weight: 700;
+  background: var(--accent-soft); color: var(--accent-text);
+}
+/* No tema claro o --accent-text é o próprio --accent, e sobre o seu tinte a 10%
+   dá 4.44:1 — falta pouco, mas falta. Um tom mais fundo devolve 5.38:1 sem
+   mudar a leitura da cor. */
+:root[data-theme="light"] .nav-badge { color: #3f43cc; }
+.nav-badge.warn { background: var(--amber-soft); color: var(--amber); }
+
 .sidebar-foot {
   margin-top: auto; display: flex; flex-direction: column; gap: 10px;
   padding-top: 12px; border-top: 1px solid var(--border);
@@ -481,18 +496,26 @@ kbd {
 /* Entrada da pagina ao trocar de ecra. O transform so existe durante os 200ms
    da animacao: se alguma vez uma pagina abrir um modal logo a entrada, passa-o
    para um portal, senao o position: fixed ancora aqui. */
+/* Sem max-width: no design a área de conteúdo preenche o que sobra da sidebar,
+   e é isso que dá às grelhas de três colunas (Objetivos, Conquistas) e às
+   tabelas largas (Movimentos, Carteira) o espaço para que foram desenhadas.
+   Centrar num limite fixo deixava metade do ecrã vazia em monitores largos. */
 .page-swap {
   flex: 1;
   min-width: 0;
   width: 100%;
-  max-width: 1180px;
-  margin: 0 auto;
   padding: 18px 22px 40px;
   animation: page-in var(--dur-2) var(--ease-out);
 }
 @keyframes page-in { from { opacity: 0; transform: translateY(8px); } }
 
 .page-actions { display: flex; gap: 8px; align-items: center; }
+
+/* Texto só para leitores de ecrã: fora do ecrã mas na árvore de acessibilidade. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 
 /* Rotulo de seccao (versaletes mono): Perfil, Contas e cartoes. */
 .section-label {
@@ -1342,6 +1365,16 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .income-hero .amount { font-size: 28px; font-weight: 700; letter-spacing: -1.2px; }
 .income-hero .caption { color: var(--text-dim); font-size: 11.5px; font-weight: 600; margin-top: 2px; }
 
+/* Chip da regra da categoria: "20%" ou "fixo". No design fica ao lado do nome
+   e é o que distingue uma percentagem do rendimento de um valor fixo sem ser
+   preciso ler a coluna dos %. */
+.rule-chip {
+  flex: none; margin-left: 8px;
+  padding: 2px 6px; border-radius: 6px;
+  background: var(--surface-2); color: var(--text-faint);
+  font-size: 10px; font-weight: 700;
+}
+
 .income-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 
 /* Donut com o total ao centro + lista de categorias */
@@ -1868,6 +1901,11 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 @media (max-width: 900px) {
   .hero-value { font-size: 34px; letter-spacing: -1.4px; }
   .exp-stats { gap: 14px; }
+  /* os botões da janela do gráfico passam aos 44px de alvo tátil e deixam de
+     caber ao lado do valor — descem para uma linha própria */
+  .hero-head { flex-wrap: wrap; }
+  .hero-head .seg-pills { width: 100%; justify-content: flex-start; }
+  .hero-head .seg-pills button { flex: 1; }
 }
 @media (max-width: 600px) {
   .kpi-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto; }
@@ -2316,9 +2354,10 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 
 /* ---------- Perfil ---------- */
 
-.profile-page { max-width: 720px; }
+.profile-page { display: flex; flex-direction: column; gap: 16px; }
 .profile-page .card { margin-bottom: 0; }
-.profile-page .section-label:first-of-type { margin-top: 20px; }
+.profile-page .section-label { margin: 18px 0 8px; }
+.profile-page .section-label.first { margin-top: 0; }
 
 .profile-id { display: flex; align-items: center; gap: 14px; }
 .profile-id .user-info strong { font-size: 15.5px; font-weight: 800; }
@@ -2333,6 +2372,13 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   font-family: inherit; color: var(--text); text-align: left;
 }
 .card.rows > .row-item:first-child { border-top: none; }
+/* variante para linhas soltas dentro de um cartão normal: a moldura é o próprio
+   cartão, por isso a linha só precisa do fundo recuado */
+.row-item.flat {
+  border-top: none; border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 10px 13px;
+}
+.row-item.flat + .row-item.flat { margin-top: 8px; }
 .row-item.link { cursor: pointer; }
 .row-item.link:hover { background: var(--surface-2); }
 .row-item.danger strong,
@@ -2398,8 +2444,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .currency-opt.active small { color: var(--text-dim); }
 
 @media (max-width: 600px) {
-  .currency-grid { grid-template-columns: 1fr; }
-  .profile-page { max-width: none; }
+  .currency-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ---------- Contas ---------- */

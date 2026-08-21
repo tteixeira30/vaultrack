@@ -7,17 +7,51 @@ import {
  * Mapa de ecrãs da aplicação.
  *
  * `label` é o nome no design ("Movimentos", "Carteira"); `subtitle` é a linha
- * mono que a barra de topo mostra ao lado do título em desktop.
+ * mono que a barra de topo mostra ao lado do título em desktop; `badge` é o
+ * indicador da sidebar — recebe as contagens de `GET /api/nav` e devolve o que
+ * escrever, ou nada quando o ecrã não tem número que valha a pena mostrar.
+ *
+ * O `text` do badge é só para os olhos: "12" ou "23/32" lidos em voz alta não
+ * dizem nada. O `spoken` é o que vai para o nome acessível do botão.
  */
+/** Só mostra o número quando há algo — um "0" ao lado de um ecrã vazio é ruído. */
+const count = (n, noun) => (n > 0 ? { text: String(n), spoken: `${n} ${noun}` } : null)
+
 export const SCREENS = {
   dashboard: { label: 'Painel', icon: IconGrid, subtitle: 'resumo geral' },
-  expenses: { label: 'Movimentos', icon: IconLines, subtitle: 'entradas e saídas do mês', monthly: true },
-  investments: { label: 'Carteira', icon: IconTrendingUp, subtitle: 'cotações em tempo real' },
-  goals: { label: 'Objetivos', icon: IconTarget, subtitle: 'metas de poupança' },
+  expenses: {
+    label: 'Movimentos', icon: IconLines, subtitle: 'entradas e saídas do mês', monthly: true,
+    badge: (c) => count(c.transactions, 'este mês'),
+  },
+  investments: {
+    label: 'Carteira', icon: IconTrendingUp, subtitle: 'cotações em tempo real',
+    badge: (c) => count(c.investments, 'ativos'),
+  },
+  goals: {
+    label: 'Objetivos', icon: IconTarget, subtitle: 'metas de poupança',
+    badge: (c) => count(c.goals, 'em curso'),
+  },
   income: { label: 'Rendimento', icon: IconWallet, subtitle: 'distribuição mensal', monthly: true },
-  calendar: { label: 'Calendário', icon: IconCalendar, subtitle: 'previsão a 60 dias', monthly: true },
-  achievements: { label: 'Conquistas', icon: IconTrophy, subtitle: 'progresso e nível' },
-  accounts: { label: 'Contas', icon: IconBank, subtitle: 'contas correntes e importação' },
+  calendar: {
+    label: 'Calendário', icon: IconCalendar, subtitle: 'previsão a 60 dias', monthly: true,
+    badge: (c) => count(c.events, 'eventos'),
+  },
+  achievements: {
+    label: 'Conquistas', icon: IconTrophy, subtitle: 'progresso e nível',
+    badge: (c) => (c.achievementsTotal > 0
+      ? {
+        text: `${c.achievementsUnlocked}/${c.achievementsTotal}`,
+        spoken: `${c.achievementsUnlocked} de ${c.achievementsTotal} desbloqueadas`,
+      }
+      : null),
+  },
+  accounts: {
+    label: 'Contas', icon: IconBank, subtitle: 'contas correntes e importação',
+    // âmbar, não azul: é um aviso (conta sem saldo → sem previsão no calendário)
+    badge: (c) => (c.accountsNeedAttention
+      ? { text: '!', tone: 'warn', spoken: 'há contas sem saldo registado' }
+      : null),
+  },
   profile: { label: 'Perfil', icon: IconUser, subtitle: 'preferências' },
 }
 

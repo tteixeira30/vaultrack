@@ -69,9 +69,15 @@ export class MainNav {
     return MOBILE_TABS.find((t) => t.screens.includes(label))
   }
 
-  /** O item de navegação de um ecrã, no sítio onde ele existe neste viewport. */
+  /**
+   * O item de navegação de um ecrã na sidebar.
+   *
+   * O nome acessível pode trazer o indicador atrás ("Conquistas, 23 de 32
+   * desbloqueadas"), por isso ancora-se ao início em vez de exigir igualdade —
+   * `^Contas` continua a não casar com "Conquistas".
+   */
   tab(label: TabLabel): Locator {
-    return this.sidebarTabs.getByRole('button', { name: label, exact: true })
+    return this.sidebarTabs.getByRole('button', { name: new RegExp(`^${label}\\b`) })
   }
 
   /** O separador da barra inferior (mobile). */

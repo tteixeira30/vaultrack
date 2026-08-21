@@ -26,70 +26,74 @@ export default function ProfilePage({ user, initials, baseCurrency, changeCurren
         </div>
       </section>
 
-      <div className="section-label">Aspeto</div>
-      <section className="card">
-        <div className="theme-picker" role="radiogroup" aria-label="Tema">
-          {THEME_OPTIONS.map((t) => (
-            <button key={t.id} type="button" role="radio" aria-checked={pref === t.id}
-                    className={`theme-opt ${pref === t.id ? 'active' : ''}`}
-                    onClick={() => setPref(t.id)}>
-              <span className={`theme-thumb ${t.id}`} aria-hidden="true"><span /></span>
-              <span>{t.label}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <div className="section-label">Privacidade</div>
-      <section className="card rows">
-        <div className="row-item">
-          <span className="row-icon accent"><IconEyeOff size={17} /></span>
-          <div className="row-main">
-            <strong>Ocultar saldos</strong>
-            <small>Todos os montantes aparecem como •••• até desligares</small>
+      <div className="split-2">
+        <section className="card">
+          <div className="card-header">
+            <div>
+              <h3>Moeda base</h3>
+              <div className="sub">
+                O servidor guarda tudo em euros; a moeda base só muda a apresentação e os campos de introdução.
+              </div>
+            </div>
           </div>
-          <button type="button" className={`switch ${privacy ? 'on' : ''}`} onClick={togglePrivacy}
-                  role="switch" aria-checked={privacy} aria-label="Ocultar saldos">
-            <span />
+          <div className="currency-grid">
+            {CURRENCIES.map((c) => (
+              <button key={c.code} type="button"
+                      className={`currency-opt ${baseCurrency === c.code ? 'active' : ''}`}
+                      aria-pressed={baseCurrency === c.code}
+                      onClick={() => changeCurrency(c.code)}>
+                <span className="mono cs">{c.symbol}</span>
+                <strong>{c.code}</strong>
+                <small>{c.name}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="card">
+          <div className="card-header"><div><h3>Preferências</h3></div></div>
+
+          <div className="section-label first">Aspeto</div>
+          <div className="theme-picker" role="radiogroup" aria-label="Tema">
+            {THEME_OPTIONS.map((t) => (
+              <button key={t.id} type="button" role="radio" aria-checked={pref === t.id}
+                      className={`theme-opt ${pref === t.id ? 'active' : ''}`}
+                      onClick={() => setPref(t.id)}>
+                <span className={`theme-thumb ${t.id}`} aria-hidden="true"><span /></span>
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
+
+          <div className="section-label">Privacidade</div>
+          <div className="row-item flat">
+            <span className="row-icon accent"><IconEyeOff size={17} /></span>
+            <div className="row-main">
+              <strong>Ocultar saldos</strong>
+              <small>Todos os montantes aparecem como •••• até desligares</small>
+            </div>
+            <button type="button" className={`switch ${privacy ? 'on' : ''}`} onClick={togglePrivacy}
+                    role="switch" aria-checked={privacy} aria-label="Ocultar saldos">
+              <span />
+            </button>
+          </div>
+
+          <div className="section-label">Dados e sessão</div>
+          <button type="button" className="row-item flat link" onClick={() => onGo('accounts')}>
+            <span className="row-icon"><IconBank size={17} /></span>
+            <div className="row-main">
+              <strong>Contas e importação</strong>
+              <small>Contas correntes, extratos e regras de categoria</small>
+            </div>
+            <IconChevronRight size={16} />
           </button>
-        </div>
-      </section>
-
-      <div className="section-label">Moeda base</div>
-      <section className="card">
-        <p className="dim" style={{ margin: '0 0 12px' }}>
-          O servidor guarda tudo em euros; a moeda base só muda a apresentação e os campos de introdução.
-        </p>
-        <div className="currency-grid">
-          {CURRENCIES.map((c) => (
-            <button key={c.code} type="button"
-                    className={`currency-opt ${baseCurrency === c.code ? 'active' : ''}`}
-                    aria-pressed={baseCurrency === c.code}
-                    onClick={() => changeCurrency(c.code)}>
-              <span className="mono cs">{c.symbol}</span>
-              <strong>{c.code}</strong>
-              <small>{c.name}</small>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <div className="section-label">Os meus dados</div>
-      <section className="card rows">
-        <button type="button" className="row-item link" onClick={() => onGo('accounts')}>
-          <span className="row-icon"><IconBank size={17} /></span>
-          <div className="row-main">
-            <strong>Contas e importação</strong>
-            <small>Contas correntes, extratos e regras de categoria</small>
-          </div>
-          <IconChevronRight size={16} />
-        </button>
-        <button type="button" className="row-item link danger" onClick={onLogout}>
-          <span className="row-icon"><IconLogout size={17} /></span>
-          <div className="row-main"><strong>Terminar sessão</strong></div>
-          <IconChevronRight size={16} />
-        </button>
-      </section>
+          <button type="button" className="row-item flat link danger" onClick={onLogout}>
+            <span className="row-icon"><IconLogout size={17} /></span>
+            <div className="row-main"><strong>Terminar sessão</strong></div>
+            <IconChevronRight size={16} />
+          </button>
+        </section>
+      </div>
     </div>
   )
 }

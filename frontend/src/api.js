@@ -39,6 +39,9 @@ export const api = {
   // Conquistas
   getAchievements: () => request('/achievements'),
 
+  // Contagens dos indicadores da navegação (os números da sidebar)
+  getNavCounts: () => request('/nav'),
+
   // Calendário financeiro
   getCalendar: (month) => request(`/calendar${month ? `?month=${month}` : ''}`),
   getUpcoming: (days = 60) => request(`/calendar/upcoming?days=${days}`),
