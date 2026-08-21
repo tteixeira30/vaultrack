@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api, fmtEur, fromEur, toEur, parseAmount, getCurrencySymbol } from '../api'
-import { DEFAULT_CATEGORIES, catLabel, catColor, setCustomCategories } from '../categories'
+import { DEFAULT_CATEGORIES, catLabel, catColor, catTint, setCustomCategories } from '../categories'
 import { useToast } from '../components/Toast'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import Dropdown from '../components/Dropdown'
@@ -441,7 +441,7 @@ export default function ExpensesPage() {
                     <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggleSel(t.id)}
                            aria-label={`Selecionar ${t.description}`} />
                     <div className="tx-desc">
-                      <span className="code-chip" style={{ background: `${catColor(t.category)}26`, color: catColor(t.category) }}>
+                      <span className="code-chip cat" style={{ background: catTint(t.category) }}>
                         {codeOf(catLabel(t.category))}
                       </span>
                       <button className="tx-open" onClick={() => openTxEdit(t)}>{t.description}</button>
@@ -471,7 +471,7 @@ export default function ExpensesPage() {
                     <div className="card flush">
                       {g.txs.map((t) => (
                         <div key={t.id} data-testid="movement-row" className="tx-card-row" onClick={() => openTxEdit(t)}>
-                          <span className="code-chip" style={{ background: `${catColor(t.category)}26`, color: catColor(t.category) }}>
+                          <span className="code-chip cat" style={{ background: catTint(t.category) }}>
                             {codeOf(catLabel(t.category))}
                           </span>
                           <div className="row-main">
