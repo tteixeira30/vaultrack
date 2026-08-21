@@ -317,7 +317,8 @@ export default function InvestmentsPage() {
               <p>Adiciona investimentos com símbolo (ex: VWCE.DE, AAPL, BTC) para veres a evolução.</p>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={190}>
+            <div className="port-chart-fill">
+            <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={history.map((p) => ({ ...p, value: Number(p.value) }))}
                          margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
                 <defs>
@@ -336,6 +337,7 @@ export default function InvestmentsPage() {
                       activeDot={{ r: 4, strokeWidth: 0 }} />
               </AreaChart>
             </ResponsiveContainer>
+            </div>
           )}
         </section>
 

@@ -294,6 +294,7 @@ export default function ExpensesPage() {
     <div className="mov">
       {/* ---------- contas + importar ---------- */}
       <div className="chip-row">
+        <div className="chip-scroll">
         <button className={`account-chip ${accountFilter === '' ? 'active' : ''}`} onClick={() => setAccountFilter('')}>
           Todas as contas
         </button>
@@ -312,6 +313,7 @@ export default function ExpensesPage() {
         <button data-testid="account-chip-add" className="account-chip add" onClick={openAccountAdd} aria-label="Nova conta">
           <IconPlus size={13} />
         </button>
+        </div>
 
         <div className="chip-row-end">
           <button className="btn ghost" onClick={() => setImportModal(true)} disabled={!hasAccounts}

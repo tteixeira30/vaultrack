@@ -236,7 +236,7 @@ function Shell() {
                           aria-current={screen === id ? 'page' : undefined}
                           onClick={() => go(id)}>
                     <S.icon size={18} />
-                    <span>{S.label}</span>
+                    <span className="nav-label">{S.label}</span>
                     {badge && (
                       <>
                         {/* o número é decorativo: quem ouve recebe a frase abaixo */}

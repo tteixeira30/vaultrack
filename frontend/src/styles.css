@@ -291,7 +291,10 @@ button, .nav-item, .account-chip, .cal-cell {
   text-align: left;
   width: 100%;
 }
-.nav-item span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* classe própria em vez de `.nav-item span`: esse seletor é mais específico do
+   que `.nav-badge` e passava o `flex: 1` também ao indicador, que esticava e
+   empurrava o rótulo para as reticências */
+.nav-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-item:hover { color: var(--text); background: var(--sel); }
 .nav-item.active { color: var(--text); background: var(--sel); }
 .nav-item.active svg { color: var(--accent-text); }
@@ -510,6 +513,19 @@ kbd {
 @keyframes page-in { from { opacity: 0; transform: translateY(8px); } }
 
 .page-actions { display: flex; gap: 8px; align-items: center; }
+
+/* Ações no fim de uma linha de tabela: numa linha só e sem moldura.
+   Com os .icon-btn de 34px e borda, os dois botões empilhavam dentro da célula
+   e faziam a linha crescer de 40 para 95px. */
+td.actions-cell {
+  display: flex; align-items: center; justify-content: flex-end; gap: 2px;
+  white-space: nowrap;
+}
+td.actions-cell .icon-btn {
+  width: 30px; height: 30px;
+  background: transparent; border-color: transparent;
+}
+td.actions-cell .icon-btn:hover { background: var(--surface-2); border-color: transparent; color: var(--text); }
 
 /* Texto só para leitores de ecrã: fora do ecrã mas na árvore de acessibilidade. */
 .sr-only {
@@ -1462,7 +1478,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
     letter-spacing: 0.7px;
     flex-shrink: 0;
   }
-  table.responsive td.actions-cell { display: flex; justify-content: flex-end; gap: 6px; padding: 8px 0; }
+  table.responsive td.actions-cell { justify-content: flex-end; padding: 8px 0; }
   table.responsive td:empty { display: none; }
 }
 
@@ -1570,7 +1586,12 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .port-top .mini-kpi > .mono { font-size: 20px; }
 .port-actions { display: flex; align-items: center; gap: 8px; flex: none; }
 
-.port-charts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; align-items: start; }
+/* stretch, não start: a projeção é naturalmente mais alta (painel + legenda +
+   nota) e com `start` a evolução ficava um cartão a meia altura ao lado dela.
+   O gráfico da evolução cresce para preencher — ver .port-chart-fill. */
+.port-charts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 16px; align-items: stretch; }
+.port-charts > .card { display: flex; flex-direction: column; }
+.port-chart-fill { flex: 1; min-height: 190px; }
 
 /* ---------- Projeção ---------- */
 
@@ -1596,7 +1617,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 
 /* variante sans dos segmentos-pílula (rótulos com palavras, não códigos) */
 .seg-pills button.sans { font-family: var(--font); font-size: 11px; }
-.seg-pills.wrap { flex-wrap: wrap; justify-content: flex-end; max-width: 260px; }
+.seg-pills.wrap { flex-wrap: wrap; justify-content: flex-end; max-width: 340px; }
 
 .proj-legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .proj-chip {
@@ -2172,6 +2193,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 
 /* linha de chips de conta + ações */
 .chip-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.chip-scroll { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; min-width: 0; }
 .chip-row-end { display: flex; gap: 7px; margin-left: auto; }
 
 .account-chip {
@@ -2245,7 +2267,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 }
 .sel-bar.on { background: var(--accent-soft); border-color: var(--accent); }
 .sel-all { display: flex; align-items: center; gap: 9px; cursor: pointer; }
-.sel-all .mono { font-size: 11.5px; font-weight: 700; color: var(--text-dim); }
+.sel-all .mono { font-size: 11.5px; font-weight: 700; color: var(--text-dim); white-space: nowrap; }
 .sel-bar.on .sel-all .mono { color: var(--text); }
 
 /* ---------- tabela de movimentos (desktop) ---------- */
@@ -2318,9 +2340,23 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   .chip-row-end { margin-left: 0; width: 100%; }
   .chip-row-end .btn { flex: 1; }
   .account-chip-actions { display: inline-flex; }
-  .mov-side { grid-template-columns: 1fr; }
+  .mov-side { grid-template-columns: minmax(0, 1fr); }
   .filter-manage { margin-left: 0; }
   .search-box { flex: 1; width: auto; min-width: 140px; }
+
+  /* Chips numa linha que desliza, em vez de empilharem.
+     Com sete categorias e duas contas, o cromo enchia o ecrã todo e a lista de
+     movimentos — que é o conteúdo — só aparecia depois de rolar. */
+  .chip-scroll, .filter-chips {
+    flex-wrap: nowrap;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* o scroll corta a sombra do foco; a margem negativa devolve o espaço */
+    padding: 2px calc(18px + var(--safe-r)) 2px calc(18px + var(--safe-l));
+    margin: -2px calc(-18px - var(--safe-r)) -2px calc(-18px - var(--safe-l));
+  }
+  .chip-scroll::-webkit-scrollbar, .filter-chips::-webkit-scrollbar { display: none; }
 }
 
 /* nota: as barras de categoria e o cartão de despesas vivem na secção
@@ -2407,7 +2443,9 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .switch.on > span { transform: translateX(18px); }
 
 /* Miniaturas de tema: claro, escuro, metade/metade. */
-.theme-picker { display: flex; gap: 8px; }
+/* max-width: sem limite, num cartão largo cada miniatura passava dos 250px e
+   deixava de parecer uma miniatura. */
+.theme-picker { display: flex; gap: 8px; max-width: 340px; }
 .theme-opt {
   flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px;
   background: none; border: none; padding: 0; cursor: pointer;
@@ -2416,7 +2454,9 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .theme-opt.active { color: var(--text); font-weight: 800; }
 .theme-thumb {
   width: 100%; height: 52px; border-radius: 13px; display: grid; place-items: center;
-  border: 2px solid transparent; transition: border-color var(--dur-1);
+  /* a borda não é decorativa: sem ela a miniatura escura desaparece dentro do
+     cartão escuro, que tem quase o mesmo tom */
+  border: 2px solid var(--border-strong); transition: border-color var(--dur-1);
 }
 .theme-opt.active .theme-thumb { border-color: var(--text); }
 .theme-thumb > span { width: 26px; height: 30px; border-radius: 5px; display: block; }
