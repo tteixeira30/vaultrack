@@ -19,12 +19,18 @@ export interface ManualInvestmentInput {
 export class InvestmentsPage extends TabPage {
   protected readonly tab: TabLabel = 'Carteira'
 
+  /**
+   * Linha de um ativo.
+   *
+   * Desktop desenha `.asset-row` (grelha de colunas) e mobile `.m-asset`
+   * (cartão com o código do ativo à esquerda) — nunca coexistem.
+   */
   row(name: string): Locator {
-    return this.page.locator('.asset-row', { has: this.page.locator('.asset-title', { hasText: name }) })
+    return this.page.locator('.asset-row, .m-asset').filter({ hasText: name })
   }
 
   title(name: string): Locator {
-    return this.page.locator('.asset-title', { hasText: name })
+    return this.page.locator('.asset-title, .m-asset-main', { hasText: name })
   }
 
   async createManual({ name, value, gain = 0 }: ManualInvestmentInput): Promise<void> {

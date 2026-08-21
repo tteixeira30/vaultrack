@@ -15,14 +15,16 @@ const BLOCKING = new Set(['serious', 'critical'])
  * Corre o axe na página atual, anexa o resultado completo ao relatório e devolve
  * só as violações que bloqueiam.
  *
- * Exclui as conquistas por desbloquear (`.ach-card.locked`): estão esbatidas de
- * propósito como estado inativo, que o critério WCAG 1.4.3 dispensa de contraste —
- * mas o axe não distingue "inativo" de "texto real".
+ * Exclui as conquistas por desbloquear (`.ach-card.locked` em desktop,
+ * `.m-medal.locked` em mobile): estão esbatidas de propósito como estado
+ * inativo, que o critério WCAG 1.4.3 dispensa de contraste — mas o axe não
+ * distingue "inativo" de "texto real".
  */
 export async function scanA11y(page: Page, testInfo: TestInfo, label: string): Promise<Result[]> {
   await freezeAnimations(page)
 
-  const results = await new AxeBuilder({ page }).withTags(TAGS).exclude('.ach-card.locked').analyze()
+  const results = await new AxeBuilder({ page }).withTags(TAGS)
+    .exclude('.ach-card.locked').exclude('.m-medal.locked').analyze()
 
   await testInfo.attach(`axe-${label}`, {
     body: JSON.stringify(results.violations, null, 2),

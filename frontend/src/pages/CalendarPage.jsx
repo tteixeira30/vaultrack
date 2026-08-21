@@ -6,6 +6,7 @@ import Dropdown from '../components/Dropdown'
 import { useToast } from '../components/Toast'
 import { useMonth, fmtMonthShort as fmtMonth } from '../components/MonthContext'
 import { useIntent } from '../components/IntentContext'
+import { useIsMobile } from '../components/useMediaQuery'
 import { codeOf } from '../components/code'
 import { IconWallet, IconHome, IconRepeat, IconBell, IconCoins, IconInfo, IconPlus, IconArrowUp, IconArrowDown, IconPencil, IconTrash } from '../components/Icons'
 
@@ -36,7 +37,8 @@ const occCode = (o) => {
 export default function CalendarPage() {
   const toast = useToast()
   const cur = getCurrencySymbol()
-  const { month } = useMonth()
+  const { month, step } = useMonth()
+  const isMobile = useIsMobile()
   const [data, setData] = useState(null)
   const [forecast, setForecast] = useState(null)
   const [addModal, setAddModal] = useState(false)
@@ -152,6 +154,181 @@ export default function CalendarPage() {
     const days = Math.round((new Date(p.date) - new Date(todayIso())) / 86400000)
     return days >= 0 && days <= 7
   })
+
+  // Os modais servem as duas vistas: declarados uma vez, injetados em ambas.
+  const modals = (
+    <>
+      <Modal open={addModal} onClose={() => setAddModal(false)} onSubmit={save} busy={busy}
+           title={editing ? 'Editar evento' : 'Novo evento'}
+           subtitle="Salário, renda, subscrições ou qualquer movimento recorrente."
+           footer={
+             <>
+               <button className="btn ghost" onClick={() => setAddModal(false)}>Cancelar</button>
+               <button className="btn" onClick={save} disabled={busy}>{busy ? 'A guardar…' : 'Guardar'}</button>
+             </>
+           }>
+      <div className="form-grid">
+        <div className="field full">
+          <label>Nome</label>
+          <input placeholder="Ex: Salário, Renda, Netflix" autoFocus value={form.name}
+                 onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        </div>
+        <div className="field">
+          <label>Categoria</label>
+          <Dropdown label="Categoria" value={form.category} onChange={(category) => {
+            setForm({ ...form, category, inflow: category === 'INCOME' ? true : form.inflow })
+          }} options={CATEGORIES.map((c) => ({ value: c, label: CATEGORY_META[c].label }))} />
+        </div>
+        <div className="field">
+          <label>Tipo</label>
+          <div className="seg">
+            <button type="button" className={form.inflow ? 'active' : ''} onClick={() => setForm({ ...form, inflow: true })}><IconArrowUp size={13} /> Entrada</button>
+            <button type="button" className={!form.inflow ? 'active' : ''} onClick={() => setForm({ ...form, inflow: false })}><IconArrowDown size={13} /> Saída</button>
+          </div>
+        </div>
+        <div className="field">
+          <label>Valor</label>
+          <div className="input-affix">
+            <input type="text" inputMode="decimal" placeholder="0" aria-label="Valor" value={form.amount}
+                   onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+            <span className="affix">{cur}</span>
+          </div>
+        </div>
+        <div className="field">
+          <label>Frequência</label>
+          <Dropdown label="Frequência" value={form.frequency} onChange={(frequency) => setForm({ ...form, frequency })}
+                    options={[
+                      { value: 'MONTHLY', label: 'Mensal' },
+                      { value: 'YEARLY', label: 'Anual' },
+                      { value: 'ONCE', label: 'Única' },
+                    ]} />
+        </div>
+        {form.frequency === 'MONTHLY' ? (
+          <div className="field full">
+            <label>Dia do mês</label>
+            <input type="number" min="1" max="31" value={form.dayOfMonth}
+                   onChange={(e) => setForm({ ...form, dayOfMonth: e.target.value })} />
+          </div>
+        ) : (
+          <div className="field full">
+            <label>Data</label>
+            <DatePicker value={form.eventDate}
+                        onChange={(iso) => setForm({ ...form, eventDate: iso })} />
+          </div>
+        )}
+      </div>
+    </Modal>
+
+    <ConfirmDialog open={!!toDelete} busy={busy}
+                   title="Eliminar evento?"
+                   message={`"${toDelete?.name}" vai ser eliminado do calendário.`}
+                   onConfirm={remove} onCancel={() => setToDelete(null)} />
+    </>
+  )
+
+  if (isMobile) {
+    const horizon = (forecast?.points || []).reduce(
+      (t, pt) => t + (pt.inflow ? 1 : -1) * Number(pt.amount), 0)
+
+    return (
+      <div className="cal">
+        {/* ---------- grelha compacta ---------- */}
+        <section className="card m-cal">
+          <div className="m-cal-head">
+            <span>{fmtMonth(month)}</span>
+            <div className="m-cal-nav">
+              <button type="button" onClick={() => step(-1)} aria-label="Mês anterior">‹</button>
+              <button type="button" onClick={() => step(1)} aria-label="Mês seguinte">›</button>
+            </div>
+          </div>
+          <div className="m-cal-grid mono">
+            {WEEKDAYS.map((w) => <span key={w} className="m-cal-wd">{w[0]}</span>)}
+            {grid.map((cell, i) => {
+              if (!cell) return <span key={i} />
+              // a célula toma a cor do que domina o dia: entrada, saída ou nada
+              const inflow = cell.occ.some((o) => o.inflow)
+              const outflow = cell.occ.some((o) => !o.inflow)
+              const tone = cell.occ.length === 0 ? '' : cell.net >= 0 ? 'in' : outflow ? 'out' : 'in'
+              return (
+                <button key={i} type="button"
+                        className={`m-cal-day ${tone} ${isToday(cell.day) ? 'today' : ''}`}
+                        aria-label={cell.occ.length
+                          ? `Dia ${cell.day}: ${cell.occ.length} evento(s)`
+                          : `Adicionar evento no dia ${cell.day}`}
+                        onClick={() => openAddForDay(cell.day)}>
+                  {cell.day}
+                  {inflow && outflow && <span className="m-cal-both" aria-hidden="true" />}
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* ---------- próximos 60 dias ---------- */}
+        <div className="m-cal-forecast">
+          <div className="m-cal-forecast-top">
+            <span>Próximos 60 dias</span>
+            <span className="mono">{horizon >= 0 ? '+' : '−'}{fmtEur(Math.abs(horizon))}</span>
+          </div>
+          <div className="m-cal-forecast-sub">
+            {forecast?.hasBalance
+              ? <>Saldo previsto a 60 dias <strong className="mono">{fmtEur(forecast.endBalance)}</strong></>
+              : 'Define o saldo das contas para veres a previsão'}
+          </div>
+        </div>
+
+        {(!forecast || forecast.points.length === 0) ? (
+          <div className="card">
+            <p className="dim" style={{ padding: '4px 2px' }}>Sem movimentos previstos nos próximos 60 dias.</p>
+          </div>
+        ) : (
+          <div className="card flush">
+            {forecast.points.map((pt, i) => (
+              <div key={i} className="m-cal-row">
+                <div className="m-cal-date">
+                  <div className="mono">{new Date(pt.date).toLocaleDateString('pt-PT', { day: '2-digit' })}</div>
+                  <div>{new Date(pt.date).toLocaleDateString('pt-PT', { month: 'short' }).replace('.', '')}</div>
+                </div>
+                <div className="row-main">
+                  <strong>{pt.name}</strong>
+                  <small>
+                    {pt.source === 'INVESTMENT' ? 'Investimento automático'
+                      : pt.source === 'GOAL' ? 'Objetivo · transferência'
+                        : (CATEGORY_META[pt.category] || CATEGORY_META.OTHER).label}
+                  </small>
+                </div>
+                <span className={`mono ${pt.inflow ? 'pos' : 'neg'}`}>
+                  {pt.inflow ? '+' : '−'}{fmtEur(pt.amount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* ---------- eventos ---------- */}
+        <div className="m-listhead">
+          <span>{data.events.length} evento(s)</span>
+          <button type="button" className="m-link" onClick={openAdd}>Novo</button>
+        </div>
+        {data.events.length > 0 && (
+          <div className="card flush">
+            {data.events.map((e) => (
+              <button key={e.id} type="button" className="m-cal-row" onClick={() => openEdit(e)}>
+                <span className={`cat-icon ${e.inflow ? 'green' : 'red'}`}>{occCode(e)}</span>
+                <div className="row-main">
+                  <strong>{e.name}</strong>
+                  <small>{e.frequency === 'MONTHLY' ? `todo dia ${e.dayOfMonth}` : e.frequency === 'YEARLY' ? `anual · ${e.eventDate}` : e.eventDate}</small>
+                </div>
+                <span className={`mono ${e.inflow ? 'pos' : 'neg'}`}>{e.inflow ? '+' : '−'}{fmtEur(e.amount)}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {modals}
+      </div>
+    )
+  }
 
   return (
     <div className="cal">
@@ -284,71 +461,7 @@ export default function CalendarPage() {
         </div>
       </div>
 
-      <Modal open={addModal} onClose={() => setAddModal(false)} onSubmit={save} busy={busy}
-             title={editing ? 'Editar evento' : 'Novo evento'}
-             subtitle="Salário, renda, subscrições ou qualquer movimento recorrente."
-             footer={
-               <>
-                 <button className="btn ghost" onClick={() => setAddModal(false)}>Cancelar</button>
-                 <button className="btn" onClick={save} disabled={busy}>{busy ? 'A guardar…' : 'Guardar'}</button>
-               </>
-             }>
-        <div className="form-grid">
-          <div className="field full">
-            <label>Nome</label>
-            <input placeholder="Ex: Salário, Renda, Netflix" autoFocus value={form.name}
-                   onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </div>
-          <div className="field">
-            <label>Categoria</label>
-            <Dropdown label="Categoria" value={form.category} onChange={(category) => {
-              setForm({ ...form, category, inflow: category === 'INCOME' ? true : form.inflow })
-            }} options={CATEGORIES.map((c) => ({ value: c, label: CATEGORY_META[c].label }))} />
-          </div>
-          <div className="field">
-            <label>Tipo</label>
-            <div className="seg">
-              <button type="button" className={form.inflow ? 'active' : ''} onClick={() => setForm({ ...form, inflow: true })}><IconArrowUp size={13} /> Entrada</button>
-              <button type="button" className={!form.inflow ? 'active' : ''} onClick={() => setForm({ ...form, inflow: false })}><IconArrowDown size={13} /> Saída</button>
-            </div>
-          </div>
-          <div className="field">
-            <label>Valor</label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" placeholder="0" aria-label="Valor" value={form.amount}
-                     onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-              <span className="affix">{cur}</span>
-            </div>
-          </div>
-          <div className="field">
-            <label>Frequência</label>
-            <Dropdown label="Frequência" value={form.frequency} onChange={(frequency) => setForm({ ...form, frequency })}
-                      options={[
-                        { value: 'MONTHLY', label: 'Mensal' },
-                        { value: 'YEARLY', label: 'Anual' },
-                        { value: 'ONCE', label: 'Única' },
-                      ]} />
-          </div>
-          {form.frequency === 'MONTHLY' ? (
-            <div className="field full">
-              <label>Dia do mês</label>
-              <input type="number" min="1" max="31" value={form.dayOfMonth}
-                     onChange={(e) => setForm({ ...form, dayOfMonth: e.target.value })} />
-            </div>
-          ) : (
-            <div className="field full">
-              <label>Data</label>
-              <DatePicker value={form.eventDate}
-                          onChange={(iso) => setForm({ ...form, eventDate: iso })} />
-            </div>
-          )}
-        </div>
-      </Modal>
-
-      <ConfirmDialog open={!!toDelete} busy={busy}
-                     title="Eliminar evento?"
-                     message={`"${toDelete?.name}" vai ser eliminado do calendário.`}
-                     onConfirm={remove} onCancel={() => setToDelete(null)} />
+      {modals}
     </div>
   )
 }

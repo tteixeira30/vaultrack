@@ -102,7 +102,6 @@ function AddMenu({ open, setOpen, onPick }) {
 function Shell() {
   const { user, loading, logout, baseCurrency, changeCurrency } = useAuth()
   const { theme, toggle: toggleTheme } = useTheme()
-  const { month } = useMonth()
   const setIntent = useIntentSetter()
   const isMobile = useIsMobile()
 
@@ -282,11 +281,6 @@ function Shell() {
             </button>
           )}
           <div className="tb-title">
-            {/* em mobile a sobrancelha é o mês — e nos ecrãs mensais é também
-                a forma de o trocar, já que a barra de ferramentas não cabe */}
-            {isMobile && meta.monthly
-              ? <MonthStepper compact />
-              : <span className="tb-eyebrow">{fmtMonthShort(month)}</span>}
             <h2>{title}</h2>
             <span className="tb-sub">{meta.subtitle}</span>
           </div>
@@ -311,10 +305,20 @@ function Shell() {
             <AddMenu open={addOpen} setOpen={setAddOpen} onPick={runAction} />
           </div>
 
-          <button type="button" className="tb-avatar" onClick={() => go('profile')}
-                  aria-label="Perfil e definições">
-            {initials}
-          </button>
+          {/* Em mobile o cabeçalho tem uma ação só, como no design: o avatar no
+              Início (a porta para o Perfil) e um "+" a tinta nos ecrãs que têm
+              o que criar. Os controlos de moeda e privacidade vivem no Perfil. */}
+          {isMobile && (activeTab?.id === 'inicio' || isSystemScreen ? (
+            <button type="button" className="tb-avatar" onClick={() => go('profile')}
+                    aria-label="Perfil e definições">
+              {initials}
+            </button>
+          ) : meta.add ? (
+            <button type="button" className="tb-add" onClick={() => runAction({ id: meta.add.intent, screen })}
+                    aria-label={meta.add.label}>
+              <IconPlus size={18} />
+            </button>
+          ) : null)}
         </header>
 
         {hasSegments && (

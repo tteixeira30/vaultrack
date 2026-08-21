@@ -19,9 +19,15 @@ export class ExpensesPage extends TabPage {
 
   // ---- locators ----------------------------------------------------------
 
-  /** O botão da linha de contas; o estado vazio tem outro com o mesmo label. */
+  /**
+   * O botão de importar extrato.
+   *
+   * Em desktop está na linha das contas, em mobile é o botão largo no fim da
+   * lista (o cabeçalho mobile só tem o "+"). Ambos levam o mesmo testid porque
+   * o estado vazio tem um terceiro botão com o mesmo rótulo visível.
+   */
   get importButton(): Locator {
-    return this.page.locator('.chip-row-end').getByRole('button', { name: 'Importar extrato' })
+    return this.page.getByTestId('import-statement')
   }
 
   get newMovementButton(): Locator {
@@ -60,7 +66,11 @@ export class ExpensesPage extends TabPage {
 
   async createAccount(name: string, balance?: number): Promise<void> {
     await test.step(`criar conta "${name}"`, async () => {
-      await this.page.getByTestId('account-chip-add').click()
+      // sem contas nenhumas a fila de chips não existe — a entrada é o botão do
+      // estado vazio, que é o que o utilizador vê da primeira vez
+      const addChip = this.page.getByTestId('account-chip-add')
+      if (await addChip.isVisible()) await addChip.click()
+      else await this.page.getByRole('button', { name: 'Criar conta' }).click()
       await this.dialog.field('Ex: Santander').fill(name)
       if (balance != null) await this.dialog.field(/Deixa em branco/).fill(String(balance))
       await this.dialog.save()

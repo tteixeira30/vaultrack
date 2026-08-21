@@ -16,7 +16,11 @@ export class ProfileMenu {
     this.nav = new MainNav(page)
   }
 
-  /** O avatar do cabeçalho. Só existe em mobile — em desktop o Perfil é um item da sidebar. */
+  /**
+   * O avatar do cabeçalho. Só existe em mobile e só no separador "Início" —
+   * nos outros o cabeçalho tem o "+" da ação primária. Em desktop o Perfil é
+   * um item do grupo "Sistema" da sidebar.
+   */
   get trigger(): Locator {
     return this.page.getByRole('button', { name: 'Perfil e definições' })
   }

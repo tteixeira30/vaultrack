@@ -13,6 +13,10 @@ import {
  *
  * O `text` do badge é só para os olhos: "12" ou "23/32" lidos em voz alta não
  * dizem nada. O `spoken` é o que vai para o nome acessível do botão.
+ *
+ * `add` é a ação primária do ecrã em mobile: o design substitui a barra de
+ * ferramentas do desktop por um único "+" a tinta no cabeçalho, e é ele que
+ * dispara a intenção correspondente (ver IntentContext).
  */
 /** Só mostra o número quando há algo — um "0" ao lado de um ecrã vazio é ruído. */
 const count = (n, noun) => (n > 0 ? { text: String(n), spoken: `${n} ${noun}` } : null)
@@ -22,19 +26,26 @@ export const SCREENS = {
   expenses: {
     label: 'Movimentos', icon: IconLines, subtitle: 'entradas e saídas do mês', monthly: true,
     badge: (c) => count(c.transactions, 'este mês'),
+    add: { intent: 'newTransaction', label: 'Novo movimento' },
   },
   investments: {
     label: 'Carteira', icon: IconTrendingUp, subtitle: 'cotações em tempo real',
     badge: (c) => count(c.investments, 'ativos'),
+    add: { intent: 'newInvestment', label: 'Novo investimento' },
   },
   goals: {
     label: 'Objetivos', icon: IconTarget, subtitle: 'metas de poupança',
     badge: (c) => count(c.goals, 'em curso'),
+    add: { intent: 'newGoal', label: 'Novo objetivo' },
   },
-  income: { label: 'Rendimento', icon: IconWallet, subtitle: 'distribuição mensal', monthly: true },
+  income: {
+    label: 'Rendimento', icon: IconWallet, subtitle: 'distribuição mensal', monthly: true,
+    add: { intent: 'newAllocation', label: 'Nova categoria' },
+  },
   calendar: {
     label: 'Calendário', icon: IconCalendar, subtitle: 'previsão a 60 dias', monthly: true,
     badge: (c) => count(c.events, 'eventos'),
+    add: { intent: 'newEvent', label: 'Novo evento' },
   },
   achievements: {
     label: 'Conquistas', icon: IconTrophy, subtitle: 'progresso e nível',
@@ -47,6 +58,7 @@ export const SCREENS = {
   },
   accounts: {
     label: 'Contas', icon: IconBank, subtitle: 'contas correntes e importação',
+    add: { intent: 'newAccount', label: 'Nova conta' },
     // âmbar, não azul: é um aviso (conta sem saldo → sem previsão no calendário)
     badge: (c) => (c.accountsNeedAttention
       ? { text: '!', tone: 'warn', spoken: 'há contas sem saldo registado' }

@@ -6,7 +6,8 @@ import Modal, { ConfirmDialog } from '../components/Modal'
 import Dropdown from '../components/Dropdown'
 import DatePicker from '../components/DatePicker'
 import StatementImport, { AccountModal, validateAccount } from '../components/StatementImport'
-import { useMonth, fmtMonth } from '../components/MonthContext'
+import { useMonth, fmtMonth, fmtMonthShort } from '../components/MonthContext'
+import { useIsMobile } from '../components/useMediaQuery'
 import { useIntent } from '../components/IntentContext'
 import { codeOf } from '../components/code'
 import {
@@ -37,7 +38,8 @@ const SORTS = {
 export default function ExpensesPage() {
   const toast = useToast()
   const cur = getCurrencySymbol()
-  const { month } = useMonth()
+  const { month, step } = useMonth()
+  const isMobile = useIsMobile()
   const [accountFilter, setAccountFilter] = useState('')
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -289,6 +291,288 @@ export default function ExpensesPage() {
     if (last && last.date === t.date) last.txs.push(t)
     else byDay.push({ date: t.date, txs: [t] })
   }
+  // no design cada dia mostra o seu saldo à direita do cabeçalho
+  for (const g of byDay) {
+    g.net = g.txs.reduce((sum, t) => sum + (t.inflow ? 1 : -1) * Number(t.amount), 0)
+  }
+
+  // Os modais são os mesmos nas duas vistas — declarados uma vez e injetados
+  // em ambas, para não haver duas cópias a divergir.
+  const modals = (
+    <>
+      {/* ---------- modal categorias ---------- */}
+    <Modal open={catModal} width={520}
+           onClose={() => { setCatModal(false); setCatForm({ id: null, label: '', color: CATEGORY_COLORS[0] }) }}
+           title="Gerir categorias"
+           subtitle="As categorias por omissão são fixas. Cria as tuas próprias para organizares as despesas à tua maneira.">
+      <div className="form-grid">
+        <div className="field full">
+          <label>{catForm.id ? 'Editar categoria' : 'Nova categoria'}</label>
+          <input placeholder="Ex: Educação" maxLength={60} value={catForm.label}
+                 onChange={(e) => setCatForm({ ...catForm, label: e.target.value })} />
+        </div>
+        <div className="field full">
+          <label>Cor</label>
+          <div className="color-picker">
+            {CATEGORY_COLORS.map((col) => (
+              <button key={col} type="button"
+                      className={`color-swatch ${catForm.color?.toLowerCase() === col ? 'selected' : ''}`}
+                      style={{ background: col }} title={col}
+                      onClick={() => setCatForm({ ...catForm, color: col })} />
+            ))}
+            <label className="color-custom" style={{ background: catForm.color }} title="Cor personalizada (RGB)">
+              <input type="color" value={catForm.color || CATEGORY_COLORS[0]}
+                     onChange={(e) => setCatForm({ ...catForm, color: e.target.value })} />
+              <IconPlus size={13} />
+            </label>
+          </div>
+        </div>
+        <div className="field full cat-form-actions">
+          {catForm.id && (
+            <button className="btn ghost" onClick={() => setCatForm({ id: null, label: '', color: CATEGORY_COLORS[0] })}>
+              Cancelar edição
+            </button>
+          )}
+          <button className="btn" onClick={saveCat} disabled={busy}>
+            {busy ? 'A guardar…' : (catForm.id ? 'Guardar alterações' : 'Adicionar categoria')}
+          </button>
+        </div>
+      </div>
+
+      <div className="cat-manage-list">
+        <div className="cat-manage-title">As tuas categorias</div>
+        {categories.length === 0 ? (
+          <p className="dim" style={{ padding: '2px' }}>Ainda não tens categorias personalizadas.</p>
+        ) : (
+          <ul className="event-list">
+            {categories.map((c) => (
+              <li key={c.id} className="event-row">
+                <span className="tx-cat-dot" style={{ background: c.color }} />
+                <div className="event-main"><strong>{c.label}</strong></div>
+                <div className="event-actions">
+                  <button className="icon-btn" onClick={() => openCatEdit(c)} aria-label={`Editar ${c.label}`}><IconPencil size={14} /></button>
+                  <button className="icon-btn danger" onClick={() => setCatToDelete(c)} aria-label={`Eliminar ${c.label}`}><IconTrash size={14} /></button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="cat-manage-list">
+        <div className="cat-manage-title">Por omissão</div>
+        <div className="cat-default-chips">
+          {DEFAULT_CATEGORIES.map((c) => (
+            <span key={c} className="cat-default-chip">
+              <span className="tx-cat-dot" style={{ background: catColor(c) }} /> {catLabel(c)}
+            </span>
+          ))}
+        </div>
+      </div>
+    </Modal>
+
+    {/* ---------- modal movimento ---------- */}
+    <Modal open={txModal} onClose={() => setTxModal(false)} onSubmit={saveTx} busy={busy}
+           title={editingTx ? 'Editar movimento' : 'Novo movimento'}
+           subtitle="Uma despesa ou receita de uma das tuas contas."
+           footer={
+             <>
+               <button className="btn ghost" onClick={() => setTxModal(false)}>Cancelar</button>
+               <button className="btn" onClick={saveTx} disabled={busy}>{busy ? 'A guardar…' : 'Guardar'}</button>
+             </>
+           }>
+      <div className="form-grid">
+        <div className="field full">
+          <label>Descrição</label>
+          <input placeholder="Ex: Supermercado Continente" autoFocus value={txForm.description}
+                 onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} />
+        </div>
+        <div className="field">
+          <label>Conta</label>
+          <Dropdown label="Conta" value={txForm.accountId} onChange={(accountId) => setTxForm({ ...txForm, accountId })}
+                    options={data.accounts.map((a) => ({ value: String(a.id), label: a.name }))} />
+        </div>
+        <div className="field">
+          <label>Categoria</label>
+          <Dropdown label="Categoria" value={txForm.category} onChange={(category) => {
+            setTxForm({ ...txForm, category, inflow: category === 'INCOME' ? true : txForm.inflow })
+          }} options={catOptions} />
+        </div>
+        <div className="field">
+          <label>Tipo</label>
+          <div className="seg">
+            <button type="button" className={txForm.inflow ? 'active' : ''} onClick={() => setTxForm({ ...txForm, inflow: true })}><IconArrowUp size={13} /> Entrada</button>
+            <button type="button" className={!txForm.inflow ? 'active' : ''} onClick={() => setTxForm({ ...txForm, inflow: false })}><IconArrowDown size={13} /> Saída</button>
+          </div>
+        </div>
+        <div className="field">
+          <label>Valor</label>
+          <div className="input-affix">
+            <input type="text" inputMode="decimal" placeholder="0" aria-label="Valor" value={txForm.amount}
+                   onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} />
+            <span className="affix">{cur}</span>
+          </div>
+        </div>
+        <div className="field full">
+          <label>Data</label>
+          <DatePicker value={txForm.date} onChange={(iso) => setTxForm({ ...txForm, date: iso })} />
+        </div>
+        {editingTx && (
+          <label className="field full check-row">
+            <input type="checkbox" checked={txApplyAll} onChange={(e) => setTxApplyAll(e.target.checked)} />
+            <span>Ao mudar a categoria, aplicar a <strong>todos os movimentos com esta descrição</strong> e memorizar para futuras importações</span>
+          </label>
+        )}
+      </div>
+    </Modal>
+
+    {/* ---------- modal categoria em massa ---------- */}
+    <Modal open={!!bulkCat} onClose={() => setBulkCat(null)} onSubmit={applyBulkCategory} busy={busy}
+           title="Definir categoria"
+           subtitle={`${selected.size} movimento(s) selecionados.`}
+           footer={
+             <>
+               <button className="btn ghost" onClick={() => setBulkCat(null)}>Cancelar</button>
+               <button className="btn" onClick={applyBulkCategory} disabled={busy}>{busy ? 'A aplicar…' : 'Aplicar'}</button>
+             </>
+           }>
+      {bulkCat && (
+        <div className="form-grid">
+          <div className="field full">
+            <label>Categoria</label>
+            <Dropdown label="Categoria" value={bulkCat.category}
+                      onChange={(category) => setBulkCat({ ...bulkCat, category })} options={catOptions} />
+          </div>
+          <label className="field full check-row">
+            <input type="checkbox" checked={bulkCat.applyRule}
+                   onChange={(e) => setBulkCat({ ...bulkCat, applyRule: e.target.checked })} />
+            <span>Memorizar a <strong>regra da descrição</strong> para futuras importações</span>
+          </label>
+        </div>
+      )}
+    </Modal>
+
+    <AccountModal open={accountModal} account={editingAccount} busy={busy} currencySymbol={cur}
+                  onClose={() => setAccountModal(false)} onSave={saveAccount} />
+    <StatementImport open={importModal} onClose={() => setImportModal(false)}
+                     accounts={data.accounts} defaultAccountId={accountFilter} onImported={load} />
+
+    <ConfirmDialog open={!!txToDelete} busy={busy}
+                   title="Eliminar movimento?"
+                   message={`"${txToDelete?.description}" vai ser eliminado.`}
+                   onConfirm={removeTx} onCancel={() => setTxToDelete(null)} />
+    <ConfirmDialog open={!!accountToDelete} busy={busy}
+                   title="Eliminar conta?"
+                   message={`"${accountToDelete?.name}" e todos os seus movimentos (${accountToDelete?.transactionCount || 0}) vão ser eliminados.`}
+                   onConfirm={removeAccount} onCancel={() => setAccountToDelete(null)} />
+    <ConfirmDialog open={!!catToDelete} busy={busy}
+                   title="Eliminar categoria?"
+                   message={`"${catToDelete?.label}" vai ser eliminada. Os movimentos que a usavam passam para "Outros".`}
+                   onConfirm={removeCat} onCancel={() => setCatToDelete(null)} />
+    </>
+  )
+
+  if (isMobile) {
+    return (
+      <div className="mov">
+        {/* ---------- entrou / saiu ---------- */}
+        <div className="m-kpis">
+          <div className="card m-kpi">
+            <span className="eyebrow pos">Entrou</span>
+            <div className="mono">{fmtEur(data.inflows)}</div>
+          </div>
+          <div className="card m-kpi">
+            <span className="eyebrow neg">Saiu</span>
+            <div className="mono">{fmtEur(data.outflows)}</div>
+          </div>
+        </div>
+
+        {/* ---------- mês ---------- */}
+        <div className="m-monthbar">
+          <button type="button" onClick={() => step(-1)} aria-label="Mês anterior">‹</button>
+          <span>{fmtMonthShort(month)}</span>
+          <button type="button" onClick={() => step(1)} aria-label="Mês seguinte">›</button>
+        </div>
+
+        {/* ---------- filtros (contas e categorias deslizam numa linha) ---------- */}
+        {hasAccounts && (
+          <div className="chip-scroll">
+            <button className={`account-chip ${accountFilter === '' ? 'active' : ''}`} onClick={() => setAccountFilter('')}>
+              Todas as contas
+            </button>
+            {data.accounts.map((a) => (
+              <button key={a.id} data-testid="account-chip"
+                      className={`account-chip ${accountFilter === String(a.id) ? 'active' : ''}`}
+                      onClick={() => setAccountFilter(String(a.id))}>
+                {a.name}
+                {a.currentBalance != null && <span className="mono account-chip-balance">{fmtEur(a.currentBalance)}</span>}
+              </button>
+            ))}
+            <button data-testid="account-chip-add" className="account-chip add" onClick={openAccountAdd} aria-label="Nova conta">
+              <IconPlus size={13} />
+            </button>
+          </div>
+        )}
+
+        {/* ---------- lista por dia ---------- */}
+        {!hasAccounts ? (
+          <div className="card">
+            <div className="empty-state">
+              <div className="empty-icon"><IconBank size={22} /></div>
+              <h4>Começa por criar as tuas contas</h4>
+              <p>Adiciona as tuas contas correntes e depois importa o extrato de cada uma.</p>
+              <button className="btn" onClick={openAccountAdd}><IconPlus size={14} /> Criar conta</button>
+            </div>
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="card">
+            <div className="empty-state">
+              <div className="empty-icon"><IconReceipt size={22} /></div>
+              <h4>Sem movimentos em {fmtMonth(month)}</h4>
+              <p>Importa o extrato bancário do mês ou adiciona movimentos com o “+”.</p>
+              <button className="btn" onClick={() => setImportModal(true)}><IconUpload size={14} /> Importar extrato</button>
+            </div>
+          </div>
+        ) : (
+          <div className="tx-days">
+            {byDay.map((g) => (
+              <div key={g.date} className="tx-day-group">
+                <div className="tx-day">
+                  <span>{fmtDay(g.date)}</span>
+                  <span className="mono">{g.net >= 0 ? '+' : '−'}{fmtEur(Math.abs(g.net))}</span>
+                </div>
+                <div className="card flush">
+                  {g.txs.map((t) => (
+                    <div key={t.id} data-testid="movement-row" className="tx-card-row" onClick={() => openTxEdit(t)}>
+                      <span className="cat-icon" style={{ background: catTint(t.category), color: catColor(t.category) }}>
+                        {codeOf(catLabel(t.category))}
+                      </span>
+                      <div className="row-main">
+                        <strong>{t.description}</strong>
+                        <small>{catLabel(t.category)}{t.accountName ? ` · ${t.accountName}` : ''}</small>
+                      </div>
+                      <span className={`mono ${t.inflow ? 'pos' : 'neg'}`}>
+                        {t.inflow ? '+' : '−'}{fmtEur(t.amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {hasAccounts && (
+          <button className="btn ghost m-wide" data-testid="import-statement"
+                  onClick={() => setImportModal(true)}>
+            <IconUpload size={14} /> Importar extrato
+          </button>
+        )}
+
+        {modals}
+      </div>
+    )
+  }
 
   return (
     <div className="mov">
@@ -316,7 +600,8 @@ export default function ExpensesPage() {
         </div>
 
         <div className="chip-row-end">
-          <button className="btn ghost" onClick={() => setImportModal(true)} disabled={!hasAccounts}
+          <button className="btn ghost" data-testid="import-statement"
+                  onClick={() => setImportModal(true)} disabled={!hasAccounts}
                   title={hasAccounts ? '' : 'Cria primeiro uma conta'}>
             <IconUpload size={14} /> Importar extrato
           </button>
@@ -529,175 +814,7 @@ export default function ExpensesPage() {
         </aside>
       </div>
 
-      {/* ---------- modal categorias ---------- */}
-      <Modal open={catModal} width={520}
-             onClose={() => { setCatModal(false); setCatForm({ id: null, label: '', color: CATEGORY_COLORS[0] }) }}
-             title="Gerir categorias"
-             subtitle="As categorias por omissão são fixas. Cria as tuas próprias para organizares as despesas à tua maneira.">
-        <div className="form-grid">
-          <div className="field full">
-            <label>{catForm.id ? 'Editar categoria' : 'Nova categoria'}</label>
-            <input placeholder="Ex: Educação" maxLength={60} value={catForm.label}
-                   onChange={(e) => setCatForm({ ...catForm, label: e.target.value })} />
-          </div>
-          <div className="field full">
-            <label>Cor</label>
-            <div className="color-picker">
-              {CATEGORY_COLORS.map((col) => (
-                <button key={col} type="button"
-                        className={`color-swatch ${catForm.color?.toLowerCase() === col ? 'selected' : ''}`}
-                        style={{ background: col }} title={col}
-                        onClick={() => setCatForm({ ...catForm, color: col })} />
-              ))}
-              <label className="color-custom" style={{ background: catForm.color }} title="Cor personalizada (RGB)">
-                <input type="color" value={catForm.color || CATEGORY_COLORS[0]}
-                       onChange={(e) => setCatForm({ ...catForm, color: e.target.value })} />
-                <IconPlus size={13} />
-              </label>
-            </div>
-          </div>
-          <div className="field full cat-form-actions">
-            {catForm.id && (
-              <button className="btn ghost" onClick={() => setCatForm({ id: null, label: '', color: CATEGORY_COLORS[0] })}>
-                Cancelar edição
-              </button>
-            )}
-            <button className="btn" onClick={saveCat} disabled={busy}>
-              {busy ? 'A guardar…' : (catForm.id ? 'Guardar alterações' : 'Adicionar categoria')}
-            </button>
-          </div>
-        </div>
-
-        <div className="cat-manage-list">
-          <div className="cat-manage-title">As tuas categorias</div>
-          {categories.length === 0 ? (
-            <p className="dim" style={{ padding: '2px' }}>Ainda não tens categorias personalizadas.</p>
-          ) : (
-            <ul className="event-list">
-              {categories.map((c) => (
-                <li key={c.id} className="event-row">
-                  <span className="tx-cat-dot" style={{ background: c.color }} />
-                  <div className="event-main"><strong>{c.label}</strong></div>
-                  <div className="event-actions">
-                    <button className="icon-btn" onClick={() => openCatEdit(c)} aria-label={`Editar ${c.label}`}><IconPencil size={14} /></button>
-                    <button className="icon-btn danger" onClick={() => setCatToDelete(c)} aria-label={`Eliminar ${c.label}`}><IconTrash size={14} /></button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="cat-manage-list">
-          <div className="cat-manage-title">Por omissão</div>
-          <div className="cat-default-chips">
-            {DEFAULT_CATEGORIES.map((c) => (
-              <span key={c} className="cat-default-chip">
-                <span className="tx-cat-dot" style={{ background: catColor(c) }} /> {catLabel(c)}
-              </span>
-            ))}
-          </div>
-        </div>
-      </Modal>
-
-      {/* ---------- modal movimento ---------- */}
-      <Modal open={txModal} onClose={() => setTxModal(false)} onSubmit={saveTx} busy={busy}
-             title={editingTx ? 'Editar movimento' : 'Novo movimento'}
-             subtitle="Uma despesa ou receita de uma das tuas contas."
-             footer={
-               <>
-                 <button className="btn ghost" onClick={() => setTxModal(false)}>Cancelar</button>
-                 <button className="btn" onClick={saveTx} disabled={busy}>{busy ? 'A guardar…' : 'Guardar'}</button>
-               </>
-             }>
-        <div className="form-grid">
-          <div className="field full">
-            <label>Descrição</label>
-            <input placeholder="Ex: Supermercado Continente" autoFocus value={txForm.description}
-                   onChange={(e) => setTxForm({ ...txForm, description: e.target.value })} />
-          </div>
-          <div className="field">
-            <label>Conta</label>
-            <Dropdown label="Conta" value={txForm.accountId} onChange={(accountId) => setTxForm({ ...txForm, accountId })}
-                      options={data.accounts.map((a) => ({ value: String(a.id), label: a.name }))} />
-          </div>
-          <div className="field">
-            <label>Categoria</label>
-            <Dropdown label="Categoria" value={txForm.category} onChange={(category) => {
-              setTxForm({ ...txForm, category, inflow: category === 'INCOME' ? true : txForm.inflow })
-            }} options={catOptions} />
-          </div>
-          <div className="field">
-            <label>Tipo</label>
-            <div className="seg">
-              <button type="button" className={txForm.inflow ? 'active' : ''} onClick={() => setTxForm({ ...txForm, inflow: true })}><IconArrowUp size={13} /> Entrada</button>
-              <button type="button" className={!txForm.inflow ? 'active' : ''} onClick={() => setTxForm({ ...txForm, inflow: false })}><IconArrowDown size={13} /> Saída</button>
-            </div>
-          </div>
-          <div className="field">
-            <label>Valor</label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" placeholder="0" aria-label="Valor" value={txForm.amount}
-                     onChange={(e) => setTxForm({ ...txForm, amount: e.target.value })} />
-              <span className="affix">{cur}</span>
-            </div>
-          </div>
-          <div className="field full">
-            <label>Data</label>
-            <DatePicker value={txForm.date} onChange={(iso) => setTxForm({ ...txForm, date: iso })} />
-          </div>
-          {editingTx && (
-            <label className="field full check-row">
-              <input type="checkbox" checked={txApplyAll} onChange={(e) => setTxApplyAll(e.target.checked)} />
-              <span>Ao mudar a categoria, aplicar a <strong>todos os movimentos com esta descrição</strong> e memorizar para futuras importações</span>
-            </label>
-          )}
-        </div>
-      </Modal>
-
-      {/* ---------- modal categoria em massa ---------- */}
-      <Modal open={!!bulkCat} onClose={() => setBulkCat(null)} onSubmit={applyBulkCategory} busy={busy}
-             title="Definir categoria"
-             subtitle={`${selected.size} movimento(s) selecionados.`}
-             footer={
-               <>
-                 <button className="btn ghost" onClick={() => setBulkCat(null)}>Cancelar</button>
-                 <button className="btn" onClick={applyBulkCategory} disabled={busy}>{busy ? 'A aplicar…' : 'Aplicar'}</button>
-               </>
-             }>
-        {bulkCat && (
-          <div className="form-grid">
-            <div className="field full">
-              <label>Categoria</label>
-              <Dropdown label="Categoria" value={bulkCat.category}
-                        onChange={(category) => setBulkCat({ ...bulkCat, category })} options={catOptions} />
-            </div>
-            <label className="field full check-row">
-              <input type="checkbox" checked={bulkCat.applyRule}
-                     onChange={(e) => setBulkCat({ ...bulkCat, applyRule: e.target.checked })} />
-              <span>Memorizar a <strong>regra da descrição</strong> para futuras importações</span>
-            </label>
-          </div>
-        )}
-      </Modal>
-
-      <AccountModal open={accountModal} account={editingAccount} busy={busy} currencySymbol={cur}
-                    onClose={() => setAccountModal(false)} onSave={saveAccount} />
-      <StatementImport open={importModal} onClose={() => setImportModal(false)}
-                       accounts={data.accounts} defaultAccountId={accountFilter} onImported={load} />
-
-      <ConfirmDialog open={!!txToDelete} busy={busy}
-                     title="Eliminar movimento?"
-                     message={`"${txToDelete?.description}" vai ser eliminado.`}
-                     onConfirm={removeTx} onCancel={() => setTxToDelete(null)} />
-      <ConfirmDialog open={!!accountToDelete} busy={busy}
-                     title="Eliminar conta?"
-                     message={`"${accountToDelete?.name}" e todos os seus movimentos (${accountToDelete?.transactionCount || 0}) vão ser eliminados.`}
-                     onConfirm={removeAccount} onCancel={() => setAccountToDelete(null)} />
-      <ConfirmDialog open={!!catToDelete} busy={busy}
-                     title="Eliminar categoria?"
-                     message={`"${catToDelete?.label}" vai ser eliminada. Os movimentos que a usavam passam para "Outros".`}
-                     onConfirm={removeCat} onCancel={() => setCatToDelete(null)} />
+      {modals}
     </div>
   )
 }

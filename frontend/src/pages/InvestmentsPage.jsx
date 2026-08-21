@@ -6,6 +6,8 @@ import Dropdown from '../components/Dropdown'
 import { useChartColors } from '../components/ThemeContext'
 import { useToast } from '../components/Toast'
 import { useIntent } from '../components/IntentContext'
+import { useIsMobile } from '../components/useMediaQuery'
+import { codeOf } from '../components/code'
 import { IconCoins, IconPencil, IconPlus, IconRefresh, IconTrendingUp, IconWallet, IconSparkle, IconTrash } from '../components/Icons'
 
 const RANGES = [
@@ -43,6 +45,30 @@ const SCENARIO_META = {
 const scenarioMeta = (id) => SCENARIO_META[id] ?? { label: id, color: '#8b93a7' }
 
 const fmtRate = (r) => `${r > 0 ? '+' : ''}${Number(r) % 1 === 0 ? Number(r) : Number(r).toFixed(1)}%/ano`
+
+/**
+ * Traça uma série como caminho SVG (o mesmo desenho do herói do Painel).
+ * O design mobile mostra a evolução como sparkline sem eixos.
+ */
+function sparkPath(values, w, h, close) {
+  if (values.length < 2) return ''
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = (max - min) || 1
+  let d = ''
+  values.forEach((v, i) => {
+    const x = (i / (values.length - 1)) * w
+    const y = h - 6 - ((v - min) / span) * (h - 14)
+    d += `${i ? ' L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`
+  })
+  return close ? `${d} L${w} ${h} L0 ${h} Z` : d
+}
+
+/** Código curto do ativo: o ticker sem sufixo de bolsa, ou as iniciais do nome. */
+function assetCode(inv) {
+  if (inv.symbol) return inv.symbol.split('.')[0].slice(0, 5)
+  return codeOf(inv.name)
+}
 
 function projectionDate(monthOffset) {
   const d = new Date()
@@ -85,6 +111,7 @@ export default function InvestmentsPage() {
   const toast = useToast()
   const chart = useChartColors()
   const cur = getCurrencySymbol()
+  const isMobile = useIsMobile()
   const [portfolio, setPortfolio] = useState(null)
   const [history, setHistory] = useState(null)
   const [range, setRange] = useState('3mo')
@@ -256,6 +283,265 @@ export default function InvestmentsPage() {
   const gainPos = Number(summary.totalGain) >= 0
   const gainCls = gainPos ? 'pos' : 'neg'
   const liveCount = investments.filter((i) => i.live).length
+
+  // Os modais servem as duas vistas: declarados uma vez, injetados em ambas.
+  const modals = (
+    <>
+      <Modal open={addModal} onClose={() => setAddModal(false)} onSubmit={add} busy={busy}
+           title="Novo investimento"
+           subtitle="Indica quanto vale agora e a % de ganho — calculamos o valor inicial, o lucro e as unidades."
+           footer={
+             <>
+               <button className="btn ghost" onClick={() => setAddModal(false)}>Cancelar</button>
+               <button className="btn" onClick={add} disabled={busy}>{busy ? 'A adicionar…' : 'Adicionar'}</button>
+             </>
+           }>
+      <div className="form-grid">
+        <div className="field full">
+          <label>Nome</label>
+          <input placeholder="Ex: MSCI World" autoFocus value={form.name}
+                 onChange={(e) => setForm({ ...form, name: e.target.value })} />
+        </div>
+        <div className="field">
+          <label>Tipo</label>
+          <Dropdown label="Tipo" value={form.type} onChange={(type) => setForm({ ...form, type })}
+                    options={TYPES.map((t) => ({ value: t.id, label: t.label }))} />
+        </div>
+        <div className="field">
+          <label>Símbolo {isManualType(form.type) && <span className="dim">(não aplicável)</span>}</label>
+          <input placeholder={form.type === 'CRYPTO' ? 'Ex: BTC, ETH' : 'Ex: VWCE.DE, AAPL'}
+                 disabled={isManualType(form.type)}
+                 value={isManualType(form.type) ? '' : form.symbol}
+                 onChange={(e) => setForm({ ...form, symbol: e.target.value })} />
+          <span className="hint">
+            {form.type === 'CRYPTO'
+              ? 'Símbolo da moeda no CoinGecko.'
+              : form.type === 'PPR'
+                ? 'Os PPR não têm cotação pública — o valor é atualizado manualmente.'
+                : form.type === 'OTHER'
+                  ? 'Investimentos sem cotação pública (depósitos, PPR…).'
+                  : 'Ticker do Yahoo Finance — inclui o sufixo da bolsa se aplicável.'}
+          </span>
+        </div>
+        <div className="field">
+          <label>Valor atual</label>
+          <div className="input-affix">
+            <input type="text" inputMode="decimal" placeholder="Ex: 1500" value={form.currentValue}
+                   onChange={(e) => setForm({ ...form, currentValue: e.target.value })} />
+            <span className="affix">{cur}</span>
+          </div>
+        </div>
+        <div className="field">
+          <label>Ganho até agora</label>
+          <div className="input-affix">
+            <input type="text" inputMode="decimal" placeholder="Ex: 12.5 ou -8" value={form.gainPercent}
+                   onChange={(e) => setForm({ ...form, gainPercent: e.target.value })} />
+            <span className="affix">%</span>
+          </div>
+          {form.currentValue && form.gainPercent && parseAmount(form.gainPercent) > -100 && (
+            <span className="hint">
+              Investimento inicial ≈ {fmtEur(toEur(parseAmount(form.currentValue)) / (1 + parseAmount(form.gainPercent) / 100))}
+            </span>
+          )}
+        </div>
+        <div className="field full">
+          <label>Reforço mensal automático <span className="dim">(opcional)</span></label>
+          <div className="input-affix">
+            <input type="text" inputMode="decimal" placeholder="Ex: 100" value={form.monthlyContribution}
+                   onChange={(e) => setForm({ ...form, monthlyContribution: e.target.value })} />
+            <span className="affix">{cur}/mês</span>
+          </div>
+          <span className="hint">
+            Adicionado ao investimento no dia escolhido de cada mês (ou com o botão "Simular reforço mensal").
+            Em ativos com cotação, compra unidades ao preço do momento.
+          </span>
+        </div>
+        {parseAmount(form.monthlyContribution) > 0 && (
+          <div className="field full">
+            <label>Dia do mês do reforço</label>
+            <div className="input-affix field-narrow">
+              <input type="number" min="1" max="31" step="1" value={form.contributionDay}
+                     onChange={(e) => setForm({ ...form, contributionDay: e.target.value })} />
+              <span className="affix">do mês</span>
+            </div>
+            <span className="hint">Entre 1 e 31 — em meses mais curtos é aplicado no último dia.</span>
+          </div>
+        )}
+      </div>
+    </Modal>
+
+    <Modal open={!!editing} onClose={() => setEditing(null)} onSubmit={saveEdit} busy={busy}
+           title="Editar investimento"
+           subtitle={editing?.live
+             ? 'Ativo com cotação em tempo real — o valor atual ajusta a tua posição ao preço do momento.'
+             : 'Atualiza o valor atual e a percentagem de ganho.'}
+           footer={
+             <>
+               <button className="btn ghost" onClick={() => setEditing(null)}>Cancelar</button>
+               <button className="btn" onClick={saveEdit} disabled={busy}>{busy ? 'A guardar…' : 'Guardar'}</button>
+             </>
+           }>
+      <div className="form-grid">
+        <div className="field full">
+          <label>Nome</label>
+          <input autoFocus aria-label="Nome" value={editForm.name}
+                 onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
+        </div>
+        <div className="field">
+          <label>Tipo</label>
+          <Dropdown label="Tipo" value={editForm.type} onChange={(type) => setEditForm({ ...editForm, type })}
+                    options={TYPES.map((t) => ({ value: t.id, label: t.label }))} />
+        </div>
+        <div className="field">
+          <label>Símbolo {isManualType(editForm.type) && <span className="dim">(não aplicável)</span>}</label>
+          <input placeholder={editForm.type === 'CRYPTO' ? 'Ex: BTC, ETH' : 'Ex: VWCE.DE, AAPL'}
+                 disabled={isManualType(editForm.type)}
+                 value={isManualType(editForm.type) ? '' : editForm.symbol}
+                 onChange={(e) => setEditForm({ ...editForm, symbol: e.target.value })} />
+          <span className="hint">
+            {editForm.type === 'CRYPTO'
+              ? 'Símbolo da moeda no CoinGecko.'
+              : editForm.type === 'PPR'
+                ? 'Os PPR não têm cotação pública — o valor é atualizado manualmente.'
+                : editForm.type === 'OTHER'
+                  ? 'Investimentos sem cotação pública (depósitos, PPR…).'
+                  : 'Ticker do Yahoo Finance — inclui o sufixo da bolsa se aplicável.'}
+          </span>
+        </div>
+        <div className="field">
+          <label>Valor atual</label>
+          <div className="input-affix">
+            <input type="text" inputMode="decimal" aria-label="Valor atual" value={editForm.currentValue}
+                   onChange={(e) => setEditForm({ ...editForm, currentValue: e.target.value })} />
+            <span className="affix">{cur}</span>
+          </div>
+        </div>
+        <div className="field">
+          <label>Ganho até agora</label>
+          <div className="input-affix">
+            <input type="text" inputMode="decimal" aria-label="Ganho até agora" value={editForm.gainPercent}
+                   onChange={(e) => setEditForm({ ...editForm, gainPercent: e.target.value })} />
+            <span className="affix">%</span>
+          </div>
+          {editForm.currentValue && editForm.gainPercent && parseAmount(editForm.gainPercent) > -100 && (
+            <span className="hint">
+              Investimento inicial ≈ {fmtEur(toEur(parseAmount(editForm.currentValue)) / (1 + parseAmount(editForm.gainPercent) / 100))}
+            </span>
+          )}
+        </div>
+        <div className="field full">
+          <label>Reforço mensal automático <span className="dim">(opcional)</span></label>
+          <div className="input-affix">
+            <input type="text" inputMode="decimal" placeholder="Sem reforço" value={editForm.monthlyContribution}
+                   onChange={(e) => setEditForm({ ...editForm, monthlyContribution: e.target.value })} />
+            <span className="affix">{cur}/mês</span>
+          </div>
+          <span className="hint">Deixa vazio ou 0 para desativar o reforço mensal.</span>
+        </div>
+        {parseAmount(editForm.monthlyContribution) > 0 && (
+          <div className="field full">
+            <label>Dia do mês do reforço</label>
+            <div className="input-affix field-narrow">
+              <input type="number" min="1" max="31" step="1" value={editForm.contributionDay}
+                     onChange={(e) => setEditForm({ ...editForm, contributionDay: e.target.value })} />
+              <span className="affix">do mês</span>
+            </div>
+            <span className="hint">
+              Entre 1 e 31 — em meses mais curtos é aplicado no último dia.
+              Mudar o dia só afeta os próximos reforços; os já aplicados não se repetem.
+            </span>
+          </div>
+        )}
+      </div>
+    </Modal>
+
+    <ConfirmDialog open={!!toDelete} busy={busy}
+                   title="Eliminar investimento?"
+                   message={`"${toDelete?.name}" vai ser removido do portefólio. Esta ação não pode ser anulada.`}
+                   onConfirm={remove} onCancel={() => setToDelete(null)} />
+    </>
+  )
+
+  if (isMobile) {
+    const total = Number(summary.totalCurrent) || 0
+    const spark = (history || []).map((h) => Number(h.value))
+
+    return (
+      <div className="port">
+        {/* ---------- valor atual ---------- */}
+        <section className="card m-hero">
+          <div className="m-hero-top">
+            <span className="eyebrow">Valor atual</span>
+            {liveCount > 0 && (
+              <span className="live-pill"><span className="dot" />ao minuto</span>
+            )}
+          </div>
+          <div className="mono m-hero-value">{fmtEur(summary.totalCurrent)}</div>
+          <div className="m-hero-pills">
+            <span className={`mono pill ${gainPos ? 'pos' : 'neg'}`}>
+              {gainPos ? '+' : '−'}{fmtEur(Math.abs(Number(summary.totalGain)))}
+            </span>
+            <span className={`mono pill ${gainPos ? 'pos' : 'neg'}`}>{fmtPct(summary.totalGainPercent)}</span>
+          </div>
+          {spark.length >= 2 && (
+            <svg className="m-spark" viewBox="0 0 300 80" preserveAspectRatio="none" role="img"
+                 aria-label="Evolução do portefólio">
+              <defs>
+                <linearGradient id="m-pf" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stopColor="var(--accent)" stopOpacity="0.18" />
+                  <stop offset="1" stopColor="var(--accent)" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d={sparkPath(spark, 300, 80, true)} fill="url(#m-pf)" />
+              <path d={sparkPath(spark, 300, 80, false)} fill="none" stroke="var(--accent)"
+                    strokeWidth="2.4" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            </svg>
+          )}
+        </section>
+
+        {/* ---------- ativos ---------- */}
+        <div className="m-listhead">
+          <span>{investments.length} {investments.length === 1 ? 'ativo' : 'ativos'}</span>
+          <button type="button" className="m-link" onClick={simulateDeposits}>Simular reforço</button>
+        </div>
+
+        {investments.length === 0 ? (
+          <div className="card">
+            <div className="empty-state">
+              <div className="empty-icon"><IconCoins size={22} /></div>
+              <h4>Portefólio vazio</h4>
+              <p>Regista os investimentos que já tens com o “+” do cabeçalho.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="card flush">
+            {investments.map((inv) => {
+              const weight = total > 0 ? (Number(inv.currentValue) / total) * 100 : 0
+              const up = Number(inv.gain) >= 0
+              return (
+                <button key={inv.id} type="button" className="m-asset" data-testid="asset-row"
+                        onClick={() => openEdit(inv)}>
+                  <span className="m-asset-code">{assetCode(inv)}</span>
+                  <span className="m-asset-main">
+                    <strong>{inv.name}</strong>
+                    <small className="mono">
+                      {inv.currentPrice != null ? `${fmtEur(inv.currentPrice)} · ` : ''}{weight.toFixed(0)}%
+                    </small>
+                  </span>
+                  <span className="m-asset-num">
+                    <strong className="mono">{fmtEur(inv.currentValue)}</strong>
+                    <small className={`mono ${up ? 'pos' : 'neg'}`}>{fmtPct(inv.gainPercent)}</small>
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {modals}
+      </div>
+    )
+  }
 
   return (
     <div className="port">
@@ -534,178 +820,7 @@ export default function InvestmentsPage() {
         )}
       </section>
 
-      <Modal open={addModal} onClose={() => setAddModal(false)} onSubmit={add} busy={busy}
-             title="Novo investimento"
-             subtitle="Indica quanto vale agora e a % de ganho — calculamos o valor inicial, o lucro e as unidades."
-             footer={
-               <>
-                 <button className="btn ghost" onClick={() => setAddModal(false)}>Cancelar</button>
-                 <button className="btn" onClick={add} disabled={busy}>{busy ? 'A adicionar…' : 'Adicionar'}</button>
-               </>
-             }>
-        <div className="form-grid">
-          <div className="field full">
-            <label>Nome</label>
-            <input placeholder="Ex: MSCI World" autoFocus value={form.name}
-                   onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </div>
-          <div className="field">
-            <label>Tipo</label>
-            <Dropdown label="Tipo" value={form.type} onChange={(type) => setForm({ ...form, type })}
-                      options={TYPES.map((t) => ({ value: t.id, label: t.label }))} />
-          </div>
-          <div className="field">
-            <label>Símbolo {isManualType(form.type) && <span className="dim">(não aplicável)</span>}</label>
-            <input placeholder={form.type === 'CRYPTO' ? 'Ex: BTC, ETH' : 'Ex: VWCE.DE, AAPL'}
-                   disabled={isManualType(form.type)}
-                   value={isManualType(form.type) ? '' : form.symbol}
-                   onChange={(e) => setForm({ ...form, symbol: e.target.value })} />
-            <span className="hint">
-              {form.type === 'CRYPTO'
-                ? 'Símbolo da moeda no CoinGecko.'
-                : form.type === 'PPR'
-                  ? 'Os PPR não têm cotação pública — o valor é atualizado manualmente.'
-                  : form.type === 'OTHER'
-                    ? 'Investimentos sem cotação pública (depósitos, PPR…).'
-                    : 'Ticker do Yahoo Finance — inclui o sufixo da bolsa se aplicável.'}
-            </span>
-          </div>
-          <div className="field">
-            <label>Valor atual</label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" placeholder="Ex: 1500" value={form.currentValue}
-                     onChange={(e) => setForm({ ...form, currentValue: e.target.value })} />
-              <span className="affix">{cur}</span>
-            </div>
-          </div>
-          <div className="field">
-            <label>Ganho até agora</label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" placeholder="Ex: 12.5 ou -8" value={form.gainPercent}
-                     onChange={(e) => setForm({ ...form, gainPercent: e.target.value })} />
-              <span className="affix">%</span>
-            </div>
-            {form.currentValue && form.gainPercent && parseAmount(form.gainPercent) > -100 && (
-              <span className="hint">
-                Investimento inicial ≈ {fmtEur(toEur(parseAmount(form.currentValue)) / (1 + parseAmount(form.gainPercent) / 100))}
-              </span>
-            )}
-          </div>
-          <div className="field full">
-            <label>Reforço mensal automático <span className="dim">(opcional)</span></label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" placeholder="Ex: 100" value={form.monthlyContribution}
-                     onChange={(e) => setForm({ ...form, monthlyContribution: e.target.value })} />
-              <span className="affix">{cur}/mês</span>
-            </div>
-            <span className="hint">
-              Adicionado ao investimento no dia escolhido de cada mês (ou com o botão "Simular reforço mensal").
-              Em ativos com cotação, compra unidades ao preço do momento.
-            </span>
-          </div>
-          {parseAmount(form.monthlyContribution) > 0 && (
-            <div className="field full">
-              <label>Dia do mês do reforço</label>
-              <div className="input-affix field-narrow">
-                <input type="number" min="1" max="31" step="1" value={form.contributionDay}
-                       onChange={(e) => setForm({ ...form, contributionDay: e.target.value })} />
-                <span className="affix">do mês</span>
-              </div>
-              <span className="hint">Entre 1 e 31 — em meses mais curtos é aplicado no último dia.</span>
-            </div>
-          )}
-        </div>
-      </Modal>
-
-      <Modal open={!!editing} onClose={() => setEditing(null)} onSubmit={saveEdit} busy={busy}
-             title="Editar investimento"
-             subtitle={editing?.live
-               ? 'Ativo com cotação em tempo real — o valor atual ajusta a tua posição ao preço do momento.'
-               : 'Atualiza o valor atual e a percentagem de ganho.'}
-             footer={
-               <>
-                 <button className="btn ghost" onClick={() => setEditing(null)}>Cancelar</button>
-                 <button className="btn" onClick={saveEdit} disabled={busy}>{busy ? 'A guardar…' : 'Guardar'}</button>
-               </>
-             }>
-        <div className="form-grid">
-          <div className="field full">
-            <label>Nome</label>
-            <input autoFocus aria-label="Nome" value={editForm.name}
-                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
-          </div>
-          <div className="field">
-            <label>Tipo</label>
-            <Dropdown label="Tipo" value={editForm.type} onChange={(type) => setEditForm({ ...editForm, type })}
-                      options={TYPES.map((t) => ({ value: t.id, label: t.label }))} />
-          </div>
-          <div className="field">
-            <label>Símbolo {isManualType(editForm.type) && <span className="dim">(não aplicável)</span>}</label>
-            <input placeholder={editForm.type === 'CRYPTO' ? 'Ex: BTC, ETH' : 'Ex: VWCE.DE, AAPL'}
-                   disabled={isManualType(editForm.type)}
-                   value={isManualType(editForm.type) ? '' : editForm.symbol}
-                   onChange={(e) => setEditForm({ ...editForm, symbol: e.target.value })} />
-            <span className="hint">
-              {editForm.type === 'CRYPTO'
-                ? 'Símbolo da moeda no CoinGecko.'
-                : editForm.type === 'PPR'
-                  ? 'Os PPR não têm cotação pública — o valor é atualizado manualmente.'
-                  : editForm.type === 'OTHER'
-                    ? 'Investimentos sem cotação pública (depósitos, PPR…).'
-                    : 'Ticker do Yahoo Finance — inclui o sufixo da bolsa se aplicável.'}
-            </span>
-          </div>
-          <div className="field">
-            <label>Valor atual</label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" aria-label="Valor atual" value={editForm.currentValue}
-                     onChange={(e) => setEditForm({ ...editForm, currentValue: e.target.value })} />
-              <span className="affix">{cur}</span>
-            </div>
-          </div>
-          <div className="field">
-            <label>Ganho até agora</label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" aria-label="Ganho até agora" value={editForm.gainPercent}
-                     onChange={(e) => setEditForm({ ...editForm, gainPercent: e.target.value })} />
-              <span className="affix">%</span>
-            </div>
-            {editForm.currentValue && editForm.gainPercent && parseAmount(editForm.gainPercent) > -100 && (
-              <span className="hint">
-                Investimento inicial ≈ {fmtEur(toEur(parseAmount(editForm.currentValue)) / (1 + parseAmount(editForm.gainPercent) / 100))}
-              </span>
-            )}
-          </div>
-          <div className="field full">
-            <label>Reforço mensal automático <span className="dim">(opcional)</span></label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" placeholder="Sem reforço" value={editForm.monthlyContribution}
-                     onChange={(e) => setEditForm({ ...editForm, monthlyContribution: e.target.value })} />
-              <span className="affix">{cur}/mês</span>
-            </div>
-            <span className="hint">Deixa vazio ou 0 para desativar o reforço mensal.</span>
-          </div>
-          {parseAmount(editForm.monthlyContribution) > 0 && (
-            <div className="field full">
-              <label>Dia do mês do reforço</label>
-              <div className="input-affix field-narrow">
-                <input type="number" min="1" max="31" step="1" value={editForm.contributionDay}
-                       onChange={(e) => setEditForm({ ...editForm, contributionDay: e.target.value })} />
-                <span className="affix">do mês</span>
-              </div>
-              <span className="hint">
-                Entre 1 e 31 — em meses mais curtos é aplicado no último dia.
-                Mudar o dia só afeta os próximos reforços; os já aplicados não se repetem.
-              </span>
-            </div>
-          )}
-        </div>
-      </Modal>
-
-      <ConfirmDialog open={!!toDelete} busy={busy}
-                     title="Eliminar investimento?"
-                     message={`"${toDelete?.name}" vai ser removido do portefólio. Esta ação não pode ser anulada.`}
-                     onConfirm={remove} onCancel={() => setToDelete(null)} />
+      {modals}
     </div>
   )
 }

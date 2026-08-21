@@ -578,6 +578,7 @@ td.actions-cell .icon-btn:hover { background: var(--surface-2); border-color: tr
     color: var(--text-faint); white-space: nowrap;
   }
   .tb-title h2 { font-size: 19px; font-weight: 800; letter-spacing: -0.4px; }
+  .topbar { align-items: center; padding-bottom: 11px; }
   .tb-sub { display: none; }
   /* os controlos da barra de topo desktop (mês, moeda, privacidade, ⌘K,
      Adicionar) vivem no Perfil e nos cabeçalhos de cada página em mobile */
@@ -588,6 +589,13 @@ td.actions-cell .icon-btn:hover { background: var(--surface-2); border-color: tr
     background: var(--text); color: var(--bg);
     font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer;
   }
+  /* o "+" a tinta: a única forma de criar em mobile, como no design */
+  .tb-add {
+    display: grid; place-items: center; flex: none;
+    width: 38px; height: 38px; border-radius: 12px; border: none;
+    background: var(--text); color: var(--bg); cursor: pointer;
+  }
+  .tb-add:active { opacity: 0.8; }
   .tb-back { margin-top: 2px; }
 
   /* Segmentos: a sub-navegação de "Dinheiro" e "Crescer".
@@ -939,6 +947,37 @@ tr:last-child td { border-bottom: none; }
 .goal-contribute { display: flex; gap: 7px; margin-top: auto; }
 .goal-contribute .proj-input { flex: 1; min-width: 0; }
 .goal-contribute .proj-input input { width: auto; flex: 1; min-width: 0; }
+
+/* ---------- Objetivos em mobile ---------- */
+
+.m-goal { border-radius: 22px; padding: 18px; }
+.m-goal.done { border-color: var(--green); }
+.m-goal-top { display: flex; gap: 14px; align-items: center; }
+
+.goal-ring { position: relative; width: 78px; height: 78px; flex: none; display: grid; place-items: center; }
+.goal-ring > span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 15px; font-weight: 700; }
+.goal-ring.done { border-radius: 50%; background: var(--green-soft); color: var(--green); }
+
+.m-goal-main { flex: 1; min-width: 0; }
+.m-goal-main .goal-name { font-size: 15px; font-weight: 800; }
+.m-goal-amount { font-size: 17px; font-weight: 700; letter-spacing: -0.6px; margin-top: 4px; white-space: nowrap; }
+.m-goal-amount span { font-size: 12.5px; color: var(--text-faint); }
+.m-goal-note { font-size: 11.5px; font-weight: 600; color: var(--text-faint); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-goal-note.pos { color: var(--green); font-weight: 700; }
+
+.m-goal-actions { display: flex; gap: 8px; margin-top: 14px; }
+.m-goal-actions .proj-input { flex: 1; min-width: 0; height: 44px; border-radius: 14px; }
+.m-goal-actions .proj-input input { flex: 1; width: auto; min-width: 0; font-size: 14px; }
+.m-goal-actions .btn { height: 44px; border-radius: 14px; flex: none; padding: 0 18px; font-size: 13px; }
+
+/* botão primário a tinta — no design é o preto que fecha o cartão, não o indigo */
+.btn.ink { background: var(--text); color: var(--bg); box-shadow: none; }
+.btn.ink:hover { filter: brightness(1.15); }
+
+/* no fluxo, não sobrepostas: em absoluto o nome do objetivo passava-lhes por
+   baixo, e reservar espaço com padding espremia o valor para duas linhas */
+.m-goal-edit { display: flex; flex-direction: column; gap: 2px; flex: none; align-self: flex-start; }
+.m-goal-edit .icon-btn { background: transparent; border-color: transparent; width: 34px; height: 34px; }
 
 @media (max-width: 1100px) { .goals-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 760px) {
@@ -1393,6 +1432,45 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 
 .income-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 
+/* ---------- Rendimento em mobile ---------- */
+
+.m-income-src {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 14px;
+  font-size: 11.5px; font-weight: 700; color: var(--text-faint);
+}
+
+/* barra empilhada: uma fatia por categoria, com a percentagem lá dentro */
+.m-alloc-bar { display: flex; height: 36px; border-radius: 12px; overflow: hidden; gap: 3px; }
+.m-alloc-bar > span {
+  display: grid; place-items: center; min-width: 0; overflow: hidden;
+  transition: flex-grow var(--dur-3) var(--ease-out);
+}
+.m-alloc-bar > span > span { font-size: 11px; font-weight: 700; color: #fff; }
+.m-alloc-bar > span.rest { background: var(--track); }
+
+.m-alloc-list { list-style: none; display: flex; flex-direction: column; gap: 11px; margin-top: 16px; }
+.m-alloc-list li { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; }
+.m-alloc-list li.rest { padding-top: 11px; border-top: 1px solid var(--border); color: var(--text-faint); }
+.m-alloc-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-alloc-list .amber { color: var(--amber); font-weight: 800; }
+.m-alloc-cta { height: 46px; border-radius: 14px; margin-top: 16px; font-size: 13px; }
+
+.m-alloc-row {
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  padding: 12px 14px; text-align: left; cursor: pointer;
+  background: transparent; border: none; border-top: 1px solid var(--border);
+  color: var(--text); font-family: inherit;
+}
+.card.flush > .m-alloc-row:first-child { border-top: none; }
+.m-alloc-row:active { background: var(--surface-2); }
+.m-alloc-main { flex: 1; min-width: 0; }
+.m-alloc-main strong { display: block; font-size: 13.5px; font-weight: 700; }
+.m-alloc-main small { display: block; font-size: 11.5px; color: var(--text-faint); }
+.m-alloc-num { text-align: right; flex: none; }
+.m-alloc-num strong { display: block; font-size: 13.5px; font-weight: 700; }
+.m-alloc-num small { display: block; font-size: 11px; color: var(--text-faint); }
+
 /* Donut com o total ao centro + lista de categorias */
 .donut-wrap { position: relative; }
 .donut-center {
@@ -1628,6 +1706,59 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .proj-chip small { display: block; font-size: 10px; font-weight: 700; color: var(--text-faint); }
 .proj-chip strong { display: block; font-size: 12.5px; font-weight: 700; }
 .proj-chip strong span { font-size: 10.5px; }
+
+/* ---------- Carteira em mobile ---------- */
+
+.m-hero { padding: 20px; border-radius: 22px; }
+.m-hero-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.m-hero-value { font-size: 34px; font-weight: 700; letter-spacing: -1.6px; margin: 9px 0 8px; }
+.m-hero-pills { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.m-hero-pills .pill {
+  padding: 4px 9px; border-radius: 9px;
+  font-size: 11.5px; font-weight: 700;
+}
+.m-hero-pills .pill.pos { background: var(--green-soft); color: var(--green); }
+.m-hero-pills .pill.neg { background: var(--red-soft); color: var(--red); }
+.m-spark { width: 100%; height: 80px; display: block; margin-top: 14px; }
+
+.live-pill {
+  display: inline-flex; align-items: center; gap: 5px; flex: none;
+  height: 24px; padding: 0 9px; border-radius: 8px;
+  background: var(--green-soft); color: var(--green);
+  font-size: 10.5px; font-weight: 700;
+}
+.live-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+.m-listhead {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-size: 12.5px; font-weight: 800; margin-top: 4px;
+}
+.m-link {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: inherit; font-size: 11.5px; font-weight: 700; color: var(--accent-text);
+}
+
+.m-asset {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 12px 14px; text-align: left; cursor: pointer;
+  background: transparent; border: none; border-top: 1px solid var(--border);
+  color: var(--text); font-family: inherit;
+}
+.card.flush > .m-asset:first-child { border-top: none; }
+.m-asset:active { background: var(--surface-2); }
+.m-asset-code {
+  width: 38px; height: 38px; border-radius: 12px; flex: none;
+  padding: 0 2px; text-align: center; line-height: 1.1;
+  display: grid; place-items: center; overflow: hidden;
+  background: var(--accent-soft); color: var(--accent-text);
+  font-family: var(--font-mono); font-size: 9.5px; font-weight: 700;
+}
+.m-asset-main { flex: 1; min-width: 0; }
+.m-asset-main strong { display: block; font-size: 13.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-asset-main small { display: block; font-size: 11.5px; color: var(--text-faint); }
+.m-asset-num { text-align: right; flex: none; }
+.m-asset-num strong { display: block; font-size: 13.5px; font-weight: 700; }
+.m-asset-num small { display: block; font-size: 11.5px; font-weight: 700; }
 
 /* ---------- Tabela de ativos ---------- */
 
@@ -2094,6 +2225,88 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .cal-more { font-size: 9.5px; color: var(--text-faint); font-weight: 700; }
 .cal-sum { margin-top: auto; font-size: 9.5px; font-weight: 700; }
 
+/* ---------- Calendário em mobile ---------- */
+
+.m-cal { border-radius: 20px; padding: 16px; }
+.m-cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.m-cal-head > span { font-size: 13.5px; font-weight: 800; }
+.m-cal-nav { display: flex; gap: 6px; }
+.m-cal-nav button {
+  width: 34px; height: 34px; border-radius: 11px;
+  background: var(--surface-2); border: none; color: var(--text-dim);
+  font-family: inherit; font-size: 16px; line-height: 1; cursor: pointer;
+}
+.m-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; font-size: 11px; text-align: center; }
+.m-cal-wd { color: var(--text-faint); font-weight: 700; }
+.m-cal-day {
+  position: relative;
+  height: 34px; display: grid; place-items: center; border-radius: 10px;
+  background: transparent; border: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text);
+}
+.m-cal-day.in { background: var(--green-soft); color: var(--green); font-weight: 700; }
+.m-cal-day.out { background: var(--red-soft); color: var(--red); font-weight: 700; }
+.m-cal-day.today { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* um dia com entradas E saídas leva um ponto, senão a cor mentia sobre metade */
+.m-cal-both {
+  position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+  width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.6;
+}
+
+.m-cal-forecast { margin-top: 4px; }
+.m-cal-forecast-top { display: flex; justify-content: space-between; font-size: 12.5px; font-weight: 800; }
+.m-cal-forecast-top .mono { color: var(--text-faint); font-weight: 700; }
+.m-cal-forecast-sub { font-size: 11.5px; font-weight: 600; color: var(--text-faint); margin-top: 3px; }
+.m-cal-forecast-sub strong { color: var(--green); }
+
+.m-cal-row {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 13px 15px; text-align: left;
+  background: transparent; border: none; border-top: 1px solid var(--border);
+  color: var(--text); font-family: inherit;
+}
+.card.flush > .m-cal-row:first-child { border-top: none; }
+.m-cal-date { width: 40px; text-align: center; flex: none; }
+.m-cal-date .mono { font-size: 15px; font-weight: 700; line-height: 1; }
+.m-cal-date > div:last-child { font-size: 10px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; }
+.cat-icon.green { background: var(--green-soft); color: var(--green); }
+.cat-icon.red { background: var(--red-soft); color: var(--red); }
+.cat-icon.amber { background: var(--amber-soft); color: var(--amber); }
+
+/* ---------- Conquistas em mobile ---------- */
+
+/* O cartão de nível inverte a superfície (tinta no tema claro, papel no
+   escuro), por isso os tokens de texto normais deixam de servir: o
+   --text-faint dava 3.12:1 sobre a tinta. Aqui os tons são explícitos e
+   escolhidos para cada um dos dois fundos. */
+.m-level {
+  border-radius: 22px; padding: 20px;
+  background: var(--text); color: var(--bg);
+  --level-dim: #5f5b52;   /* sobre o papel do tema escuro: 6.10:1 */
+  --level-accent: #8e6206; /* 4.86:1 */
+}
+:root[data-theme="light"] .m-level {
+  --level-dim: #a29b8d;   /* sobre a tinta do tema claro: 6.55:1 */
+  --level-accent: #f2b23c; /* 9.64:1 */
+}
+.m-level-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.m-level-top .eyebrow { color: var(--level-dim); }
+.m-level-count { font-size: 11.5px; font-weight: 700; color: var(--level-accent); }
+.m-level-head { font-size: 24px; font-weight: 800; letter-spacing: -0.6px; margin: 8px 0 12px; line-height: 1.2; }
+.m-level-track { height: 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.m-level-track { background: rgba(128, 128, 128, 0.28); }
+.m-level-track > span {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--level-accent), var(--cyan));
+}
+
+.m-medals { display: grid; grid-template-columns: 1fr 1fr; gap: 11px; }
+.m-medal { border-radius: 18px; padding: 15px; margin-bottom: 0; }
+/* as bloqueadas ficam esbatidas de propósito (ver a exclusão no axe) */
+.m-medal.locked { opacity: 0.55; }
+.m-medal-title { font-size: 13px; font-weight: 800; margin-top: 9px; }
+.m-medal-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
+
 /* ---------- Agenda (próximos movimentos) ---------- */
 
 .agenda { list-style: none; }
@@ -2313,12 +2526,47 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .tx-amt { font-size: 13px; font-weight: 700; text-align: right; }
 .tx-cat-dot { width: 7px; height: 7px; border-radius: 2px; flex: none; display: inline-block; }
 
+/* ---------- Movimentos em mobile ---------- */
+
+/* dois KPIs, não quatro: o design mostra só o que entrou e o que saiu */
+.m-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.m-kpi { border-radius: 14px; padding: 10px 12px; }
+.m-kpi .eyebrow { font-size: 10px; letter-spacing: 0.08em; }
+.m-kpi .eyebrow.pos { color: var(--green); }
+.m-kpi .eyebrow.neg { color: var(--red); }
+.m-kpi > .mono { font-size: 15.5px; font-weight: 700; letter-spacing: -0.4px; margin-top: 2px; }
+
+/* barra do mês: em mobile vive no conteúdo, não no cabeçalho */
+.m-monthbar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: 13px; padding: 4px;
+}
+.m-monthbar button {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: transparent; border: none; color: var(--text-faint);
+  font-family: inherit; font-size: 17px; line-height: 1; cursor: pointer;
+}
+.m-monthbar button:active { background: var(--surface-2); }
+.m-monthbar > span { font-size: 13px; font-weight: 700; }
+
+/* quadrado da categoria: no design é maior do que na tabela do desktop */
+.cat-icon {
+  width: 36px; height: 36px; border-radius: 12px; flex: none;
+  display: grid; place-items: center;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+}
+
+.m-wide { width: 100%; }
+
 /* ---------- lista por dia (mobile) ---------- */
 
 .tx-days { display: flex; flex-direction: column; gap: 14px; }
 .tx-day {
-  font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--text-faint); margin-bottom: 7px;
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 0 2px;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-faint); margin-bottom: 8px;
 }
 .tx-card-row {
   display: flex; align-items: center; gap: 12px;

@@ -100,6 +100,11 @@ export class MainNav {
     }
 
     if (VIA_PROFILE.includes(label)) {
+      // o avatar só existe no separador "Início" — é de lá que se entra no Perfil
+      if (!(await this.profileButton.isVisible())) {
+        await this.mobileTab('Início').click()
+        await expect(this.profileButton).toBeVisible()
+      }
       await this.profileButton.click()
       if (label === 'Contas') {
         await this.page.getByRole('button', { name: /Contas e importação/ }).click()

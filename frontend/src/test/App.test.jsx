@@ -141,12 +141,14 @@ describe('App / Shell', () => {
     expect(screen.getByText('PÁGINA_PAINEL')).toBeInTheDocument()
   })
 
-  it('o avatar do cabeçalho abre o Perfil, que tem o terminar sessão', async () => {
+  it('o Perfil abre pela sidebar e tem o terminar sessão', async () => {
+    // em desktop o Perfil é um item do grupo "Sistema"; o avatar do cabeçalho
+    // é a porta de entrada em mobile, onde não há sidebar
     useAuth.mockReturnValue(authed)
     const user = userEvent.setup()
-    render(<App />)
+    const { container } = render(<App />)
 
-    await user.click(screen.getByRole('button', { name: 'Perfil e definições' }))
+    await user.click(within(container.querySelector('.nav')).getByRole('button', { name: 'Perfil' }))
     expect(screen.getByText('PÁGINA_PERFIL')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Terminar sessão' }))
