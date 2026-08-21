@@ -3,7 +3,9 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
-import { IconChevronLeft, IconChevronRight, IconPencil, IconPlus, IconPie, IconWallet, IconTrash } from '../components/Icons'
+import { useMonth, fmtMonthShort as fmtMonth } from '../components/MonthContext'
+import { useIntent } from '../components/IntentContext'
+import { IconChevronRight, IconPencil, IconPlus, IconPie, IconWallet, IconTrash } from '../components/Icons'
 
 const COLORS = ['#6366f1', '#22d3ee', '#10b981', '#f59e0b', '#ef4444', '#a78bfa', '#fb923c', '#e879f9']
 
@@ -12,25 +14,6 @@ const EMPTY_ALLOC = { name: '', mode: 'percentage', value: '', color: COLORS[0] 
 // cor de uma categoria: a escolhida pelo utilizador, ou a cor da paleta pela ordem
 const allocColor = (a, i) => a.color || COLORS[i % COLORS.length]
 const EMPTY_ITEM = { name: '', value: '' }
-
-const fmtMonth = (m) => {
-  if (!m) return ''
-  const label = new Date(`${m}-01T00:00:00`).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })
-  return label.charAt(0).toUpperCase() + label.slice(1)
-}
-
-// mês atual (AAAA-MM) e aritmética de meses sobre strings AAAA-MM
-const currentMonth = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-const shiftMonth = (m, delta) => {
-  const [y, mo] = m.split('-').map(Number)
-  const d = new Date(y, mo - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-// quantos meses atrás se pode recuar para introduzir rendimento em falta
-const MONTHS_BACK = 3
 
 function ChartTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -45,6 +28,7 @@ function ChartTooltip({ active, payload }) {
 export default function IncomePage() {
   const toast = useToast()
   const cur = getCurrencySymbol()
+  const { month } = useMonth()
   const [data, setData] = useState(null)
   const [incomeModal, setIncomeModal] = useState(false)
   const [incomeInput, setIncomeInput] = useState('')
@@ -71,8 +55,10 @@ export default function IncomePage() {
     })
 
   useEffect(() => {
-    load().catch(() => toast.error('Erro', 'Não foi possível carregar os dados.'))
-  }, [])
+    setData(null)
+    load(month).catch(() => toast.error('Erro', 'Não foi possível carregar os dados.'))
+  }, [month])
+
 
   const saveIncome = async () => {
     setBusy(true)
@@ -94,6 +80,8 @@ export default function IncomePage() {
     setAllocBaseline(form)
     setAllocModal(true)
   }
+
+  useIntent('newAllocation', openAddAlloc)
 
   const openEditAlloc = (a, i) => {
     const form = {
@@ -203,11 +191,11 @@ export default function IncomePage() {
 
   if (!data) {
     return (
-      <div>
-        <div className="skeleton" style={{ height: 96, marginBottom: 18 }} />
-        <div className="grid grid-2">
-          <div className="skeleton" style={{ height: 320 }} />
-          <div className="skeleton" style={{ height: 320 }} />
+      <div className="income">
+        <div className="skeleton" style={{ height: 84, borderRadius: 20 }} />
+        <div className="income-grid">
+          <div className="skeleton" style={{ height: 320, borderRadius: 20 }} />
+          <div className="skeleton" style={{ height: 320, borderRadius: 20 }} />
         </div>
       </div>
     )
@@ -220,24 +208,6 @@ export default function IncomePage() {
   if (Number(data.unallocated) > 0.005) pieData.push({ name: 'Não alocado', value: Number(data.unallocated), color: COLORS[pieData.length % COLORS.length] })
   const donutTotal = pieData.reduce((s, d) => s + d.value, 0)
 
-  // navegação por meses: conjunto = meses que já têm dados ∪ janela recente
-  // (mês atual e os MONTHS_BACK anteriores, para introduzir rendimento em falta).
-  // Movemo-nos por este conjunto ordenado, sem passar por meses vazios distantes.
-  const now = currentMonth()
-  const backWindow = Array.from({ length: MONTHS_BACK + 1 }, (_, i) => shiftMonth(now, -i))
-  const months = [...new Set([...(data.availableMonths ?? []), ...backWindow, data.month])]
-    .filter((m) => m <= now)   // nunca avançar para além do mês atual
-    .sort()
-  const monthIdx = months.indexOf(data.month)
-  const prevMonth = monthIdx > 0 ? months[monthIdx - 1] : null
-  const nextMonth = monthIdx >= 0 && monthIdx < months.length - 1 ? months[monthIdx + 1] : null
-
-  const goTo = (m) => {
-    if (!m) return
-    setData(null)
-    load(m).catch(() => toast.error('Erro', 'Não foi possível carregar esse mês.'))
-  }
-
   const isPct = allocForm.mode === 'percentage'
   const formValue = parseAmount(allocForm.value) || 0
   const formHint = !formValue ? null
@@ -246,57 +216,32 @@ export default function IncomePage() {
       : (income > 0 ? `≈ ${(formValue / income * 100).toFixed(1)}% do rendimento` : null)
 
   return (
-    <div>
-      <div className="page-head">
-        <div>
-          <h2>Rendimento</h2>
-          <p>Regista o rendimento de cada mês e distribui-o por categorias.</p>
-        </div>
-        <div className="page-actions">
-          <div className="month-nav">
-            <button className="icon-btn" onClick={() => goTo(prevMonth)} disabled={!prevMonth}
-                    aria-label="Mês anterior"
-                    title={prevMonth ? fmtMonth(prevMonth) : `Só podes recuar até ${MONTHS_BACK} meses atrás`}>
-              <IconChevronLeft size={17} />
-            </button>
-            <div className="month-label">
-              <strong>{fmtMonth(data.month)}</strong>
-              {data.current && <span className="badge live">atual</span>}
-            </div>
-            <button className="icon-btn" onClick={() => goTo(nextMonth)} disabled={!nextMonth}
-                    aria-label="Mês seguinte" title={nextMonth ? fmtMonth(nextMonth) : 'Já estás no mês mais recente'}>
-              <IconChevronRight size={17} />
-            </button>
-          </div>
-        </div>
-      </div>
-
+    <div className="income">
       <div className="card income-hero">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span className="stat-icon" style={{ width: 46, height: 46 }}><IconWallet size={22} /></span>
-          <div>
-            <div className="amount">{fmtEur(income)}</div>
-            <div className="caption">Rendimento líquido de {fmtMonth(data.month)}</div>
+        <span className="hero-icon"><IconWallet size={20} /></span>
+        <div className="income-hero-main">
+          <div className="mono amount">{fmtEur(income)}</div>
+          <div className="caption">
+            Rendimento líquido de {fmtMonth(data.month)}
+            {data.copiedFrom && <> · copiado de {fmtMonth(data.copiedFrom)}, ajusta o que for preciso</>}
           </div>
         </div>
+        <span className={`badge ${overAllocated ? 'warn' : 'accent'}`}>{totalPct.toFixed(0)}% alocado</span>
         <button className="btn ghost" onClick={() => { setIncomeInput(income ? fromEur(income) : ''); setIncomeModal(true) }}>
-          <IconPencil size={15} /> Editar
+          <IconPencil size={14} /> Editar rendimento
         </button>
       </div>
 
-      <div className="grid grid-2 income-grid">
+      <div className="income-grid">
         <div className="card income-breakdown">
           <div className="card-header">
             <div>
               <h3>Distribuição</h3>
-              <div className="sub">Como divides o rendimento de {fmtMonth(data.month)}</div>
+              <div className="sub">Percentagem do rendimento ou valor fixo · abre para escrutinar os itens</div>
             </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <span className={`badge ${overAllocated ? 'warn' : 'accent'}`}>{totalPct.toFixed(0)}% alocado</span>
-              <button className="btn small" onClick={openAddAlloc}>
-                <IconPlus size={14} /> Categoria
-              </button>
-            </div>
+            <button className="btn small" onClick={openAddAlloc}>
+              <IconPlus size={14} /> Categoria
+            </button>
           </div>
 
           {data.allocations.length === 0 ? (
@@ -341,10 +286,10 @@ export default function IncomePage() {
                             <span className="row-title">{a.name}</span>
                             {items.length > 0 && <span className="item-count">{items.length}</span>}
                           </td>
-                          <td data-label="% do rendimento" className={a.fixedAmount != null ? 'dim' : ''}>
+                          <td data-label="% do rendimento" className={`mono ${a.fixedAmount != null ? 'dim' : ''}`}>
                             {a.effectivePercentage != null ? `${Number(a.effectivePercentage).toFixed(1)}%` : '—'}
                           </td>
-                          <td data-label="Valor">{fmtEur(a.amount)}</td>
+                          <td data-label="Valor" className="mono">{fmtEur(a.amount)}</td>
                           <td className="actions-cell" style={{ textAlign: 'right' }}>
                             <button className="icon-btn" onClick={() => openEditAlloc(a, i)}
                                     aria-label={`Editar ${a.name}`} title="Editar categoria"><IconPencil size={14} /></button>
@@ -372,7 +317,7 @@ export default function IncomePage() {
                                       <span className="subrow-name" title={it.name}>{it.name}</span>
                                     </div>
                                   </td>
-                                  <td className="subrow-amount">{fmtEur(it.amount)}</td>
+                                  <td className="mono subrow-amount">{fmtEur(it.amount)}</td>
                                   <td className="subrow-actions">
                                     <button className="icon-btn" onClick={() => openEditItem(a, it)}
                                             aria-label={`Editar ${it.name}`}><IconPencil size={13} /></button>
@@ -411,8 +356,8 @@ export default function IncomePage() {
                   })}
                   <tr>
                     <td className="dim">Não alocado</td>
-                    <td data-label="% do rendimento" className="dim">{income > 0 ? `${Math.max(0, 100 - totalPct).toFixed(1)}%` : '—'}</td>
-                    <td data-label="Valor" className={Number(data.unallocated) < 0 ? 'neg' : 'dim'}>{fmtEur(data.unallocated)}</td>
+                    <td data-label="% do rendimento" className="mono dim">{income > 0 ? `${Math.max(0, 100 - totalPct).toFixed(1)}%` : '—'}</td>
+                    <td data-label="Valor" className={`mono ${Number(data.unallocated) < 0 ? 'neg' : 'dim'}`}>{fmtEur(data.unallocated)}</td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -430,7 +375,7 @@ export default function IncomePage() {
           <div className="card-header">
             <div>
               <h3>Visão geral</h3>
-              <div className="sub">Distribuição de {fmtMonth(data.month)}</div>
+              <div className="sub">{fmtMonth(data.month)}</div>
             </div>
           </div>
           {pieData.length === 0 || (income === 0 && Number(data.totalAllocated) === 0) ? (
@@ -452,7 +397,7 @@ export default function IncomePage() {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="donut-center">
-                  <span className="dc-amount">{fmtEur(donutTotal)}</span>
+                  <span className="mono dc-amount">{fmtEur(donutTotal)}</span>
                   <span className="dc-label">{income > 0 ? 'Rendimento' : 'Alocado'}</span>
                 </div>
               </div>
@@ -463,8 +408,8 @@ export default function IncomePage() {
                     <li key={i} className="leg-row">
                       <span className="leg-swatch" style={{ background: d.color }} />
                       <span className="leg-name" title={d.name}>{d.name}</span>
-                      <span className="leg-pct">{pct.toFixed(0)}%</span>
-                      <span className="leg-amount">{fmtEur(d.value)}</span>
+                      <span className="mono leg-pct">{pct.toFixed(0)}%</span>
+                      <span className="mono leg-amount">{fmtEur(d.value)}</span>
                     </li>
                   )
                 })}

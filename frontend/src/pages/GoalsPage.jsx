@@ -2,9 +2,17 @@ import { useEffect, useState } from 'react'
 import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
+import { useIntent } from '../components/IntentContext'
 import { IconCalendar, IconCheck, IconPencil, IconPlus, IconRefresh, IconTarget, IconTrash } from '../components/Icons'
 
 const EMPTY_FORM = { name: '', targetAmount: '', monthlyAllocation: '', savedAmount: '', autoDeposit: false, contributionDay: '1' }
+
+/** Código mono de duas letras para o quadrado do cartão ("Viagem ao Japão" → "VJ"). */
+const goalCode = (name) => {
+  const words = name.split(/\s+/).filter((w) => w.length > 2)
+  const letters = (words.length >= 2 ? words.slice(0, 2) : name.split(/\s+/).slice(0, 2)).map((w) => w[0])
+  return (letters.join('') || name.slice(0, 2)).toUpperCase()
+}
 
 export default function GoalsPage() {
   const toast = useToast()
@@ -19,6 +27,8 @@ export default function GoalsPage() {
   const [busy, setBusy] = useState(false)
 
   const load = () => api.getGoals().then(setGoals)
+
+  useIntent('newGoal', () => setAddModal(true))
 
   useEffect(() => {
     load().catch(() => toast.error('Erro', 'Não foi possível carregar os objetivos.'))
@@ -127,7 +137,7 @@ export default function GoalsPage() {
   if (!goals) {
     return (
       <div className="goals-grid">
-        {[0, 1].map((i) => <div key={i} className="skeleton" style={{ height: 210 }} />)}
+        {[0, 1, 2].map((i) => <div key={i} className="skeleton" style={{ height: 210, borderRadius: 20 }} />)}
       </div>
     )
   }
@@ -145,17 +155,17 @@ export default function GoalsPage() {
   }
 
   return (
-    <div>
-      <div className="page-head">
-        <div>
-          <h2>Objetivos</h2>
-          <p>Define metas de poupança e acompanha o teu progresso.</p>
-        </div>
+    <div className="goals">
+      <div className="goals-head">
+        <p className="dim">
+          Metas de poupança · o depósito automático corre no dia escolhido de cada mês
+        </p>
         <div className="page-actions">
-          <button className="btn ghost" onClick={simulateDeposits} title="Aplica já a alocação mensal dos objetivos com depósito automático">
-            <IconRefresh size={15} /> Simular depósito mensal
+          <button className="btn ghost" onClick={simulateDeposits}
+                  title="Aplica já a alocação mensal dos objetivos com depósito automático">
+            <IconRefresh size={14} /> Simular depósito mensal
           </button>
-          <button className="btn" onClick={() => setAddModal(true)}><IconPlus size={15} /> Novo objetivo</button>
+          <button className="btn" onClick={() => setAddModal(true)}><IconPlus size={14} /> Novo objetivo</button>
         </div>
       </div>
 
@@ -173,28 +183,22 @@ export default function GoalsPage() {
           {goals.map((g) => {
             const done = Number(g.progressPercent) >= 100
             return (
-              <div className="card goal-card" key={g.id}>
+              <div className="card goal-card" key={g.id} data-testid="goal-card">
                 <div className="goal-top">
-                  <div className="goal-title">
-                    <span className={`goal-emoji ${done ? 'done' : ''}`}>
-                      {done ? <IconCheck size={19} /> : <IconTarget size={19} />}
-                    </span>
-                    {g.name}
-                  </div>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <button className="icon-btn" onClick={() => openEdit(g)} aria-label="Editar" title="Editar">
-                      <IconPencil size={16} />
-                    </button>
-                    <button className="icon-btn danger" onClick={() => setToDelete(g)} aria-label="Eliminar"><IconTrash size={15} /></button>
-                  </div>
+                  <span className={`code-chip ${done ? 'green' : 'accent'}`}>{goalCode(g.name)}</span>
+                  <span className="goal-name">{g.name}</span>
+                  <span className="event-actions">
+                    <button className="icon-btn" onClick={() => openEdit(g)} aria-label={`Editar ${g.name}`}><IconPencil size={14} /></button>
+                    <button className="icon-btn danger" onClick={() => setToDelete(g)} aria-label={`Eliminar ${g.name}`}><IconTrash size={14} /></button>
+                  </span>
                 </div>
 
                 <div>
                   <div className="goal-amounts">
-                    <span className="big">{fmtEur(g.savedAmount)}</span>
+                    <span className="mono big">{fmtEur(g.savedAmount)}</span>
                     <span className="of">de {fmtEur(g.targetAmount)} · {Number(g.progressPercent).toFixed(1)}%</span>
                   </div>
-                  <div className="progress-track" style={{ marginTop: 9 }}>
+                  <div className="progress-track">
                     <div className={`progress-fill ${done ? 'done' : ''}`}
                          style={{ width: `${Math.min(100, g.progressPercent)}%` }} />
                   </div>
@@ -208,7 +212,7 @@ export default function GoalsPage() {
                   ) : (
                     <>
                       {g.monthsRemaining != null && (
-                        <span className="badge">{g.monthsRemaining} {g.monthsRemaining === 1 ? 'mês' : 'meses'} restantes</span>
+                        <span className="badge">{g.monthsRemaining} {g.monthsRemaining === 1 ? 'mês' : 'meses'}</span>
                       )}
                       {g.estimatedDate && (
                         <span className="badge"><IconCalendar size={12} /> {new Date(g.estimatedDate).toLocaleDateString('pt-PT', { month: 'short', year: 'numeric' })}</span>
@@ -219,16 +223,15 @@ export default function GoalsPage() {
 
                 {!done && (
                   <div className="goal-contribute">
-                    <div className="input-affix">
-                      <input type="text" inputMode="decimal" enterKeyHint="done" placeholder="Valor"
+                    <div className="proj-input">
+                      <input className="mono" type="text" inputMode="decimal" enterKeyHint="done" placeholder="Valor"
+                             aria-label={`Contribuir para ${g.name}`}
                              value={contrib[g.id] ?? ''}
                              onChange={(e) => setContrib({ ...contrib, [g.id]: e.target.value })}
                              onKeyDown={(e) => e.key === 'Enter' && contribute(g)} />
-                      <span className="affix">{cur}</span>
+                      <span>{cur}</span>
                     </div>
-                    <button className="btn small ghost" onClick={() => contribute(g)}>
-                      <IconPlus size={13} /> Contribuir
-                    </button>
+                    <button className="btn ghost small" onClick={() => contribute(g)}>Contribuir</button>
                   </div>
                 )}
               </div>

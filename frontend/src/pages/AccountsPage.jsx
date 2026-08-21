@@ -35,13 +35,13 @@ export default function AccountsPage() {
     api.getCategoryRules().then(setRules).catch(() => {})
   }, [])
 
-  useIntent('newAccount', () => openAdd())
-
   const openAdd = () => { setEditing(null); setAccountModal(true) }
   const openEdit = (a) => {
     setEditing({ ...a, balanceInput: a.currentBalance != null ? String(fromEur(a.currentBalance)) : '' })
     setAccountModal(true)
   }
+
+  useIntent('newAccount', openAdd)
 
   const save = async (form) => {
     const problem = validateAccount(form)

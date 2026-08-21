@@ -5,6 +5,7 @@ import Modal, { ConfirmDialog } from '../components/Modal'
 import Dropdown from '../components/Dropdown'
 import { useChartColors } from '../components/ThemeContext'
 import { useToast } from '../components/Toast'
+import { useIntent } from '../components/IntentContext'
 import { IconCoins, IconPencil, IconPlus, IconRefresh, IconTrendingUp, IconWallet, IconSparkle, IconTrash } from '../components/Icons'
 
 const RANGES = [
@@ -103,6 +104,8 @@ export default function InvestmentsPage() {
   const [projection, setProjection] = useState(null)
 
   const load = useCallback(() => api.getInvestments().then(setPortfolio), [])
+
+  useIntent('newInvestment', () => setAddModal(true))
 
   useEffect(() => {
     load().catch(() => toast.error('Erro', 'Não foi possível carregar os investimentos.'))
@@ -240,11 +243,11 @@ export default function InvestmentsPage() {
   if (!portfolio) {
     return (
       <div>
-        <div className="grid grid-4" style={{ marginBottom: 18 }}>
-          {[0, 1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 110 }} />)}
+        <div className="mini-kpis" style={{ marginBottom: 11 }}>
+          {[0, 1, 2, 3].map((i) => <div key={i} className="skeleton" style={{ height: 66, borderRadius: 14 }} />)}
         </div>
-        <div className="skeleton" style={{ height: 340, marginBottom: 18 }} />
-        <div className="skeleton" style={{ height: 220 }} />
+        <div className="skeleton" style={{ height: 340, marginBottom: 16, borderRadius: 20 }} />
+        <div className="skeleton" style={{ height: 220, borderRadius: 20 }} />
       </div>
     )
   }
@@ -255,239 +258,233 @@ export default function InvestmentsPage() {
   const liveCount = investments.filter((i) => i.live).length
 
   return (
-    <div>
-      <div className="page-head">
-        <div>
-          <h2>Investimentos</h2>
-          <p>{investments.length} {investments.length === 1 ? 'ativo' : 'ativos'} · {liveCount} com cotação em tempo real</p>
+    <div className="port">
+      {/* ---------- resumo + ações ---------- */}
+      <div className="port-top">
+        <div className="mini-kpis">
+          <div className="card mini-kpi">
+            <span className="eyebrow">Investido</span>
+            <div className="mono">{fmtEur(summary.totalInvested)}</div>
+          </div>
+          <div className="card mini-kpi">
+            <span className="eyebrow">Valor atual</span>
+            <div className="mono">{fmtEur(summary.totalCurrent)}</div>
+          </div>
+          <div className="card mini-kpi">
+            <span className="eyebrow">Ganho</span>
+            <div className={`mono ${gainCls}`}>{fmtEur(summary.totalGain)}</div>
+          </div>
+          <div className="card mini-kpi">
+            <span className="eyebrow">Rentabilidade</span>
+            <div className={`mono ${gainCls}`}>{fmtPct(summary.totalGainPercent)}</div>
+          </div>
         </div>
-        <div className="page-actions">
-          <button className={`icon-btn ${refreshing ? 'spin' : ''}`} onClick={refresh} aria-label="Atualizar cotações" title="Atualizar cotações">
-            <IconRefresh size={17} />
+        <div className="port-actions">
+          <button className={`icon-btn ${refreshing ? 'spin' : ''}`} onClick={refresh}
+                  aria-label="Atualizar cotações" title="Atualizar cotações">
+            <IconRefresh size={16} />
           </button>
-          <button className="btn ghost" onClick={simulateDeposits} title="Aplica já os reforços mensais definidos nos investimentos">
+          <button className="btn ghost" onClick={simulateDeposits}
+                  title="Aplica já os reforços mensais definidos nos investimentos">
             Simular reforço mensal
           </button>
-          <button className="btn" onClick={() => setAddModal(true)}><IconPlus size={15} /> Novo investimento</button>
         </div>
       </div>
 
-      <div className="grid grid-4" style={{ marginBottom: 18 }}>
-        <div className="stat-card">
-          <div className="stat-top">
-            <span className="stat-label">Investido</span>
-            <span className="stat-icon"><IconWallet size={17} /></span>
+      <div className="port-charts">
+        {/* ---------- evolução ---------- */}
+        <section className="card">
+          <div className="card-header">
+            <div>
+              <h3>Evolução do portefólio</h3>
+              <div className="sub">Ativos com cotação pública · {liveCount} live</div>
+            </div>
+            <div className="seg-pills" role="group" aria-label="Janela do gráfico">
+              {RANGES.map((r) => (
+                <button key={r.id} className={range === r.id ? 'active' : ''}
+                        aria-pressed={range === r.id} onClick={() => setRange(r.id)}>
+                  {r.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="stat-value">{fmtEur(summary.totalInvested)}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-top">
-            <span className="stat-label">Valor atual</span>
-            <span className="stat-icon cyan"><IconCoins size={17} /></span>
-          </div>
-          <div className="stat-value">{fmtEur(summary.totalCurrent)}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-top">
-            <span className="stat-label">Ganho</span>
-            <span className={`stat-icon ${gainPos ? 'green' : 'red'}`}><IconTrendingUp size={17} /></span>
-          </div>
-          <div className={`stat-value ${gainCls}`}>{fmtEur(summary.totalGain)}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-top">
-            <span className="stat-label">Rentabilidade</span>
-            <span className={`stat-icon ${gainPos ? 'green' : 'red'}`}><IconSparkle size={17} /></span>
-          </div>
-          <div className={`stat-value ${gainCls}`}>{fmtPct(summary.totalGainPercent)}</div>
-        </div>
-      </div>
+          {history === null ? (
+            <div className="skeleton" style={{ height: 190 }} />
+          ) : history.length === 0 ? (
+            <div className="empty-state compact">
+              <div className="empty-icon"><IconTrendingUp size={22} /></div>
+              <h4>Sem histórico</h4>
+              <p>Adiciona investimentos com símbolo (ex: VWCE.DE, AAPL, BTC) para veres a evolução.</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={190}>
+              <AreaChart data={history.map((p) => ({ ...p, value: Number(p.value) }))}
+                         margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="pf-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.34} />
+                    <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="date" stroke={chart.axis} fontSize={10} tickMargin={8} axisLine={false} tickLine={false}
+                       minTickGap={40}
+                       tickFormatter={(d) => new Date(d).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })} />
+                <YAxis stroke={chart.axis} fontSize={10} axisLine={false} tickLine={false} width={62}
+                       tickFormatter={fmtMoneyShort} domain={['auto', 'auto']} />
+                <Tooltip content={<ChartTooltip />} />
+                <Area type="monotone" dataKey="value" stroke="var(--accent)" strokeWidth={2.2} fill="url(#pf-grad)"
+                      activeDot={{ r: 4, strokeWidth: 0 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </section>
 
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h3>Evolução do portefólio</h3>
-            <div className="sub">Valor total dos ativos com cotação pública, em euros</div>
+        {/* ---------- projeção ---------- */}
+        <section className="card">
+          <div className="card-header">
+            <div>
+              <h3>Projeção do portefólio</h3>
+              <div className="sub">Cenários deliberadamente conservadores</div>
+            </div>
+            <div className="seg-pills wrap" role="group" aria-label="Tipo de ativo">
+              {[{ id: 'all', label: 'Tudo' }, ...TYPES].map((t) => (
+                <button key={t.id} className={`sans ${projType === t.id ? 'active' : ''}`}
+                        aria-pressed={projType === t.id}
+                        onClick={() => setProjType(t.id)} title={t.id === 'all' ? 'Todos os ativos' : `Só ${t.label}`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="range-buttons">
-            {RANGES.map((r) => (
-              <button key={r.id} className={range === r.id ? 'active' : ''} onClick={() => setRange(r.id)}>
-                {r.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {history === null ? (
-          <div className="skeleton" style={{ height: 270 }} />
-        ) : history.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon"><IconTrendingUp size={24} /></div>
-            <h4>Sem histórico</h4>
-            <p>Adiciona investimentos com símbolo (ex: VWCE.DE, AAPL, BTC) para veres a evolução do portefólio.</p>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height={270}>
-            <AreaChart data={history.map((p) => ({ ...p, value: Number(p.value) }))}
-                       margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.32} />
-                  <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="date" stroke={chart.axis} fontSize={11.5} tickMargin={10} axisLine={false} tickLine={false}
-                     tickFormatter={(d) => new Date(d).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })} />
-              <YAxis stroke={chart.axis} fontSize={11.5} axisLine={false} tickLine={false} width={72}
-                     tickFormatter={fmtMoneyShort} domain={['auto', 'auto']} />
-              <Tooltip content={<ChartTooltip />} />
-              <Area type="monotone" dataKey="value" stroke="#6366f1" strokeWidth={2.2} fill="url(#grad)"
-                    activeDot={{ r: 4, strokeWidth: 0 }} />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </div>
 
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <h3>Projeção do portefólio</h3>
-            <div className="sub">Cenários deliberadamente conservadores — abaixo da média histórica dos mercados</div>
-          </div>
-          <div className="range-buttons">
-            {[{ id: 'all', label: 'Tudo' }, ...TYPES].map((t) => (
-              <button key={t.id} className={projType === t.id ? 'active' : ''}
-                      onClick={() => setProjType(t.id)} title={t.id === 'all' ? 'Todos os ativos' : `Só ${t.label}`}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="proj-panel">
-          <div className="proj-field">
-            <label>Horizonte</label>
-            <div className="proj-row">
-              <div className="input-affix" style={{ width: 76 }}>
-                <input type="number" min="1" max={projUnit === 'anos' ? 50 : 600} value={projHorizon}
-                       onChange={(e) => setProjHorizon(e.target.value)}
+          <div className="proj-panel">
+            <div className="proj-field">
+              <span className="eyebrow">Horizonte</span>
+              <div className="proj-row">
+                <input className="mono proj-num" type="number" min="1" max={projUnit === 'anos' ? 50 : 600}
+                       value={projHorizon} onChange={(e) => setProjHorizon(e.target.value)}
                        onKeyDown={(e) => e.key === 'Enter' && applyProjection()} aria-label="Horizonte" />
+                <div className="seg-pills">
+                  <button type="button" className={`sans ${projUnit === 'meses' ? 'active' : ''}`} onClick={() => setProjUnit('meses')}>Meses</button>
+                  <button type="button" className={`sans ${projUnit === 'anos' ? 'active' : ''}`} onClick={() => setProjUnit('anos')}>Anos</button>
+                </div>
               </div>
-              <div className="mode-toggle compact">
-                <button type="button" className={projUnit === 'meses' ? 'active' : ''} onClick={() => setProjUnit('meses')}>Meses</button>
-                <button type="button" className={projUnit === 'anos' ? 'active' : ''} onClick={() => setProjUnit('anos')}>Anos</button>
+            </div>
+            <div className="proj-field">
+              <span className="eyebrow">Reforço mensal</span>
+              <div className="proj-input">
+                <input className="mono" type="text" inputMode="decimal" enterKeyHint="done" placeholder="0"
+                       value={projMonthly} onChange={(e) => setProjMonthly(e.target.value)}
+                       onKeyDown={(e) => e.key === 'Enter' && applyProjection()} aria-label="Reforço mensal" />
+                <span>{cur}/mês</span>
               </div>
             </div>
-          </div>
-          <div className="proj-field">
-            <label>Reforço mensal <span className="dim">(opcional)</span></label>
-            <div className="input-affix wide" style={{ width: 140 }}>
-              <input type="text" inputMode="decimal" enterKeyHint="done" placeholder="0" value={projMonthly}
-                     onChange={(e) => setProjMonthly(e.target.value)}
-                     onKeyDown={(e) => e.key === 'Enter' && applyProjection()} aria-label="Reforço mensal" />
-              <span className="affix">{cur}/mês</span>
+            <div className="proj-field">
+              <span className="eyebrow">Taxa própria</span>
+              <div className="proj-input">
+                <input className="mono" type="text" inputMode="decimal" enterKeyHint="done" placeholder="ex: 7"
+                       value={projRate} onChange={(e) => setProjRate(e.target.value)}
+                       onKeyDown={(e) => e.key === 'Enter' && applyProjection()} aria-label="Taxa personalizada" />
+                <span>%/ano</span>
+              </div>
             </div>
+            <button className="icon-btn on" onClick={applyProjection}
+                    aria-label="Atualizar projeção" title="Atualizar projeção">
+              <IconRefresh size={16} />
+            </button>
           </div>
-          <div className="proj-field">
-            <label>Taxa própria <span className="dim">(opcional)</span></label>
-            <div className="input-affix wide" style={{ width: 130 }}>
-              <input type="text" inputMode="decimal" enterKeyHint="done" placeholder="ex: 7" value={projRate}
-                     onChange={(e) => setProjRate(e.target.value)}
-                     onKeyDown={(e) => e.key === 'Enter' && applyProjection()} aria-label="Taxa personalizada" />
-              <span className="affix">%/ano</span>
-            </div>
-          </div>
-          <button className="icon-btn primary" onClick={applyProjection}
-                  aria-label="Atualizar projeção" title="Atualizar projeção">
-            <IconRefresh size={17} />
-          </button>
-        </div>
 
-        {!projection || Number(projection.totalContributed) === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon"><IconSparkle size={24} /></div>
-            <h4>Nada para projetar</h4>
-            <p>{projType === 'all'
-              ? 'Adiciona investimentos ou define um reforço mensal para veres a projeção.'
-              : `Não tens investimentos do tipo "${typeLabel(projType)}" — muda o filtro ou adiciona um.`}</p>
-          </div>
-        ) : (() => {
-          const chartData = projection.scenarios[0].points.map((p, i) => {
-            const row = { month: p.month }
-            projection.scenarios.forEach((s) => { row[s.id] = Number(s.points[i].value) })
-            return row
-          })
-          const longHorizon = projection.months > 24
-          // em horizontes longos, um tick por ano (janeiro) evita anos repetidos no eixo
-          const yearTicks = longHorizon
-            ? chartData.filter((r) => projectionDate(r.month).getMonth() === 0).map((r) => r.month)
-            : undefined
-          // chips ordenados do cenário mais otimista para o mais pessimista
-          const sortedScenarios = [...projection.scenarios]
-            .sort((a, b) => b.annualRatePercent - a.annualRatePercent)
-          return (
-            <>
-              <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke={chart.grid} strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="month" stroke={chart.axis} fontSize={11.5} tickMargin={10}
-                         axisLine={false} tickLine={false} minTickGap={48} ticks={yearTicks}
-                         tickFormatter={(m) => longHorizon
-                           ? projectionDate(m).getFullYear()
-                           : projectionDate(m).toLocaleDateString('pt-PT', { month: 'short', year: '2-digit' })} />
-                  <YAxis stroke={chart.axis} fontSize={11.5} axisLine={false} tickLine={false} width={78}
-                         tickFormatter={fmtMoneyShort}
-                         domain={['auto', 'auto']} />
-                  <Tooltip content={<ProjectionTooltip />} />
-                  {projection.scenarios.map((s) => {
+          {!projection || Number(projection.totalContributed) === 0 ? (
+            <div className="empty-state compact">
+              <div className="empty-icon"><IconSparkle size={22} /></div>
+              <h4>Nada para projetar</h4>
+              <p>{projType === 'all'
+                ? 'Adiciona investimentos ou define um reforço mensal para veres a projeção.'
+                : `Não tens investimentos do tipo "${typeLabel(projType)}" — muda o filtro ou adiciona um.`}</p>
+            </div>
+          ) : (() => {
+            const chartData = projection.scenarios[0].points.map((p, i) => {
+              const row = { month: p.month }
+              projection.scenarios.forEach((s) => { row[s.id] = Number(s.points[i].value) })
+              return row
+            })
+            const longHorizon = projection.months > 24
+            // em horizontes longos, um tick por ano (janeiro) evita anos repetidos no eixo
+            const yearTicks = longHorizon
+              ? chartData.filter((r) => projectionDate(r.month).getMonth() === 0).map((r) => r.month)
+              : undefined
+            // chips ordenados do cenário mais otimista para o mais pessimista
+            const sortedScenarios = [...projection.scenarios]
+              .sort((a, b) => b.annualRatePercent - a.annualRatePercent)
+            return (
+              <>
+                <ResponsiveContainer width="100%" height={172}>
+                  <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                    <XAxis dataKey="month" stroke={chart.axis} fontSize={10} tickMargin={8}
+                           axisLine={false} tickLine={false} minTickGap={48} ticks={yearTicks}
+                           tickFormatter={(m) => longHorizon
+                             ? projectionDate(m).getFullYear()
+                             : projectionDate(m).toLocaleDateString('pt-PT', { month: 'short', year: '2-digit' })} />
+                    <YAxis stroke={chart.axis} fontSize={10} axisLine={false} tickLine={false} width={66}
+                           tickFormatter={fmtMoneyShort} domain={['auto', 'auto']} />
+                    <Tooltip content={<ProjectionTooltip />} />
+                    {projection.scenarios.map((s) => {
+                      const meta = scenarioMeta(s.id)
+                      return (
+                        <Line key={s.id} type="monotone" dataKey={s.id} stroke={meta.color} strokeWidth={2}
+                              dot={false} strokeDasharray={meta.dashed ? '5 4' : undefined}
+                              activeDot={{ r: 3.5, strokeWidth: 0 }} />
+                      )
+                    })}
+                  </LineChart>
+                </ResponsiveContainer>
+
+                <div className="proj-legend">
+                  {sortedScenarios.map((s) => {
                     const meta = scenarioMeta(s.id)
+                    const diff = Number(s.finalValue) - Number(projection.totalContributed)
                     return (
-                      <Line key={s.id} type="monotone" dataKey={s.id} stroke={meta.color} strokeWidth={2}
-                            dot={false} strokeDasharray={meta.dashed ? '5 4' : undefined}
-                            activeDot={{ r: 3.5, strokeWidth: 0 }} />
+                      <div key={s.id} className="proj-chip">
+                        <span className="proj-dot" style={{ background: meta.color }} />
+                        <div>
+                          <small>{meta.label} ({fmtRate(s.annualRatePercent)})</small>
+                          <strong className="mono">
+                            {fmtEur(s.finalValue)}
+                            {s.id !== 'investido' && (
+                              <span className={diff >= 0 ? 'pos' : 'neg'}>
+                                {' '}{diff >= 0 ? '+' : '−'}{fmtEur(Math.abs(diff))}
+                              </span>
+                            )}
+                          </strong>
+                        </div>
+                      </div>
                     )
                   })}
-                </LineChart>
-              </ResponsiveContainer>
-
-              <div className="proj-legend">
-                {sortedScenarios.map((s) => {
-                  const meta = scenarioMeta(s.id)
-                  const diff = Number(s.finalValue) - Number(projection.totalContributed)
-                  return (
-                    <div key={s.id} className="proj-chip">
-                      <span className="alloc-color" style={{ background: meta.color }} />
-                      <div>
-                        <small>{meta.label} ({fmtRate(s.annualRatePercent)})</small>
-                        <strong>{fmtEur(s.finalValue)}</strong>
-                        {s.id !== 'investido' && (
-                          <span className={diff >= 0 ? 'pos' : 'neg'}>
-                            {diff >= 0 ? '+' : '−'}{fmtEur(Math.abs(diff))}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              <p className="hint" style={{ marginTop: 12 }}>
-                Projeção simulada com juros compostos mensais a partir de {fmtEur(projection.startValue)} atuais
-                {projType !== 'all' && <> em {typeLabel(projType)}</>}
-                {Number(projection.monthlyContribution) > 0 && <> e reforços de {fmtEur(projection.monthlyContribution)}/mês</>}.
-                Cenários base propositadamente pessimistas; retornos reais podem ser melhores ou piores. Não é aconselhamento financeiro.
-              </p>
-            </>
-          )
-        })()}
+                </div>
+                <p className="hint" style={{ marginTop: 12 }}>
+                  Projeção simulada com juros compostos mensais a partir de {fmtEur(projection.startValue)} atuais
+                  {projType !== 'all' && <> em {typeLabel(projType)}</>}
+                  {Number(projection.monthlyContribution) > 0 && <> e reforços de {fmtEur(projection.monthlyContribution)}/mês</>}.
+                  Cenários base propositadamente pessimistas; retornos reais podem ser melhores ou piores. Não é aconselhamento financeiro.
+                </p>
+              </>
+            )
+          })()}
+        </section>
       </div>
 
-      <div className="card">
+      {/* ---------- os meus ativos ---------- */}
+      <section className="card">
         <div className="card-header">
           <div>
             <h3>Os meus ativos</h3>
-            <div className="sub">Cotações atualizadas ao minuto e convertidas para a moeda base</div>
+            <div className="sub">Cotações convertidas para a moeda base</div>
           </div>
+          <button className="btn small" onClick={() => setAddModal(true)}>
+            <IconPlus size={14} /> Novo investimento
+          </button>
         </div>
+
         {investments.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon"><IconCoins size={24} /></div>
@@ -496,49 +493,44 @@ export default function InvestmentsPage() {
             <button className="btn" onClick={() => setAddModal(true)}><IconPlus size={15} /> Adicionar o primeiro</button>
           </div>
         ) : (
-          <div className="table-wrap">
-            <table className="responsive">
-              <thead>
-                <tr>
-                  <th>Ativo</th><th>Tipo</th><th>Preço</th><th>Investido</th>
-                  <th>Valor atual</th><th>Ganho</th><th>%</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {investments.map((inv) => {
-                  const cls = Number(inv.gain) >= 0 ? 'pos' : 'neg'
-                  return (
-                    <tr key={inv.id}>
-                      <td>
-                        <div className="row-title">{inv.name} <span className={`badge ${inv.live ? 'live' : ''}`} style={{ marginLeft: 6 }}>{inv.live ? '● live' : 'manual'}</span></div>
-                        {(inv.symbol || inv.monthlyContribution) && (
-                          <div className="row-sub">
-                            {inv.symbol}
-                            {inv.symbol && inv.monthlyContribution && ' · '}
-                            {inv.monthlyContribution && `+${fmtEur(inv.monthlyContribution)}/mês · dia ${inv.contributionDay ?? 1}`}
-                          </div>
-                        )}
-                      </td>
-                      <td data-label="Tipo"><span className="type-chip">{typeLabel(inv.type)}</span></td>
-                      <td data-label="Preço">{fmtEur(inv.currentPrice)}</td>
-                      <td data-label="Investido">{fmtEur(inv.initialValue)}</td>
-                      <td data-label="Valor atual" className="row-title">{fmtEur(inv.currentValue)}</td>
-                      <td data-label="Ganho" className={cls}>{fmtEur(inv.gain)}</td>
-                      <td data-label="Rentabilidade" className={cls}>{fmtPct(inv.gainPercent)}</td>
-                      <td className="actions-cell" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                        <button className="icon-btn" onClick={() => openEdit(inv)} aria-label="Editar" title="Editar">
-                          <IconPencil size={16} />
-                        </button>
-                        <button className="icon-btn danger" onClick={() => setToDelete(inv)} aria-label="Eliminar" title="Eliminar"><IconTrash size={15} /></button>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div className="asset-table">
+            <div className="asset-head desktop-only">
+              <span>Ativo</span><span>Tipo</span>
+              <span className="right">Preço</span><span className="right">Investido</span>
+              <span className="right">Valor atual</span><span className="right">Ganho</span>
+              <span className="right">%</span><span />
+            </div>
+            {investments.map((inv) => {
+              const cls = Number(inv.gain) >= 0 ? 'pos' : 'neg'
+              return (
+                <div key={inv.id} className="asset-row" data-testid="asset-row">
+                  <div className="asset-name">
+                    <div className="asset-title">
+                      <strong>{inv.name}</strong>
+                      <span className={`badge ${inv.live ? 'live' : ''}`}>{inv.live ? '● live' : 'manual'}</span>
+                    </div>
+                    <div className="mono asset-sub">
+                      {inv.symbol}
+                      {inv.symbol && inv.monthlyContribution && ' · '}
+                      {inv.monthlyContribution && `+${fmtEur(inv.monthlyContribution)}/mês · dia ${inv.contributionDay ?? 1}`}
+                    </div>
+                  </div>
+                  <span className="type-chip">{typeLabel(inv.type)}</span>
+                  <span className="mono right dim" data-label="Preço">{fmtEur(inv.currentPrice)}</span>
+                  <span className="mono right dim" data-label="Investido">{fmtEur(inv.initialValue)}</span>
+                  <span className="mono right strong" data-label="Valor atual">{fmtEur(inv.currentValue)}</span>
+                  <span className={`mono right ${cls}`} data-label="Ganho">{fmtEur(inv.gain)}</span>
+                  <span className={`mono right ${cls}`} data-label="Rentabilidade">{fmtPct(inv.gainPercent)}</span>
+                  <span className="event-actions">
+                    <button className="icon-btn" onClick={() => openEdit(inv)} aria-label={`Editar ${inv.name}`}><IconPencil size={14} /></button>
+                    <button className="icon-btn danger" onClick={() => setToDelete(inv)} aria-label={`Eliminar ${inv.name}`}><IconTrash size={14} /></button>
+                  </span>
+                </div>
+              )
+            })}
           </div>
         )}
-      </div>
+      </section>
 
       <Modal open={addModal} onClose={() => setAddModal(false)} onSubmit={add} busy={busy}
              title="Novo investimento"

@@ -82,8 +82,6 @@ export default function ExpensesPage() {
 
   useEffect(() => { loadCategories().catch(() => {}) }, [])
 
-  useIntent('newTransaction', () => openTxAdd())
-
   // opções de categoria para os seletores: por omissão + personalizadas
   const catOptions = useMemo(() => [
     ...DEFAULT_CATEGORIES.map((c) => ({ value: c, label: catLabel(c) })),
@@ -166,6 +164,8 @@ export default function ExpensesPage() {
     setTxForm({ ...EMPTY_TX, accountId: accountFilter || String(data?.accounts[0]?.id || ''), date: todayIso() })
     setTxModal(true)
   }
+  useIntent('newTransaction', openTxAdd)
+
   const openTxEdit = (t) => {
     setEditingTx(t)
     setTxApplyAll(true)
