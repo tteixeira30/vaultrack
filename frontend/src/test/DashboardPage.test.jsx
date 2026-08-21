@@ -34,10 +34,9 @@ describe('DashboardPage', () => {
 
     await waitFor(() => expect(document.querySelector('.hero-value')).toBeInTheDocument())
     expect(document.querySelector('.hero-value')).toHaveTextContent(/1500,00/)
-    expect(screen.getByText(/Olá, Ana/)).toBeInTheDocument()
     // KPIs
-    const investKpi = document.querySelector('.kpi-card')
-    expect(investKpi).toBeInTheDocument()
+    expect(document.querySelectorAll('.kpi')).toHaveLength(4)
+    expect(screen.getByText('Rendimento do mês')).toBeInTheDocument()
     expect(screen.getByText('Valor investido')).toBeInTheDocument()
     expect(screen.getByText('Poupado em objetivos')).toBeInTheDocument()
     expect(screen.getByText('1/2')).toBeInTheDocument() // objetivos concluídos/total

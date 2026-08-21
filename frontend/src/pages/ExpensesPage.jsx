@@ -8,6 +8,7 @@ import DatePicker from '../components/DatePicker'
 import StatementImport, { AccountModal, validateAccount } from '../components/StatementImport'
 import { useMonth, fmtMonth } from '../components/MonthContext'
 import { useIntent } from '../components/IntentContext'
+import { codeOf } from '../components/code'
 import {
   IconPlus, IconPencil, IconTrash, IconUpload, IconBank, IconArrowUp, IconArrowDown,
   IconSearch, IconReceipt,
@@ -26,9 +27,6 @@ const fmtShortDate = (iso) => new Date(iso).toLocaleDateString('pt-PT', { day: '
 
 /** Ignora acentos e maiúsculas na pesquisa por descrição. */
 const fold = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-
-/** Código mono de duas letras a partir do nome da categoria ("Supermercado" → "SU"). */
-const catCode = (c) => catLabel(c).replace(/[^\p{L}]/gu, '').slice(0, 2).toUpperCase()
 
 const SORTS = {
   date: (a, b) => a.date.localeCompare(b.date),
@@ -444,7 +442,7 @@ export default function ExpensesPage() {
                            aria-label={`Selecionar ${t.description}`} />
                     <div className="tx-desc">
                       <span className="code-chip" style={{ background: `${catColor(t.category)}26`, color: catColor(t.category) }}>
-                        {catCode(t.category)}
+                        {codeOf(catLabel(t.category))}
                       </span>
                       <button className="tx-open" onClick={() => openTxEdit(t)}>{t.description}</button>
                     </div>
@@ -474,7 +472,7 @@ export default function ExpensesPage() {
                       {g.txs.map((t) => (
                         <div key={t.id} data-testid="movement-row" className="tx-card-row" onClick={() => openTxEdit(t)}>
                           <span className="code-chip" style={{ background: `${catColor(t.category)}26`, color: catColor(t.category) }}>
-                            {catCode(t.category)}
+                            {codeOf(catLabel(t.category))}
                           </span>
                           <div className="row-main">
                             <strong>{t.description}</strong>

@@ -5,6 +5,10 @@
  * apertados mais um "Mais". Os destinos que antes viviam na sheet passaram para
  * os segmentos no topo de cada separador (ver `Segments`).
  *
+ * O nome do landmark difere do da sidebar de propósito: os dois coexistem no
+ * DOM (é o CSS que escolhe qual se vê) e dois landmarks com o mesmo nome são
+ * uma violação de acessibilidade.
+ *
  * O indicador é um único elemento deslocado por transform — daí o `--i` com o
  * índice do separador ativo. O bloco `prefers-reduced-motion` do styles.css já
  * neutraliza a animação.
@@ -13,7 +17,7 @@ export default function BottomNav({ tabs, activeTab, onSelect }) {
   const activeIndex = tabs.findIndex((t) => t.id === activeTab)
 
   return (
-    <nav className="bottom-nav" aria-label="Navegação principal">
+    <nav className="bottom-nav" aria-label="Navegação por separadores">
       {activeIndex >= 0 && (
         <span className="bn-indicator" aria-hidden="true"
               style={{ '--i': activeIndex, '--n': tabs.length }} />

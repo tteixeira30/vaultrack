@@ -73,7 +73,7 @@ describe('CalendarPage', () => {
     render(<CalendarPage />)
 
     await waitFor(() => expect(screen.getByText('Renda')).toBeInTheDocument())
-    await user.click(screen.getByLabelText('Editar'))
+    await user.click(screen.getAllByLabelText(/^Editar /)[0])
 
     const dialog = screen.getByRole('dialog')
     const nameInput = within(dialog).getByPlaceholderText('Ex: Salário, Renda, Netflix')
@@ -92,7 +92,7 @@ describe('CalendarPage', () => {
     render(<CalendarPage />)
 
     await waitFor(() => expect(screen.getByText('Renda')).toBeInTheDocument())
-    await user.click(screen.getByLabelText('Eliminar'))
+    await user.click(screen.getAllByLabelText(/^Eliminar /)[0])
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Eliminar' }))
 
     await waitFor(() => expect(api.deleteCalendarEvent).toHaveBeenCalledWith(1))

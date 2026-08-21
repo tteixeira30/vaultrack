@@ -5,10 +5,8 @@ import { useToast } from '../components/Toast'
 import { ConfirmDialog } from '../components/Modal'
 import StatementImport, { AccountModal, validateAccount } from '../components/StatementImport'
 import { useIntent } from '../components/IntentContext'
+import { codeOf } from '../components/code'
 import { IconPlus, IconPencil, IconTrash, IconUpload, IconBank } from '../components/Icons'
-
-/** Iniciais da conta para o quadrado mono da lista ("Trade Republic" → "TR"). */
-const codeOf = (name) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '??'
 
 /**
  * Ecrã "Contas" do design: as contas correntes de um lado, a importação de

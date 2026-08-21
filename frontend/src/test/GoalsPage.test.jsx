@@ -113,7 +113,7 @@ describe('GoalsPage', () => {
     render(<GoalsPage />)
 
     await waitFor(() => expect(screen.getByText('Fundo de emergência')).toBeInTheDocument())
-    await user.click(screen.getByLabelText('Editar'))
+    await user.click(screen.getAllByLabelText(/^Editar /)[0])
 
     const dialog = screen.getByRole('dialog')
     const nameInput = within(dialog).getAllByRole('textbox')[0]
@@ -132,7 +132,7 @@ describe('GoalsPage', () => {
     render(<GoalsPage />)
 
     await waitFor(() => expect(screen.getByText('Fundo de emergência')).toBeInTheDocument())
-    await user.click(screen.getByLabelText('Eliminar'))
+    await user.click(screen.getAllByLabelText(/^Eliminar /)[0])
     // ConfirmDialog (role alertdialog) — o botão de confirmar
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Eliminar' }))
 

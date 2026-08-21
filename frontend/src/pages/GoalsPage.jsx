@@ -3,16 +3,10 @@ import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { useIntent } from '../components/IntentContext'
+import { codeOf } from '../components/code'
 import { IconCalendar, IconCheck, IconPencil, IconPlus, IconRefresh, IconTarget, IconTrash } from '../components/Icons'
 
 const EMPTY_FORM = { name: '', targetAmount: '', monthlyAllocation: '', savedAmount: '', autoDeposit: false, contributionDay: '1' }
-
-/** Código mono de duas letras para o quadrado do cartão ("Viagem ao Japão" → "VJ"). */
-const goalCode = (name) => {
-  const words = name.split(/\s+/).filter((w) => w.length > 2)
-  const letters = (words.length >= 2 ? words.slice(0, 2) : name.split(/\s+/).slice(0, 2)).map((w) => w[0])
-  return (letters.join('') || name.slice(0, 2)).toUpperCase()
-}
 
 export default function GoalsPage() {
   const toast = useToast()
@@ -185,7 +179,7 @@ export default function GoalsPage() {
             return (
               <div className="card goal-card" key={g.id} data-testid="goal-card">
                 <div className="goal-top">
-                  <span className={`code-chip ${done ? 'green' : 'accent'}`}>{goalCode(g.name)}</span>
+                  <span className={`code-chip ${done ? 'green' : 'accent'}`}>{codeOf(g.name)}</span>
                   <span className="goal-name">{g.name}</span>
                   <span className="event-actions">
                     <button className="icon-btn" onClick={() => openEdit(g)} aria-label={`Editar ${g.name}`}><IconPencil size={14} /></button>

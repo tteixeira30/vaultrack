@@ -6,6 +6,7 @@ import Dropdown from '../components/Dropdown'
 import { useToast } from '../components/Toast'
 import { useMonth, fmtMonthShort as fmtMonth } from '../components/MonthContext'
 import { useIntent } from '../components/IntentContext'
+import { codeOf } from '../components/code'
 import { IconWallet, IconHome, IconRepeat, IconBell, IconCoins, IconInfo, IconPlus, IconArrowUp, IconArrowDown, IconPencil, IconTrash } from '../components/Icons'
 
 const CATEGORY_META = {
@@ -29,8 +30,7 @@ const todayIso = () => new Date().toISOString().slice(0, 10)
 const occCode = (o) => {
   if (o.source === 'INVESTMENT') return 'IN'
   if (o.source === 'GOAL') return 'OB'
-  const label = (CATEGORY_META[o.category] || CATEGORY_META.OTHER).label
-  return label.replace(/[^\p{L}]/gu, '').slice(0, 2).toUpperCase()
+  return codeOf((CATEGORY_META[o.category] || CATEGORY_META.OTHER).label)
 }
 
 export default function CalendarPage() {

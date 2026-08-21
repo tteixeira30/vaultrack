@@ -1,13 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, fmtEur } from '../api'
 import { IconLock, IconInfo } from '../components/Icons'
-
-/** Código mono de duas letras do título ("Carteira diversificada" → "CD"). */
-const achCode = (title) => {
-  const words = title.split(/\s+/).filter((w) => w.length > 2)
-  const letters = (words.length >= 2 ? words.slice(0, 2) : title.split(/\s+/).slice(0, 2)).map((w) => w[0])
-  return (letters.join('') || title.slice(0, 2)).toUpperCase()
-}
+import { codeOf } from '../components/code'
 
 const CATEGORY_ORDER = ['Investimento', 'Poupança', 'Consistência', 'Objetivos', 'Rentabilidade', 'Planeamento']
 
@@ -82,7 +76,7 @@ export default function AchievementsPage() {
               <div key={a.id} className={`card ach-card ${a.unlocked ? 'unlocked' : 'locked'}`}>
                 <div className="ach-top">
                   <span className={`code-chip ${a.unlocked ? 'accent' : ''}`}>
-                    {a.unlocked ? achCode(a.title) : <IconLock size={14} />}
+                    {a.unlocked ? codeOf(a.title) : <IconLock size={14} />}
                   </span>
                   <span className="mono ach-points">{a.points} pt</span>
                 </div>

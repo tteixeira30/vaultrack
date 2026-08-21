@@ -49,7 +49,7 @@ describe('InvestmentsPage', () => {
 
     await waitFor(() => expect(screen.getByText('PPR Manual')).toBeInTheDocument())
     // investimento manual sem cotação → badge "manual" e tipo "Outro"
-    const row = screen.getByText('PPR Manual').closest('tr')
+    const row = screen.getByText('PPR Manual').closest('.asset-row')
     expect(within(row).getByText('manual')).toBeInTheDocument()
     expect(within(row).getByText('Outro')).toBeInTheDocument()
   })
@@ -82,7 +82,7 @@ describe('InvestmentsPage', () => {
     render(<InvestmentsPage />)
 
     await waitFor(() => expect(screen.getByText('PPR Manual')).toBeInTheDocument())
-    await user.click(screen.getByLabelText('Editar'))
+    await user.click(screen.getAllByLabelText(/^Editar /)[0])
 
     const dialog = screen.getByRole('dialog')
     const nameInput = within(dialog).getAllByRole('textbox')[0]
@@ -101,7 +101,7 @@ describe('InvestmentsPage', () => {
     render(<InvestmentsPage />)
 
     await waitFor(() => expect(screen.getByText('PPR Manual')).toBeInTheDocument())
-    await user.click(screen.getByLabelText('Eliminar'))
+    await user.click(screen.getAllByLabelText(/^Eliminar /)[0])
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Eliminar' }))
 
     await waitFor(() => expect(api.deleteInvestment).toHaveBeenCalledWith(1))
