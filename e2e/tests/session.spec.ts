@@ -1,4 +1,4 @@
-import { expect, test } from '@fixtures/test'
+import { test } from '@fixtures/test'
 
 test.describe('sessão e rendimento', () => {
   test('a sessão sobrevive a um reload da página', async ({ dashboardPage, user }) => {
@@ -8,7 +8,7 @@ test.describe('sessão e rendimento', () => {
 
     // continua autenticado — o token em localStorage revalida via /auth/me
     await dashboardPage.nav.expectVisible()
-    await expect(dashboardPage.profileMenu.identity).toContainText(user.name)
+    await dashboardPage.profileMenu.expectIdentity(user.name)
   })
 
   test('depois de logout o reload não recupera a sessão', async ({ dashboardPage, authPage }) => {

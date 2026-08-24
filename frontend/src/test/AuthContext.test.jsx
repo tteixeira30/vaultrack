@@ -14,12 +14,14 @@ vi.mock('../api', async (importOriginal) => {
 })
 
 function Consumer() {
-  const { user, loading, baseCurrency, login, register, logout, changeCurrency } = useAuth()
+  const { user, loading, baseCurrency, rateLive, currencies, login, register, logout, changeCurrency } = useAuth()
   return (
     <div>
       <span data-testid="loading">{String(loading)}</span>
       <span data-testid="user">{user ? user.name : 'none'}</span>
       <span data-testid="cur">{baseCurrency}</span>
+      <span data-testid="live">{String(rateLive)}</span>
+      <span data-testid="curs">{currencies.map((c) => c.code).join(',')}</span>
       <button onClick={() => login('a@b.pt', 'x')}>login</button>
       <button onClick={() => register('Ana', 'a@b.pt', 'segredo1')}>register</button>
       <button onClick={() => changeCurrency('GBP')}>currency</button>
@@ -34,7 +36,7 @@ describe('AuthContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
-    api.getCurrency.mockResolvedValue({ base: 'EUR', rate: 1 })
+    api.getCurrency.mockResolvedValue({ base: 'EUR', rate: 1, rateLive: true })
   })
 
   it('sem token termina o carregamento sem utilizador', async () => {
@@ -106,5 +108,84 @@ describe('AuthContext', () => {
 
     await waitFor(() => expect(screen.getByTestId('cur')).toHaveTextContent('GBP'))
     expect(api.setCurrency).toHaveBeenCalledWith('GBP')
+  })
+
+  // Sem câmbio o backend devolve a taxa 1,0: os montantes continuam a ser
+  // euros com outro símbolo à frente, e o shell tem de o poder dizer.
+  it('propaga rateLive: false quando o câmbio não está disponível', async () => {
+    setToken('t')
+    api.me.mockResolvedValue({ name: 'Ana', baseCurrency: 'USD' })
+    api.getCurrency.mockResolvedValue({ base: 'USD', rate: 1, rateLive: false })
+
+    renderAuth()
+
+    await waitFor(() => expect(screen.getByTestId('cur')).toHaveTextContent('USD'))
+    expect(screen.getByTestId('live')).toHaveTextContent('false')
+  })
+
+  it('falha a carregar a moeda deixa EUR com a taxa dada como válida', async () => {
+    setToken('t')
+    api.me.mockResolvedValue({ name: 'Ana', baseCurrency: 'EUR' })
+    api.getCurrency.mockRejectedValue(new Error('offline'))
+
+    renderAuth()
+
+    await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('Ana'))
+    expect(screen.getByTestId('cur')).toHaveTextContent('EUR')
+    expect(screen.getByTestId('live')).toHaveTextContent('true')
+  })
+
+  // Quem manda na lista de moedas é o backend; o CURRENCIES local só acrescenta
+  // símbolo e nome. Antes eram duas listas à mão sem nada a garanti-las iguais.
+  it('a lista de moedas vem do supported do backend', async () => {
+    setToken('t')
+    api.me.mockResolvedValue({ name: 'Ana', baseCurrency: 'EUR' })
+    api.getCurrency.mockResolvedValue({ base: 'EUR', rate: 1, rateLive: true, supported: ['EUR', 'GBP'] })
+
+    renderAuth()
+
+    await waitFor(() => expect(screen.getByTestId('curs')).toHaveTextContent('EUR,GBP'))
+  })
+
+  it('uma moeda que o backend passe a aceitar aparece à mesma', async () => {
+    setToken('t')
+    api.me.mockResolvedValue({ name: 'Ana', baseCurrency: 'EUR' })
+    api.getCurrency.mockResolvedValue({ base: 'EUR', rate: 1, rateLive: true, supported: ['EUR', 'SEK'] })
+
+    renderAuth()
+
+    await waitFor(() => expect(screen.getByTestId('curs')).toHaveTextContent('EUR,SEK'))
+  })
+
+  it('sem resposta do backend fica a lista local inteira', async () => {
+    setToken('t')
+    api.me.mockResolvedValue({ name: 'Ana', baseCurrency: 'EUR' })
+    api.getCurrency.mockRejectedValue(new Error('offline'))
+
+    renderAuth()
+
+    await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('Ana'))
+    expect(screen.getByTestId('curs')).toHaveTextContent('EUR,USD,GBP')
+  })
+  // Um 502 com o backend a reiniciar, ou o telemóvel sem rede ao abrir a app,
+  // não é o servidor a recusar o token — deitava a sessão fora por nada.
+  it('um erro de transporte no arranque não termina a sessão', async () => {
+    setToken('t')
+    api.me.mockRejectedValue(Object.assign(new Error('Erro 502'), { status: 502 }))
+
+    renderAuth()
+
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'))
+    expect(getToken()).toBe('t')
+  })
+
+  it('um 401 no arranque termina a sessão', async () => {
+    setToken('t')
+    api.me.mockRejectedValue(Object.assign(new Error('Erro 401'), { status: 401 }))
+
+    renderAuth()
+
+    await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'))
+    expect(getToken()).toBeNull()
   })
 })

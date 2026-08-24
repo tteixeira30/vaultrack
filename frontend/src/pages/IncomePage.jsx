@@ -3,34 +3,24 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
-import { IconChevronLeft, IconChevronRight, IconPencil, IconPlus, IconPie, IconWallet, IconTrash } from '../components/Icons'
+import { useMonth, fmtMonthShort as fmtMonth, monthAbbr } from '../components/MonthContext'
+import { useIntent } from '../components/IntentContext'
+import { useIsMobile } from '../components/useMediaQuery'
+import { IconChevronRight, IconPencil, IconPlus, IconPie, IconWallet, IconTrash } from '../components/Icons'
 
 const COLORS = ['#6366f1', '#22d3ee', '#10b981', '#f59e0b', '#ef4444', '#a78bfa', '#fb923c', '#e879f9']
+
+/** "2026-08" → "ago 26" — o formato longo não cabe num chip. */
+const chipLabel = (m) => {
+  const [y, mo] = m.split('-').map(Number)
+  return `${monthAbbr(new Date(y, mo - 1, 1))} ${String(y).slice(2)}`
+}
 
 const EMPTY_ALLOC = { name: '', mode: 'percentage', value: '', color: COLORS[0] }
 
 // cor de uma categoria: a escolhida pelo utilizador, ou a cor da paleta pela ordem
 const allocColor = (a, i) => a.color || COLORS[i % COLORS.length]
 const EMPTY_ITEM = { name: '', value: '' }
-
-const fmtMonth = (m) => {
-  if (!m) return ''
-  const label = new Date(`${m}-01T00:00:00`).toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' })
-  return label.charAt(0).toUpperCase() + label.slice(1)
-}
-
-// mês atual (AAAA-MM) e aritmética de meses sobre strings AAAA-MM
-const currentMonth = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-const shiftMonth = (m, delta) => {
-  const [y, mo] = m.split('-').map(Number)
-  const d = new Date(y, mo - 1 + delta, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-}
-// quantos meses atrás se pode recuar para introduzir rendimento em falta
-const MONTHS_BACK = 3
 
 function ChartTooltip({ active, payload }) {
   if (!active || !payload?.length) return null
@@ -45,6 +35,8 @@ function ChartTooltip({ active, payload }) {
 export default function IncomePage() {
   const toast = useToast()
   const cur = getCurrencySymbol()
+  const { month, setMonth, step } = useMonth()
+  const isMobile = useIsMobile()
   const [data, setData] = useState(null)
   const [incomeModal, setIncomeModal] = useState(false)
   const [incomeInput, setIncomeInput] = useState('')
@@ -71,8 +63,10 @@ export default function IncomePage() {
     })
 
   useEffect(() => {
-    load().catch(() => toast.error('Erro', 'Não foi possível carregar os dados.'))
-  }, [])
+    setData(null)
+    load(month).catch(() => toast.error('Erro', 'Não foi possível carregar os dados.'))
+  }, [month])
+
 
   const saveIncome = async () => {
     setBusy(true)
@@ -94,6 +88,8 @@ export default function IncomePage() {
     setAllocBaseline(form)
     setAllocModal(true)
   }
+
+  useIntent('newAllocation', openAddAlloc)
 
   const openEditAlloc = (a, i) => {
     const form = {
@@ -203,11 +199,11 @@ export default function IncomePage() {
 
   if (!data) {
     return (
-      <div>
-        <div className="skeleton" style={{ height: 96, marginBottom: 18 }} />
-        <div className="grid grid-2">
-          <div className="skeleton" style={{ height: 320 }} />
-          <div className="skeleton" style={{ height: 320 }} />
+      <div className="income">
+        <div className="skeleton" style={{ height: 84, borderRadius: 20 }} />
+        <div className="income-grid">
+          <div className="skeleton" style={{ height: 320, borderRadius: 20 }} />
+          <div className="skeleton" style={{ height: 320, borderRadius: 20 }} />
         </div>
       </div>
     )
@@ -220,24 +216,6 @@ export default function IncomePage() {
   if (Number(data.unallocated) > 0.005) pieData.push({ name: 'Não alocado', value: Number(data.unallocated), color: COLORS[pieData.length % COLORS.length] })
   const donutTotal = pieData.reduce((s, d) => s + d.value, 0)
 
-  // navegação por meses: conjunto = meses que já têm dados ∪ janela recente
-  // (mês atual e os MONTHS_BACK anteriores, para introduzir rendimento em falta).
-  // Movemo-nos por este conjunto ordenado, sem passar por meses vazios distantes.
-  const now = currentMonth()
-  const backWindow = Array.from({ length: MONTHS_BACK + 1 }, (_, i) => shiftMonth(now, -i))
-  const months = [...new Set([...(data.availableMonths ?? []), ...backWindow, data.month])]
-    .filter((m) => m <= now)   // nunca avançar para além do mês atual
-    .sort()
-  const monthIdx = months.indexOf(data.month)
-  const prevMonth = monthIdx > 0 ? months[monthIdx - 1] : null
-  const nextMonth = monthIdx >= 0 && monthIdx < months.length - 1 ? months[monthIdx + 1] : null
-
-  const goTo = (m) => {
-    if (!m) return
-    setData(null)
-    load(m).catch(() => toast.error('Erro', 'Não foi possível carregar esse mês.'))
-  }
-
   const isPct = allocForm.mode === 'percentage'
   const formValue = parseAmount(allocForm.value) || 0
   const formHint = !formValue ? null
@@ -245,58 +223,313 @@ export default function IncomePage() {
       ? (income > 0 ? `≈ ${fmtEur(income * formValue / 100)} por mês` : null)
       : (income > 0 ? `≈ ${(formValue / income * 100).toFixed(1)}% do rendimento` : null)
 
-  return (
-    <div>
-      <div className="page-head">
-        <div>
-          <h2>Rendimento</h2>
-          <p>Regista o rendimento de cada mês e distribui-o por categorias.</p>
+  /**
+   * Meses que já têm rendimento registado, do mais recente para trás.
+   *
+   * O seletor de mês anda de um em um sem fim à vista: sem isto não havia como
+   * saber onde é que os dados começam nem chegar a um mês distante sem clicar
+   * doze vezes. A lista vem do `availableMonths` da resposta.
+   */
+  const known = [...(data.availableMonths || [])].sort().reverse().slice(0, 12)
+  const monthChips = known.length > 1 ? (
+    <div className="month-chips" role="group" aria-label="Meses com rendimento registado">
+      {known.map((m) => (
+        // compara com o mês que a resposta traz, não com o do contexto: é esse
+        // que está mesmo em ecrã (o backend resolve o pedido sem mês)
+        <button key={m} type="button" className={`month-chip mono ${m === data.month ? 'active' : ''}`}
+                aria-current={m === data.month ? 'true' : undefined}
+                onClick={() => setMonth(m)}>
+          {chipLabel(m)}
+        </button>
+      ))}
+    </div>
+  ) : null
+
+  // Os modais servem as duas vistas: declarados uma vez, injetados em ambas.
+  const modals = (
+    <>
+      <Modal open={incomeModal} onClose={() => setIncomeModal(false)} onSubmit={saveIncome} busy={busy}
+           title={`Rendimento de ${fmtMonth(data.month)}`}
+           subtitle="Valor líquido que recebeste (ou vais receber) neste mês." width={420}
+           footer={
+             <>
+               <button className="btn ghost" onClick={() => setIncomeModal(false)}>Cancelar</button>
+               <button className="btn" onClick={saveIncome} disabled={busy}>{busy ? 'A guardar…' : 'Guardar'}</button>
+             </>
+           }>
+      <div className="field">
+        <label>Rendimento do mês</label>
+        <div className="input-affix">
+          <input type="text" inputMode="decimal" enterKeyHint="done" autoFocus aria-label="Rendimento do mês" value={incomeInput}
+                 onChange={(e) => setIncomeInput(e.target.value)} />
+          <span className="affix">{cur}</span>
         </div>
-        <div className="page-actions">
-          <div className="month-nav">
-            <button className="icon-btn" onClick={() => goTo(prevMonth)} disabled={!prevMonth}
-                    aria-label="Mês anterior"
-                    title={prevMonth ? fmtMonth(prevMonth) : `Só podes recuar até ${MONTHS_BACK} meses atrás`}>
-              <IconChevronLeft size={17} />
+      </div>
+    </Modal>
+
+    <Modal open={allocModal} onClose={closeAllocModal} dirty={allocDirty} onSubmit={saveAlloc} busy={busy}
+           title={allocEditId ? 'Editar categoria' : 'Nova categoria'}
+           subtitle={allocEditId
+             ? `Ajusta a categoria de ${fmtMonth(data.month)}.`
+             : `Reserva uma parte do rendimento de ${fmtMonth(data.month)}.`} width={440}
+           footer={
+             <>
+               <button className="btn ghost" onClick={closeAllocModal}>Cancelar</button>
+               <button className="btn" onClick={saveAlloc} disabled={busy}>
+                 {busy ? 'A guardar…' : allocEditId ? 'Guardar' : 'Adicionar'}
+               </button>
+             </>
+           }>
+      <div className="form-grid">
+        <div className="field full">
+          <label>Nome</label>
+          <input placeholder="Ex: Poupança, Renda…" autoFocus value={allocForm.name}
+                 onChange={(e) => setAllocForm({ ...allocForm, name: e.target.value })} />
+        </div>
+        <div className="field full">
+          <label>Tipo de regra</label>
+          <div className="mode-toggle">
+            <button type="button" className={isPct ? 'active' : ''}
+                    onClick={() => setAllocForm({ ...allocForm, mode: 'percentage' })}>
+              Percentagem
             </button>
-            <div className="month-label">
-              <strong>{fmtMonth(data.month)}</strong>
-              {data.current && <span className="badge live">atual</span>}
-            </div>
-            <button className="icon-btn" onClick={() => goTo(nextMonth)} disabled={!nextMonth}
-                    aria-label="Mês seguinte" title={nextMonth ? fmtMonth(nextMonth) : 'Já estás no mês mais recente'}>
-              <IconChevronRight size={17} />
+            <button type="button" className={!isPct ? 'active' : ''}
+                    onClick={() => setAllocForm({ ...allocForm, mode: 'fixed' })}>
+              Valor fixo
             </button>
+          </div>
+          <span className="hint">
+            {isPct
+              ? 'A categoria acompanha o rendimento — se ele mudar, o valor ajusta-se.'
+              : 'A categoria fica sempre com o mesmo valor em euros, independentemente do rendimento.'}
+          </span>
+        </div>
+        <div className="field full">
+          <label>{isPct ? 'Percentagem do rendimento' : 'Valor mensal'}</label>
+          <div className="input-affix">
+            <input type="text" inputMode="decimal" enterKeyHint="done"
+                   placeholder={isPct ? 'Ex: 30' : 'Ex: 400'} value={allocForm.value}
+                   onChange={(e) => setAllocForm({ ...allocForm, value: e.target.value })} />
+            <span className="affix">{isPct ? '%' : cur}</span>
+          </div>
+          {formHint && <span className="hint">{formHint}</span>}
+        </div>
+        <div className="field full">
+          <label>Cor</label>
+          <div className="color-picker">
+            {COLORS.map((c) => (
+              <button type="button" key={c}
+                      className={`color-swatch ${allocForm.color?.toLowerCase() === c ? 'selected' : ''}`}
+                      style={{ background: c }} title={c}
+                      onClick={() => setAllocForm({ ...allocForm, color: c })} />
+            ))}
+            <label className="color-custom" style={{ background: allocForm.color }}
+                   title="Cor personalizada (RGB)">
+              <input type="color" value={allocForm.color || COLORS[0]}
+                     onChange={(e) => setAllocForm({ ...allocForm, color: e.target.value })} />
+              <IconPlus size={13} />
+            </label>
           </div>
         </div>
       </div>
+    </Modal>
 
-      <div className="card income-hero">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <span className="stat-icon" style={{ width: 46, height: 46 }}><IconWallet size={22} /></span>
-          <div>
-            <div className="amount">{fmtEur(income)}</div>
-            <div className="caption">Rendimento líquido de {fmtMonth(data.month)}</div>
+    <Modal open={!!itemModal} onClose={() => setItemModal(null)} onSubmit={saveItem} busy={busy}
+           title={itemModal?.item ? 'Editar item' : 'Novo item'}
+           subtitle={itemModal ? `Dentro de "${itemModal.alloc.name}".` : ''} width={420}
+           footer={
+             <>
+               <button className="btn ghost" onClick={() => setItemModal(null)}>Cancelar</button>
+               <button className="btn" onClick={saveItem} disabled={busy}>
+                 {busy ? 'A guardar…' : itemModal?.item ? 'Guardar' : 'Adicionar'}
+               </button>
+             </>
+           }>
+      <div className="form-grid">
+        <div className="field full">
+          <label>Nome</label>
+          <input placeholder="Ex: Netflix, Claude, HBO…" autoFocus value={itemForm.name}
+                 onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} />
+        </div>
+        <div className="field full">
+          <label>Valor mensal</label>
+          <div className="input-affix">
+            <input type="text" inputMode="decimal" enterKeyHint="done" placeholder="Ex: 12" value={itemForm.value}
+                   onChange={(e) => setItemForm({ ...itemForm, value: e.target.value })} />
+            <span className="affix">{cur}</span>
           </div>
         </div>
+      </div>
+    </Modal>
+
+    <ConfirmDialog open={!!itemToDelete} busy={busy}
+                   title="Remover item?"
+                   message={`O item "${itemToDelete?.item?.name}" vai ser removido de "${itemToDelete?.allocName}".`}
+                   confirmLabel="Remover"
+                   onConfirm={removeItem} onCancel={() => setItemToDelete(null)} />
+
+    <ConfirmDialog open={!!toDelete} busy={busy}
+                   title="Remover categoria?"
+                   message={`A categoria "${toDelete?.name}" vai ser removida de ${fmtMonth(data.month)}. Esta ação não pode ser anulada.`}
+                   confirmLabel="Remover"
+                   onConfirm={removeAlloc} onCancel={() => setToDelete(null)} />
+    </>
+  )
+
+  if (isMobile) {
+    const unalloc = Number(data.unallocated)
+    const segments = data.allocations
+      .map((a, i) => ({ name: a.name, color: allocColor(a, i), amount: Number(a.amount) }))
+      .filter((seg) => seg.amount > 0)
+    // com o rendimento sobre-alocado a soma das fatias passa dos 100% e a barra
+    // transbordava o cartão — a base é o maior dos dois
+    const allocated = segments.reduce((t, seg) => t + seg.amount, 0)
+    const barTotal = Math.max(income, allocated)
+
+    return (
+      <div className="income">
+        <div className="m-monthbar">
+          <button type="button" onClick={() => step(-1)} aria-label="Mês anterior">‹</button>
+          <span>{fmtMonth(month)}</span>
+          <button type="button" onClick={() => step(1)} aria-label="Mês seguinte">›</button>
+        </div>
+        {monthChips}
+
+        <section className="card m-hero">
+          <span className="eyebrow">Rendimento mensal</span>
+          <div className="mono m-hero-value">{fmtEur(income)}</div>
+
+          <div className="m-income-src">
+            <span>Rendimento líquido de {fmtMonth(data.month)}</span>
+            {/* o rótulo visível é curto por causa do espaço, mas o nome acessível
+                diz o que se edita — há mais do que um "Editar" no ecrã */}
+            <button className="btn ghost small" aria-label="Editar rendimento"
+                    onClick={() => { setIncomeInput(income ? fromEur(income) : ''); setIncomeModal(true) }}>
+              <IconPencil size={13} /> Editar
+            </button>
+          </div>
+
+          {/* barra empilhada com a percentagem escrita dentro de cada fatia */}
+          {barTotal > 0 && (
+            <div className="m-alloc-bar">
+              {/* flex-grow em vez de width: com larguras em % os 3px de intervalo
+                  entre fatias somavam-se aos 100% e a barra saía do cartão */}
+              {segments.map((seg) => {
+                const pct = (seg.amount / barTotal) * 100
+                return (
+                  <span key={seg.name} style={{ flex: `${pct} 1 0`, background: seg.color }}
+                        title={`${seg.name}: ${fmtEur(seg.amount)}`}>
+                    {pct >= 9 && <span className="mono">{Math.round(pct)}%</span>}
+                  </span>
+                )
+              })}
+              {unalloc > 0 && <span className="rest" style={{ flex: `${(unalloc / barTotal) * 100} 1 0` }} />}
+            </div>
+          )}
+
+          <ul className="m-alloc-list">
+            {data.allocations.map((a, i) => (
+              <li key={a.id}>
+                <span className="leg-swatch" style={{ background: allocColor(a, i) }} />
+                <span className="m-alloc-name">{a.name}</span>
+                <span className="mono">{fmtEur(a.amount)}</span>
+              </li>
+            ))}
+            <li className="rest">
+              <span className="leg-swatch" style={{ background: 'var(--track)' }} />
+              <span className="m-alloc-name">Por alocar</span>
+              <span className={`mono ${unalloc < 0 ? 'neg' : 'amber'}`}>{fmtEur(unalloc)}</span>
+            </li>
+          </ul>
+
+          {unalloc > 0.005 && (
+            <button className="btn ink m-wide m-alloc-cta" onClick={openAddAlloc}>
+              Alocar os {fmtEur(unalloc)} restantes
+            </button>
+          )}
+          {unalloc < -0.005 && (
+            <p className="hint" style={{ color: 'var(--amber)', marginTop: 14 }}>
+              As categorias ultrapassam o rendimento deste mês em {fmtEur(Math.abs(unalloc))}.
+            </p>
+          )}
+        </section>
+
+        {/* ---------- categorias, para escrutinar e editar ---------- */}
+        <div className="m-listhead">
+          <span>{data.allocations.length} categoria(s)</span>
+          <button type="button" className="m-link" onClick={openAddAlloc}>Nova</button>
+        </div>
+        {data.allocations.length === 0 ? (
+          <div className="card">
+            <div className="empty-state">
+              <div className="empty-icon"><IconPie size={22} /></div>
+              <h4>Sem categorias</h4>
+              <p>Divide o rendimento por percentagem (ex: 30% poupança) ou por valor fixo (ex: 400€ renda).</p>
+            </div>
+          </div>
+        ) : (
+          <div className="card flush">
+            {data.allocations.map((a, i) => {
+              const items = a.items ?? []
+              const spent = Number(a.itemsTotal ?? 0)
+              const budget = Number(a.amount)
+              const over = spent > budget + 0.005
+              return (
+                <button key={a.id} type="button" className="m-alloc-row" onClick={() => openEditAlloc(a, i)}>
+                  <span className="leg-swatch" style={{ background: allocColor(a, i) }} />
+                  <span className="m-alloc-main">
+                    <strong>{a.name}</strong>
+                    <small>
+                      {a.fixedAmount != null ? 'valor fixo' : `${Number(a.percentage ?? 0)}% do rendimento`}
+                      {items.length > 0 && ` · ${items.length} item(s)`}
+                    </small>
+                  </span>
+                  <span className="m-alloc-num">
+                    <strong className="mono">{fmtEur(a.amount)}</strong>
+                    {items.length > 0 && (
+                      <small className={`mono ${over ? 'neg' : ''}`}>{fmtEur(spent)} gasto</small>
+                    )}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {modals}
+      </div>
+    )
+  }
+
+  return (
+    <div className="income">
+      <div className="card income-hero">
+        <span className="hero-icon"><IconWallet size={20} /></span>
+        <div className="income-hero-main">
+          <div className="mono amount">{fmtEur(income)}</div>
+          <div className="caption">
+            Rendimento líquido de {fmtMonth(data.month)}
+            {data.copiedFrom && <> · copiado de {fmtMonth(data.copiedFrom)}, ajusta o que for preciso</>}
+          </div>
+        </div>
+        <span className={`badge ${overAllocated ? 'warn' : 'accent'}`}>{totalPct.toFixed(0)}% alocado</span>
         <button className="btn ghost" onClick={() => { setIncomeInput(income ? fromEur(income) : ''); setIncomeModal(true) }}>
-          <IconPencil size={15} /> Editar
+          <IconPencil size={14} /> Editar rendimento
         </button>
       </div>
 
-      <div className="grid grid-2 income-grid">
+      {monthChips}
+
+      <div className="income-grid">
         <div className="card income-breakdown">
           <div className="card-header">
             <div>
               <h3>Distribuição</h3>
-              <div className="sub">Como divides o rendimento de {fmtMonth(data.month)}</div>
+              <div className="sub">Percentagem do rendimento ou valor fixo · abre para escrutinar os itens</div>
             </div>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <span className={`badge ${overAllocated ? 'warn' : 'accent'}`}>{totalPct.toFixed(0)}% alocado</span>
-              <button className="btn small" onClick={openAddAlloc}>
-                <IconPlus size={14} /> Categoria
-              </button>
-            </div>
+            <button className="btn small" onClick={openAddAlloc}>
+              <IconPlus size={14} /> Categoria
+            </button>
           </div>
 
           {data.allocations.length === 0 ? (
@@ -310,7 +543,7 @@ export default function IncomePage() {
             <div className="table-wrap">
               <table className="responsive">
                 <thead>
-                  <tr><th>Categoria</th><th>%</th><th>Valor</th><th></th></tr>
+                  <tr><th>Categoria</th><th>%</th><th>Valor</th><th>Itens</th><th></th></tr>
                 </thead>
                 <tbody>
                   {data.allocations.map((a, i) => {
@@ -339,12 +572,23 @@ export default function IncomePage() {
                                      onChange={(e) => recolor(a, e.target.value)} />
                             </label>
                             <span className="row-title">{a.name}</span>
+                            <span className="rule-chip">
+                              {a.fixedAmount != null ? 'fixo' : `${Number(a.percentage ?? 0)}%`}
+                            </span>
                             {items.length > 0 && <span className="item-count">{items.length}</span>}
                           </td>
-                          <td data-label="% do rendimento" className={a.fixedAmount != null ? 'dim' : ''}>
+                          <td data-label="% do rendimento" className={`mono ${a.fixedAmount != null ? 'dim' : ''}`}>
                             {a.effectivePercentage != null ? `${Number(a.effectivePercentage).toFixed(1)}%` : '—'}
                           </td>
-                          <td data-label="Valor">{fmtEur(a.amount)}</td>
+                          <td data-label="Valor" className="mono">{fmtEur(a.amount)}</td>
+                          {/* Só o que já está escrutinado em itens: o par
+                              "gasto / orçamento" repetia o valor da coluna ao
+                              lado. A comparação com o orçamento está no medidor
+                              da linha aberta — e a cor aqui já avisa se passou. */}
+                          <td data-label="Itens" className={`mono ${items.length === 0 ? 'dim' : overspent ? 'neg' : ''}`}
+                              title={items.length === 0 ? undefined : `${fmtEur(spent)} de ${fmtEur(budget)}`}>
+                            {items.length === 0 ? '—' : fmtEur(spent)}
+                          </td>
                           <td className="actions-cell" style={{ textAlign: 'right' }}>
                             <button className="icon-btn" onClick={() => openEditAlloc(a, i)}
                                     aria-label={`Editar ${a.name}`} title="Editar categoria"><IconPencil size={14} /></button>
@@ -363,6 +607,7 @@ export default function IncomePage() {
                                 </td>
                                 <td></td>
                                 <td></td>
+                                <td></td>
                               </tr>
                             ) : (
                               items.map((it) => (
@@ -372,7 +617,8 @@ export default function IncomePage() {
                                       <span className="subrow-name" title={it.name}>{it.name}</span>
                                     </div>
                                   </td>
-                                  <td className="subrow-amount">{fmtEur(it.amount)}</td>
+                                  <td className="mono subrow-amount">{fmtEur(it.amount)}</td>
+                                  <td></td>
                                   <td className="subrow-actions">
                                     <button className="icon-btn" onClick={() => openEditItem(a, it)}
                                             aria-label={`Editar ${it.name}`}><IconPencil size={13} /></button>
@@ -403,6 +649,7 @@ export default function IncomePage() {
                                 </div>
                               </td>
                               <td></td>
+                              <td></td>
                             </tr>
                           </>
                         )}
@@ -411,8 +658,9 @@ export default function IncomePage() {
                   })}
                   <tr>
                     <td className="dim">Não alocado</td>
-                    <td data-label="% do rendimento" className="dim">{income > 0 ? `${Math.max(0, 100 - totalPct).toFixed(1)}%` : '—'}</td>
-                    <td data-label="Valor" className={Number(data.unallocated) < 0 ? 'neg' : 'dim'}>{fmtEur(data.unallocated)}</td>
+                    <td data-label="% do rendimento" className="mono dim">{income > 0 ? `${Math.max(0, 100 - totalPct).toFixed(1)}%` : '—'}</td>
+                    <td data-label="Valor" className={`mono ${Number(data.unallocated) < 0 ? 'neg' : 'dim'}`}>{fmtEur(data.unallocated)}</td>
+                    <td></td>
                     <td></td>
                   </tr>
                 </tbody>
@@ -430,7 +678,7 @@ export default function IncomePage() {
           <div className="card-header">
             <div>
               <h3>Visão geral</h3>
-              <div className="sub">Distribuição de {fmtMonth(data.month)}</div>
+              <div className="sub">{fmtMonth(data.month)}</div>
             </div>
           </div>
           {pieData.length === 0 || (income === 0 && Number(data.totalAllocated) === 0) ? (
@@ -452,7 +700,7 @@ export default function IncomePage() {
                   </PieChart>
                 </ResponsiveContainer>
                 <div className="donut-center">
-                  <span className="dc-amount">{fmtEur(donutTotal)}</span>
+                  <span className="mono dc-amount">{fmtEur(donutTotal)}</span>
                   <span className="dc-label">{income > 0 ? 'Rendimento' : 'Alocado'}</span>
                 </div>
               </div>
@@ -463,8 +711,8 @@ export default function IncomePage() {
                     <li key={i} className="leg-row">
                       <span className="leg-swatch" style={{ background: d.color }} />
                       <span className="leg-name" title={d.name}>{d.name}</span>
-                      <span className="leg-pct">{pct.toFixed(0)}%</span>
-                      <span className="leg-amount">{fmtEur(d.value)}</span>
+                      <span className="mono leg-pct">{pct.toFixed(0)}%</span>
+                      <span className="mono leg-amount">{fmtEur(d.value)}</span>
                     </li>
                   )
                 })}
@@ -474,131 +722,7 @@ export default function IncomePage() {
         </div>
       </div>
 
-      <Modal open={incomeModal} onClose={() => setIncomeModal(false)} onSubmit={saveIncome} busy={busy}
-             title={`Rendimento de ${fmtMonth(data.month)}`}
-             subtitle="Valor líquido que recebeste (ou vais receber) neste mês." width={420}
-             footer={
-               <>
-                 <button className="btn ghost" onClick={() => setIncomeModal(false)}>Cancelar</button>
-                 <button className="btn" onClick={saveIncome} disabled={busy}>{busy ? 'A guardar…' : 'Guardar'}</button>
-               </>
-             }>
-        <div className="field">
-          <label>Rendimento do mês</label>
-          <div className="input-affix">
-            <input type="text" inputMode="decimal" enterKeyHint="done" autoFocus aria-label="Rendimento do mês" value={incomeInput}
-                   onChange={(e) => setIncomeInput(e.target.value)} />
-            <span className="affix">{cur}</span>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal open={allocModal} onClose={closeAllocModal} dirty={allocDirty} onSubmit={saveAlloc} busy={busy}
-             title={allocEditId ? 'Editar categoria' : 'Nova categoria'}
-             subtitle={allocEditId
-               ? `Ajusta a categoria de ${fmtMonth(data.month)}.`
-               : `Reserva uma parte do rendimento de ${fmtMonth(data.month)}.`} width={440}
-             footer={
-               <>
-                 <button className="btn ghost" onClick={closeAllocModal}>Cancelar</button>
-                 <button className="btn" onClick={saveAlloc} disabled={busy}>
-                   {busy ? 'A guardar…' : allocEditId ? 'Guardar' : 'Adicionar'}
-                 </button>
-               </>
-             }>
-        <div className="form-grid">
-          <div className="field full">
-            <label>Nome</label>
-            <input placeholder="Ex: Poupança, Renda…" autoFocus value={allocForm.name}
-                   onChange={(e) => setAllocForm({ ...allocForm, name: e.target.value })} />
-          </div>
-          <div className="field full">
-            <label>Tipo de regra</label>
-            <div className="mode-toggle">
-              <button type="button" className={isPct ? 'active' : ''}
-                      onClick={() => setAllocForm({ ...allocForm, mode: 'percentage' })}>
-                Percentagem
-              </button>
-              <button type="button" className={!isPct ? 'active' : ''}
-                      onClick={() => setAllocForm({ ...allocForm, mode: 'fixed' })}>
-                Valor fixo
-              </button>
-            </div>
-            <span className="hint">
-              {isPct
-                ? 'A categoria acompanha o rendimento — se ele mudar, o valor ajusta-se.'
-                : 'A categoria fica sempre com o mesmo valor em euros, independentemente do rendimento.'}
-            </span>
-          </div>
-          <div className="field full">
-            <label>{isPct ? 'Percentagem do rendimento' : 'Valor mensal'}</label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" enterKeyHint="done"
-                     placeholder={isPct ? 'Ex: 30' : 'Ex: 400'} value={allocForm.value}
-                     onChange={(e) => setAllocForm({ ...allocForm, value: e.target.value })} />
-              <span className="affix">{isPct ? '%' : cur}</span>
-            </div>
-            {formHint && <span className="hint">{formHint}</span>}
-          </div>
-          <div className="field full">
-            <label>Cor</label>
-            <div className="color-picker">
-              {COLORS.map((c) => (
-                <button type="button" key={c}
-                        className={`color-swatch ${allocForm.color?.toLowerCase() === c ? 'selected' : ''}`}
-                        style={{ background: c }} title={c}
-                        onClick={() => setAllocForm({ ...allocForm, color: c })} />
-              ))}
-              <label className="color-custom" style={{ background: allocForm.color }}
-                     title="Cor personalizada (RGB)">
-                <input type="color" value={allocForm.color || COLORS[0]}
-                       onChange={(e) => setAllocForm({ ...allocForm, color: e.target.value })} />
-                <IconPlus size={13} />
-              </label>
-            </div>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal open={!!itemModal} onClose={() => setItemModal(null)} onSubmit={saveItem} busy={busy}
-             title={itemModal?.item ? 'Editar item' : 'Novo item'}
-             subtitle={itemModal ? `Dentro de "${itemModal.alloc.name}".` : ''} width={420}
-             footer={
-               <>
-                 <button className="btn ghost" onClick={() => setItemModal(null)}>Cancelar</button>
-                 <button className="btn" onClick={saveItem} disabled={busy}>
-                   {busy ? 'A guardar…' : itemModal?.item ? 'Guardar' : 'Adicionar'}
-                 </button>
-               </>
-             }>
-        <div className="form-grid">
-          <div className="field full">
-            <label>Nome</label>
-            <input placeholder="Ex: Netflix, Claude, HBO…" autoFocus value={itemForm.name}
-                   onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} />
-          </div>
-          <div className="field full">
-            <label>Valor mensal</label>
-            <div className="input-affix">
-              <input type="text" inputMode="decimal" enterKeyHint="done" placeholder="Ex: 12" value={itemForm.value}
-                     onChange={(e) => setItemForm({ ...itemForm, value: e.target.value })} />
-              <span className="affix">{cur}</span>
-            </div>
-          </div>
-        </div>
-      </Modal>
-
-      <ConfirmDialog open={!!itemToDelete} busy={busy}
-                     title="Remover item?"
-                     message={`O item "${itemToDelete?.item?.name}" vai ser removido de "${itemToDelete?.allocName}".`}
-                     confirmLabel="Remover"
-                     onConfirm={removeItem} onCancel={() => setItemToDelete(null)} />
-
-      <ConfirmDialog open={!!toDelete} busy={busy}
-                     title="Remover categoria?"
-                     message={`A categoria "${toDelete?.name}" vai ser removida de ${fmtMonth(data.month)}. Esta ação não pode ser anulada.`}
-                     confirmLabel="Remover"
-                     onConfirm={removeAlloc} onCancel={() => setToDelete(null)} />
+      {modals}
     </div>
   )
 }

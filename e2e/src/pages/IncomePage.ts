@@ -28,7 +28,7 @@ export class IncomePage extends TabPage {
   /** Define o rendimento mensal do mês corrente. */
   async setMonthlyIncome(amount: number): Promise<void> {
     await test.step(`definir rendimento mensal de ${amount}`, async () => {
-      await this.page.getByRole('button', { name: 'Editar' }).first().click()
+      await this.page.getByRole('button', { name: 'Editar rendimento' }).click()
       await this.dialog.root.getByLabel('Rendimento do mês').fill(String(amount))
       await this.dialog.save()
     })

@@ -80,7 +80,7 @@ describe('IncomePage', () => {
     render(<IncomePage />)
 
     await waitFor(() => expect(screen.getAllByText('Poupança').length).toBeGreaterThan(0))
-    await user.click(screen.getByRole('button', { name: 'Editar' }))
+    await user.click(screen.getByRole('button', { name: 'Editar rendimento' }))
 
     const dialog = screen.getByRole('dialog')
     // textbox, não spinbutton: os campos monetários são type=text com
@@ -100,7 +100,7 @@ describe('IncomePage', () => {
     render(<IncomePage />)
 
     await waitFor(() => expect(screen.getAllByText('Poupança').length).toBeGreaterThan(0))
-    await user.click(screen.getByRole('button', { name: 'Editar' }))
+    await user.click(screen.getByRole('button', { name: 'Editar rendimento' }))
 
     const dialog = screen.getByRole('dialog')
     const input = within(dialog).getByRole('textbox', { name: 'Rendimento do mês' })
@@ -153,35 +153,16 @@ describe('IncomePage', () => {
     expect(api.addAllocationItem).toHaveBeenCalledWith(1, expect.objectContaining({ name: 'Spotify', amount: 10 }))
   })
 
-  it('permite recuar até 3 meses antes do atual para introduzir rendimento', async () => {
-    // helpers alinhados com a lógica da página (aritmética sobre AAAA-MM)
+  it('carrega o mês que o MonthContext indica', async () => {
+    // a navegação por meses vive agora na barra de topo (MonthContext); a
+    // página só pede à API o mês que lhe é dado
     const ym = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-    const shift = (delta) => { const n = new Date(); return ym(new Date(n.getFullYear(), n.getMonth() + delta, 1)) }
-    const cur = shift(0)
-    // a API devolve sempre o mês pedido (mês novo → vazio), só o atual está em availableMonths
-    api.getIncome.mockImplementation((m) => Promise.resolve(
-      income({ month: m || cur, current: (m || cur) === cur, monthlyIncome: 0, allocations: [],
-               totalAllocated: 0, unallocated: 0, availableMonths: [cur] })))
-    const user = userEvent.setup()
+    const cur = ym(new Date())
+    api.getIncome.mockResolvedValue(income({ month: cur, current: true }))
     render(<IncomePage />)
 
-    // no mês atual: "seguinte" desativado, "anterior" ativo (aponta ao mês anterior)
-    await waitFor(() => expect(screen.getByText('atual')).toBeInTheDocument())
-    expect(screen.getByLabelText('Mês seguinte')).toBeDisabled()
-    expect(screen.getByLabelText('Mês anterior')).toBeEnabled()
-
-    // recua 3 meses, um a um
-    for (let i = 1; i <= 3; i++) {
-      await user.click(screen.getByLabelText('Mês anterior'))
-      await waitFor(() => expect(api.getIncome).toHaveBeenCalledWith(shift(-i)))
-    }
-
-    // no limite (atual − 3): "anterior" desativado com a dica do limite
-    await waitFor(() => {
-      const prev = screen.getByLabelText('Mês anterior')
-      expect(prev).toBeDisabled()
-      expect(prev).toHaveAttribute('title', 'Só podes recuar até 3 meses atrás')
-    })
+    await waitFor(() => expect(api.getIncome).toHaveBeenCalledWith(cur))
+    expect(screen.queryByLabelText('Mês anterior')).not.toBeInTheDocument()
   })
 
   it('eliminar um item confirma e chama a API', async () => {
@@ -196,5 +177,30 @@ describe('IncomePage', () => {
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remover' }))
 
     await waitFor(() => expect(api.deleteAllocationItem).toHaveBeenCalledWith(9))
+  })
+
+  // O seletor de mês anda de um em um sem fim: sem estes atalhos não havia como
+  // saber que meses têm dados nem chegar lá sem clicar N vezes.
+  it('mostra atalhos para os meses com rendimento registado', async () => {
+    api.getIncome.mockResolvedValue(income({ availableMonths: ['2025-04', '2025-05', '2025-06'] }))
+    const user = userEvent.setup()
+    render(<IncomePage />)
+
+    await waitFor(() => expect(screen.getByRole('group', { name: /Meses com rendimento/ })).toBeInTheDocument())
+    const chips = within(screen.getByRole('group', { name: /Meses com rendimento/ })).getAllByRole('button')
+    // do mais recente para trás
+    expect(chips.map((b) => b.textContent)).toEqual(['jun 25', 'mai 25', 'abr 25'])
+    expect(chips[0]).toHaveAttribute('aria-current', 'true')
+
+    await user.click(chips[2])
+    await waitFor(() => expect(api.getIncome).toHaveBeenCalledWith('2025-04'))
+  })
+
+  it('com um mês só não mostra atalhos nenhuns', async () => {
+    api.getIncome.mockResolvedValue(income())
+    render(<IncomePage />)
+
+    await waitFor(() => expect(screen.getAllByText('Poupança').length).toBeGreaterThan(0))
+    expect(screen.queryByRole('group', { name: /Meses com rendimento/ })).not.toBeInTheDocument()
   })
 })

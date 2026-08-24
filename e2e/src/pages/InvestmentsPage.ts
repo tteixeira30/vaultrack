@@ -17,14 +17,20 @@ export interface ManualInvestmentInput {
  * cotações do Yahoo Finance nem do CoinGecko, por isso é determinístico em CI.
  */
 export class InvestmentsPage extends TabPage {
-  protected readonly tab: TabLabel = 'Investimentos'
+  protected readonly tab: TabLabel = 'Carteira'
 
+  /**
+   * Linha de um ativo.
+   *
+   * Desktop desenha `.asset-row` (grelha de colunas) e mobile `.m-asset`
+   * (cartão com o código do ativo à esquerda) — nunca coexistem.
+   */
   row(name: string): Locator {
-    return this.page.locator('tr', { has: this.page.locator('.row-title', { hasText: name }) })
+    return this.page.locator('.asset-row, .m-asset').filter({ hasText: name })
   }
 
   title(name: string): Locator {
-    return this.page.locator('.row-title', { hasText: name })
+    return this.page.locator('.asset-title, .m-asset-main', { hasText: name })
   }
 
   async createManual({ name, value, gain = 0 }: ManualInvestmentInput): Promise<void> {
@@ -68,13 +74,13 @@ export class InvestmentsPage extends TabPage {
   }
 
   async rename(from: string, to: string): Promise<void> {
-    await this.row(from).getByRole('button', { name: 'Editar' }).click()
+    await this.row(from).getByRole('button', { name: `Editar ${from}` }).click()
     await this.dialog.root.getByLabel('Nome').fill(to)
     await this.dialog.save()
   }
 
   async delete(name: string): Promise<void> {
-    await this.row(name).getByRole('button', { name: 'Eliminar' }).click()
+    await this.row(name).getByRole('button', { name: `Eliminar ${name}` }).click()
     await this.confirmDialog.accept('Eliminar investimento?')
     await expect(this.title(name)).toHaveCount(0)
   }

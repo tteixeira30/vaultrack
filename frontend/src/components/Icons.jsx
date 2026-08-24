@@ -72,6 +72,19 @@ export const IconCheck = (p) => (
   </Icon>
 )
 
+export const IconPause = (p) => (
+  <Icon {...p}>
+    <line x1="9" y1="4" x2="9" y2="20" />
+    <line x1="15" y1="4" x2="15" y2="20" />
+  </Icon>
+)
+
+export const IconPlay = (p) => (
+  <Icon {...p}>
+    <path d="M6 4l14 8-14 8V4z" />
+  </Icon>
+)
+
 export const IconAlert = (p) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="10" />
@@ -295,6 +308,27 @@ export const IconMore = (p) => (
     <circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none" />
     <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
     <circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none" />
+  </Icon>
+)
+
+/** Barras decrescentes — o separador "Dinheiro" da navegação mobile. */
+export const IconLines = (p) => (
+  <Icon {...p}>
+    <path d="M4 7h16M4 12h11M4 17h7" />
+  </Icon>
+)
+
+export const IconSearch = (p) => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Icon>
+)
+
+export const IconUser = (p) => (
+  <Icon {...p}>
+    <path d="M12 13a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Z" />
+    <path d="M4 21c1.5-4 4.5-5.5 8-5.5s6.5 1.5 8 5.5" />
   </Icon>
 )
 

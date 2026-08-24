@@ -43,6 +43,17 @@ public class Transaction {
      */
     private String category = "OTHER";
 
+    /**
+     * Como o movimento entrou: "IMPORT" (extrato) ou "MANUAL" (escrito à mão).
+     *
+     * O design mostra-o por baixo da descrição — saber que uma linha veio do
+     * banco é o que distingue um valor conferido de um escrito de cabeça. Com
+     * `ddl-auto: update` as linhas antigas ficam a null, por isso o getter
+     * assume MANUAL: antes de existir importação, era tudo à mão.
+     */
+    @Column(length = 16)
+    private String source;
+
     private Instant createdAt = Instant.now();
 
     public Long getId() { return id; }
@@ -60,5 +71,7 @@ public class Transaction {
     public void setInflow(boolean inflow) { this.inflow = inflow; }
     public String getCategory() { return category == null || category.isBlank() ? "OTHER" : category; }
     public void setCategory(String category) { this.category = category == null || category.isBlank() ? "OTHER" : category; }
+    public String getSource() { return source == null || source.isBlank() ? "MANUAL" : source; }
+    public void setSource(String source) { this.source = source; }
     public Instant getCreatedAt() { return createdAt; }
 }

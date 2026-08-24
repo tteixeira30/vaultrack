@@ -10,6 +10,15 @@ export const getToken = () => localStorage.getItem(TOKEN_KEY)
 export const setToken = (token) => localStorage.setItem(TOKEN_KEY, token)
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY)
 
+/**
+ * Erro com o código HTTP anexado.
+ *
+ * Quem apanha precisa de distinguir "o servidor recusou o token" (401) de "não
+ * se chegou ao servidor" (502, timeout, telemóvel sem rede): só o primeiro é
+ * motivo para terminar a sessão.
+ */
+const httpError = (message, status) => Object.assign(new Error(message), { status })
+
 async function request(path, options = {}) {
   const headers = { 'Content-Type': 'application/json' }
   const token = getToken()
@@ -20,14 +29,14 @@ async function request(path, options = {}) {
   if (res.status === 401 && !path.startsWith('/auth/')) {
     clearToken()
     onUnauthorized?.()
-    throw new Error('Sessão expirada. Inicia sessão novamente.')
+    throw httpError('Sessão expirada. Inicia sessão novamente.', 401)
   }
 
   const text = await res.text()
   if (!res.ok) {
     let message = `Erro ${res.status}`
     try { message = JSON.parse(text).message || message } catch { if (text) message = text }
-    throw new Error(message)
+    throw httpError(message, res.status)
   }
   return text ? JSON.parse(text) : null
 }
@@ -38,6 +47,9 @@ export const api = {
 
   // Conquistas
   getAchievements: () => request('/achievements'),
+
+  // Contagens dos indicadores da navegação (os números da sidebar)
+  getNavCounts: () => request('/nav'),
 
   // Calendário financeiro
   getCalendar: (month) => request(`/calendar${month ? `?month=${month}` : ''}`),
@@ -107,6 +119,7 @@ export const api = {
   getPeriodUsage: (accountId, from, to) =>
     request(`/expenses/period-usage?accountId=${accountId}&from=${from}&to=${to}`),
   getCategoryRules: () => request('/expenses/rules'),
+  deleteCategoryRule: (id) => request(`/expenses/rules/${id}`, { method: 'DELETE' }),
 
   // Categorias de despesa personalizadas (as por omissão vivem em categories.js)
   getExpenseCategories: () => request('/expenses/categories'),
@@ -136,10 +149,20 @@ export const setDisplayCurrency = (currency, rateFromEur) => {
 }
 export const getDisplayCurrency = () => displayCurrency
 
+// Moedas suportadas (código, símbolo e nome em PT-PT). A ordem é a do seletor.
+export const CURRENCIES = [
+  { code: 'EUR', symbol: '€', name: 'Euro' },
+  { code: 'USD', symbol: '$', name: 'Dólar EUA' },
+  { code: 'GBP', symbol: '£', name: 'Libra' },
+  { code: 'BRL', symbol: 'R$', name: 'Real' },
+  { code: 'CHF', symbol: 'Fr', name: 'Franco suíço' },
+  { code: 'CAD', symbol: 'C$', name: 'Dólar canadiano' },
+  { code: 'AUD', symbol: 'A$', name: 'Dólar australiano' },
+  { code: 'JPY', symbol: '¥', name: 'Iene' },
+]
+
 // Símbolos das moedas suportadas — usados nos afixos dos campos de input.
-export const CURRENCY_SYMBOLS = {
-  EUR: '€', USD: '$', GBP: '£', BRL: 'R$', CHF: 'Fr', CAD: 'C$', AUD: 'A$', JPY: '¥',
-}
+export const CURRENCY_SYMBOLS = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.symbol]))
 
 /** Símbolo da moeda base ativa (ex: '€', '$'), para rótulos de campos monetários. */
 export const getCurrencySymbol = () => CURRENCY_SYMBOLS[displayCurrency] || displayCurrency
@@ -189,6 +212,21 @@ export const fmtEur = (v) => {
   if (v == null) return '—'
   if (privacyMode) return PRIVACY_MASK
   return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: displayCurrency }).format(v * displayRate)
+}
+
+/**
+ * Valor com sinal explícito — o `sgn()` do design.
+ *
+ * O design escreve sempre "+3819,88 €" / "−250,00 €" nos números que são uma
+ * variação (ganho da carteira, saldo do mês, líquido do calendário): sem o
+ * sinal, um saldo negativo só se distingue pela cor, e a cor sozinha não chega.
+ * O "−" é o menos tipográfico (U+2212), não o hífen.
+ */
+export const fmtSigned = (v) => {
+  if (v == null) return '—'
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '—'
+  return `${n >= 0 ? '+' : '−'}${fmtEur(Math.abs(n))}`
 }
 
 /** Versão curta (sem casas decimais) para eixos de gráficos, na moeda base. */

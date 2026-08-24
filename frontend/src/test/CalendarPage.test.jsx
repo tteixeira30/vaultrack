@@ -73,7 +73,7 @@ describe('CalendarPage', () => {
     render(<CalendarPage />)
 
     await waitFor(() => expect(screen.getByText('Renda')).toBeInTheDocument())
-    await user.click(screen.getByLabelText('Editar'))
+    await user.click(screen.getAllByLabelText(/^Editar /)[0])
 
     const dialog = screen.getByRole('dialog')
     const nameInput = within(dialog).getByPlaceholderText('Ex: Salário, Renda, Netflix')
@@ -92,9 +92,43 @@ describe('CalendarPage', () => {
     render(<CalendarPage />)
 
     await waitFor(() => expect(screen.getByText('Renda')).toBeInTheDocument())
-    await user.click(screen.getByLabelText('Eliminar'))
+    await user.click(screen.getAllByLabelText(/^Eliminar /)[0])
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Eliminar' }))
 
     await waitFor(() => expect(api.deleteCalendarEvent).toHaveBeenCalledWith(1))
+  })
+
+  // O backend já excluía os eventos inativos das ocorrências; faltava a UI
+  // deixar pausar um sem ter de o eliminar e recriar.
+  it('pausar um evento reenvia-o com active: false', async () => {
+    api.getCalendar.mockResolvedValue(monthData())
+    api.updateCalendarEvent.mockResolvedValue({})
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+
+    await waitFor(() => expect(screen.getByText('Renda')).toBeInTheDocument())
+    await user.click(screen.getByLabelText('Pausar Renda'))
+
+    await waitFor(() => expect(api.updateCalendarEvent).toHaveBeenCalledWith(1,
+      expect.objectContaining({ name: 'Renda', amount: 800, active: false })))
+  })
+
+  it('um evento pausado aparece assinalado e retoma-se pelo mesmo botão', async () => {
+    api.getCalendar.mockResolvedValue(monthData({
+      events: [{
+        id: 1, name: 'Ginásio', category: 'SUBSCRIPTION', inflow: false, amount: 40,
+        frequency: 'MONTHLY', dayOfMonth: 5, eventDate: null, active: false,
+      }],
+    }))
+    api.updateCalendarEvent.mockResolvedValue({})
+    const user = userEvent.setup()
+    render(<CalendarPage />)
+
+    await waitFor(() => expect(screen.getByText('Ginásio')).toBeInTheDocument())
+    expect(screen.getByText('pausado')).toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Retomar Ginásio'))
+    await waitFor(() => expect(api.updateCalendarEvent).toHaveBeenCalledWith(1,
+      expect.objectContaining({ active: true })))
   })
 })

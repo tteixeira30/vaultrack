@@ -1,5 +1,12 @@
 # Plano — revisão profunda do mobile
 
+> **Histórico — executado e depois substituído.** Este plano foi cumprido e serviu de base à
+> camada mobile (alvos táteis, bottom sheets, projeto Playwright de telemóvel), mas a navegação
+> que descreve — quatro separadores mais uma sheet "Mais" — deixou de existir com o design
+> Vaultrack v3: são agora três separadores (Início · Dinheiro · Crescer) com segmentos no topo,
+> e o `components/MoreSheet.jsx` foi removido. Para o estado atual, o `CLAUDE.md` e o
+> `e2e/README.md` são a referência; isto fica pelo racional das decisões que continuam de pé.
+
 Documento de trabalho para a renovação da camada mobile do Vaultrack: interações, UI, UX e
 design. Escrito para ser executado por fases, cada uma a terminar num estado committável com a
 pipeline verde.

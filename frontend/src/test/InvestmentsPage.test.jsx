@@ -43,13 +43,37 @@ describe('InvestmentsPage', () => {
     expect(container.querySelector('.skeleton')).toBeInTheDocument()
   })
 
+  // O formulário promete "calculamos ... as unidades" e não as mostrava.
+  it('mostra as unidades detidas nos ativos com cotação', async () => {
+    api.getInvestments.mockResolvedValue({
+      summary: { totalInvested: 1000, totalCurrent: 1100, totalGain: 100, totalGainPercent: 10 },
+      investments: [{
+        id: 2, name: 'Bitcoin', symbol: 'BTC', type: 'CRYPTO', initialValue: 1000,
+        currentValue: 1100, currentPrice: 50000, quantity: 0.022, gain: 100, gainPercent: 10,
+        live: true, monthlyContribution: null, contributionDay: null,
+      }],
+    })
+    render(<InvestmentsPage />)
+
+    await waitFor(() => expect(screen.getByText('Bitcoin')).toBeInTheDocument())
+    expect(screen.getByText(/0,022 un/)).toBeInTheDocument()
+  })
+
+  it('não inventa unidades para ativos sem cotação', async () => {
+    api.getInvestments.mockResolvedValue(portfolio())
+    render(<InvestmentsPage />)
+
+    await waitFor(() => expect(screen.getByText('PPR Manual')).toBeInTheDocument())
+    expect(screen.queryByText(/un$/)).not.toBeInTheDocument()
+  })
+
   it('mostra o resumo e a tabela de investimentos', async () => {
     api.getInvestments.mockResolvedValue(portfolio())
     render(<InvestmentsPage />)
 
     await waitFor(() => expect(screen.getByText('PPR Manual')).toBeInTheDocument())
     // investimento manual sem cotação → badge "manual" e tipo "Outro"
-    const row = screen.getByText('PPR Manual').closest('tr')
+    const row = screen.getByText('PPR Manual').closest('.asset-row')
     expect(within(row).getByText('manual')).toBeInTheDocument()
     expect(within(row).getByText('Outro')).toBeInTheDocument()
   })
@@ -82,7 +106,7 @@ describe('InvestmentsPage', () => {
     render(<InvestmentsPage />)
 
     await waitFor(() => expect(screen.getByText('PPR Manual')).toBeInTheDocument())
-    await user.click(screen.getByLabelText('Editar'))
+    await user.click(screen.getAllByLabelText(/^Editar /)[0])
 
     const dialog = screen.getByRole('dialog')
     const nameInput = within(dialog).getAllByRole('textbox')[0]
@@ -101,7 +125,7 @@ describe('InvestmentsPage', () => {
     render(<InvestmentsPage />)
 
     await waitFor(() => expect(screen.getByText('PPR Manual')).toBeInTheDocument())
-    await user.click(screen.getByLabelText('Eliminar'))
+    await user.click(screen.getAllByLabelText(/^Eliminar /)[0])
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Eliminar' }))
 
     await waitFor(() => expect(api.deleteInvestment).toHaveBeenCalledWith(1))

@@ -11,7 +11,10 @@ import { formatViolations, scanA11y } from '@utils/axe'
  * O tema resolve-se de `prefers-color-scheme` no primeiro arranque (ThemeContext),
  * por isso alterna-se via `colorScheme` do contexto Playwright.
  */
-const TABS: TabLabel[] = ['Painel', 'Rendimento', 'Despesas', 'Investimentos', 'Objetivos', 'Calendário']
+const TABS: TabLabel[] = [
+  'Painel', 'Movimentos', 'Carteira', 'Objetivos',
+  'Rendimento', 'Calendário', 'Conquistas', 'Contas', 'Perfil',
+]
 
 for (const colorScheme of ['light', 'dark'] as const) {
   test.describe(`acessibilidade (axe-core) — tema ${colorScheme}`, () => {
@@ -29,7 +32,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
     })
 
     for (const tab of TABS) {
-      test(`separador ${tab}`, async ({ dashboardPage }, testInfo) => {
+      test(`ecrã ${tab}`, async ({ dashboardPage }, testInfo) => {
         await dashboardPage.goto()
         await dashboardPage.nav.open(tab)
         // espera o conteúdo real (as páginas mostram um skeleton enquanto carregam)

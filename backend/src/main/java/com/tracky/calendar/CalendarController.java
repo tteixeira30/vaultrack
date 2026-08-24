@@ -50,8 +50,9 @@ public class CalendarController {
                              BigDecimal amount, String source, Long eventId) {}
     public record MonthResponse(String month, List<EventDto> events, List<Occurrence> occurrences,
                                 BigDecimal inflows, BigDecimal outflows, BigDecimal net) {}
+    /** `eventId` identifica a origem: o evento manual (editavel) ou o investimento/objetivo. */
     public record ForecastPoint(LocalDate date, String name, CalendarEvent.Category category, boolean inflow,
-                                BigDecimal amount, String source, BigDecimal balanceAfter) {}
+                                BigDecimal amount, String source, Long eventId, BigDecimal balanceAfter) {}
     public record ForecastResponse(BigDecimal startingBalance, boolean hasBalance, int days,
                                    List<ForecastPoint> points, BigDecimal endBalance) {}
 
@@ -105,7 +106,7 @@ public class CalendarController {
         for (Occurrence o : occ) {
             balance = o.inflow() ? balance.add(o.amount()) : balance.subtract(o.amount());
             points.add(new ForecastPoint(o.date(), o.name(), o.category(), o.inflow(),
-                    o.amount(), o.source(), balance));
+                    o.amount(), o.source(), o.eventId(), balance));
         }
         return new ForecastResponse(hasBalance ? startingBalance : null, hasBalance,
                 horizon, points, balance);

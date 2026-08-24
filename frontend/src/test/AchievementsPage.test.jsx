@@ -48,8 +48,10 @@ describe('AchievementsPage', () => {
     expect(screen.getByText('Desbloqueada')).toBeInTheDocument()
     expect(screen.getByText('Poupar 1000€')).toBeInTheDocument()
     // categorias como secções
-    expect(screen.getByRole('heading', { name: 'Investimento' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Poupança' })).toBeInTheDocument()
+    // as categorias são rótulos de secção, não cabeçalhos
+    const labels = [...document.querySelectorAll('.section-label')].map((e) => e.textContent)
+    expect(labels).toContain('Investimento')
+    expect(labels).toContain('Poupança')
   })
 
   it('mostra estado de erro quando a API falha', async () => {

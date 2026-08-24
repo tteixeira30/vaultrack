@@ -20,12 +20,20 @@ export interface GoalInput {
 export class GoalsPage extends TabPage {
   protected readonly tab: TabLabel = 'Objetivos'
 
+  /**
+   * Cartão de um objetivo.
+   *
+   * O desktop desenha `.goal-card` numa grelha de três colunas e o telemóvel
+   * `.m-goal` a toda a largura, com o anel de progresso — o seletor apanha os
+   * dois, que nunca coexistem.
+   */
   card(name: string): Locator {
-    return this.page.locator('.goal-card', { has: this.page.locator('.goal-title', { hasText: name }) })
+    return this.page.locator('.goal-card, .m-goal')
+      .filter({ has: this.page.locator('.goal-name', { hasText: name }) })
   }
 
   title(name: string): Locator {
-    return this.page.locator('.goal-title', { hasText: name })
+    return this.page.locator('.goal-name', { hasText: name })
   }
 
   /** Montante poupado, em destaque no cartão. */
@@ -64,7 +72,7 @@ export class GoalsPage extends TabPage {
   }
 
   async delete(name: string): Promise<void> {
-    await this.card(name).getByRole('button', { name: 'Eliminar' }).click()
+    await this.card(name).getByRole('button', { name: `Eliminar ${name}` }).click()
     await this.confirmDialog.accept('Eliminar objetivo?')
     await expect(this.title(name)).toHaveCount(0)
   }

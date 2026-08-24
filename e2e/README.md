@@ -52,14 +52,29 @@ Há dois projetos no `playwright.config.ts`:
 
 O projeto mobile é um **subconjunto de propósito**: os fluxos de CRUD têm a mesma lógica nos dois
 viewports e duplicar a suite duplicava o tempo do job. O que é específico do telemóvel — barra
-inferior, sheet "Mais", modais em bottom sheet, ausência de scroll horizontal — vive no
+inferior, segmentos, modais em bottom sheet, ausência de scroll horizontal — vive no
 `tests/mobile.spec.ts`, etiquetado `@mobile` e excluído do projeto de desktop.
 
-**`MainNav` é o Page Object da navegação nos dois casos.** A sidebar e a barra inferior têm os
-mesmos rótulos e o CSS garante que só uma está visível de cada vez, por isso a raiz do locator é
-`.sidebar .nav:visible, .bottom-nav:visible` — apanha a que está em uso sem depender do valor do
-breakpoint. Em mobile, `open('Rendimento')` passa sozinho pela sheet "Mais", onde os separadores
-secundários vivem.
+**`MainNav` é o Page Object da navegação nos dois casos**, mas as duas navegações são diferentes:
+
+| | Desktop | Mobile |
+|---|---|---|
+| Ecrãs | sidebar agrupada (Principal · Análise · Sistema) | 3 separadores no fundo (Início · Dinheiro · Crescer) |
+| Ecrã dentro do separador | — | segmentos por baixo do cabeçalho |
+| Perfil e Contas | itens do grupo "Sistema" | avatar do cabeçalho |
+
+`open('Rendimento')` trata disto sozinho: em desktop clica na sidebar, em mobile abre o separador
+"Dinheiro" e depois o segmento "Rendimento". Qual dos dois está em uso decide-se por
+`bottomNav.isVisible()`, não pela largura do viewport — assim o Page Object não fica acoplado ao
+valor do breakpoint.
+
+Duas notas de locators que valem para toda a suite:
+
+- A página de Movimentos desenha **as duas vistas ao mesmo tempo** (tabela do desktop e cartões
+  por dia do telemóvel) e é o CSS que escolhe qual se vê. Os locators de linhas usam `:visible`,
+  senão apanham as duas cópias.
+- Os botões de editar/eliminar em listas dizem o nome do item (`Eliminar Viagem`), não só o verbo
+  — a lista teria vários botões com o mesmo nome acessível.
 
 Aliases de importação (definidos em `tsconfig.json`): `@fixtures/*`, `@pages/*`,
 `@components/*`, `@utils/*`.

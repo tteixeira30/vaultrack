@@ -87,7 +87,9 @@ testes e os leitores de ecrã ao mesmo tempo.
 ### Moeda (importante)
 
 - **Todo o cálculo é em EUR.** `PriceService` converte cotações de mercado para EUR (Yahoo `{CUR}EUR=X`).
-- A **moeda base** do utilizador (`User.baseCurrency`, default EUR) é só de **apresentação**. `CurrencyService` dá a taxa EUR→base (Yahoo `EUR{CUR}=X`, com cache). `GET /api/currency` devolve `{ base, rate, supported }`.
+- A **moeda base** do utilizador (`User.baseCurrency`, default EUR) é só de **apresentação**. `CurrencyService` dá a taxa EUR→base (Yahoo `EUR{CUR}=X`, com cache). `GET /api/currency` devolve `{ base, rate, rateLive, supported }`.
+- **`rateLive: false` não é um pormenor.** Quando o câmbio falha, a taxa devolvida é 1,0 — os montantes continuam a ser euros, só com outro símbolo à frente. O `AuthContext` propaga-o e a UI tem de o dizer (aviso no cartão "Moeda base" e o chip da barra de topo a âmbar). Nunca mostres valores convertidos sem verificar este campo.
+- **A lista de moedas é a do backend.** O `supported` de `GET /api/currency` manda; o `CURRENCIES` do `api.js` só lhe acrescenta símbolo e nome. Uma moeda nova no `CurrencyService.SUPPORTED` aparece na UI sem se mexer no frontend (com o código a fazer de nome até alguém lho dar).
 - No frontend, `api.js` converte na apresentação: `fmtEur(v)` recebe EUR e formata na moeda base; `toEur(v)` converte input da base→EUR antes de enviar. Ao trocar de moeda, as páginas remontam via `key={baseCurrency}` no `App.jsx`.
 
 ### Mensal / recorrência
@@ -98,29 +100,63 @@ testes e os leitores de ecrã ao mesmo tempo.
 
 ## Convenções do frontend
 
-- **Sem router.** `App.jsx` alterna páginas por um estado `tab`. Novos separadores: adicionar ao array `TABS` e ao `main`.
-- **`api.js`** é o único cliente HTTP. Anexa o Bearer token, trata 401 (limpa sessão). Exporta `fmtEur`, `fmtMoneyShort`, `fmtPct`, `toEur`, `setDisplayCurrency`.
+- **Sem router.** `App.jsx` alterna ecrãs por um estado `screen` (sincronizado com o hash e o
+  histórico). O mapa de ecrãs vive em `components/nav.js` — para acrescentar um, junta-o a
+  `SCREENS`, ao grupo certo de `NAV_GROUPS` (sidebar do desktop) e, se for para telemóvel, ao
+  separador certo de `MOBILE_TABS`; depois renderiza-o no `page-swap` do `App.jsx`.
+- **Duas navegações, um mapa.** Em desktop é a sidebar agrupada (Principal · Análise · Sistema);
+  em mobile são três separadores no fundo (Início · Dinheiro · Crescer), e o ecrã dentro de cada
+  um escolhe-se nos segmentos por baixo do cabeçalho. As duas coexistem no DOM — é o CSS que
+  decide qual se vê — por isso têm nomes de landmark diferentes.
+- **Estado partilhado pelo shell**: `MonthContext` (o mês ativo, que a barra de topo troca e as
+  páginas mensais consomem) e `IntentContext` (a janela "Adicionar" e a paleta ⌘K navegam para um
+  ecrã e deixam lá a intenção; a página consome-a com `useIntent`). O "Adicionar" da barra de topo
+  abre um `<Modal>` ao centro, não um popover ancorado ao botão.
+- **`api.js`** é o único cliente HTTP. Anexa o Bearer token, trata 401 (limpa sessão). Exporta `fmtEur`, `fmtSigned`, `fmtMoneyShort`, `fmtPct`, `toEur`, `setDisplayCurrency`.
+- **Só um 401 termina a sessão.** Os erros que o `request()` lança levam o código HTTP em `err.status` precisamente para isto: um 502 (backend a reiniciar) ou o telemóvel sem rede **não** são o servidor a recusar o token, e apagá-lo aí obriga a entrar de novo por nada. Nunca faças `.catch(() => clearToken())` — filtra pelo `status`.
 - **Contextos/components**: `AuthContext` (sessão + moeda), `Toast` (`useToast()`), `Modal` + `ConfirmDialog`. `Icons.jsx` são SVG inline (adiciona novos aqui).
 - **Estilos**: um único `styles.css` com design tokens em `:root`. Segue as classes/tokens existentes; evita estilos inline exceto valores dinâmicos.
-- Formata dinheiro **sempre** via `fmtEur`/`fmtMoneyShort` (respeitam a moeda base). Converte inputs monetários com `toEur` antes de enviar.
+- Formata dinheiro **sempre** via `fmtEur`/`fmtMoneyShort` (respeitam a moeda base). Converte inputs
+  monetários com `toEur` antes de enviar. O que é uma **variação** — ganho da carteira, saldo do
+  mês, líquido do calendário — leva `fmtSigned`, que escreve o "+"/"−" à frente: no design esses
+  números têm sempre sinal, e a cor sozinha não distingue positivo de negativo.
+- **Datas curtas**: `fmtDayMonth` e `monthAbbr` (em `components/MonthContext.jsx`). Não peças dia e
+  mês curto na mesma chamada a `toLocaleDateString` — em pt-PT o CLDR responde "18/08", não
+  "18 ago"; o mês tem de vir sozinho (e sem o ponto que ele lhe põe).
+- **Códigos de categoria**: o quadrado mono de duas letras vem do `code` de `categories.js`
+  (`catCode`), escrito à mão porque as iniciais colidem — Transportes/Transferências, Supermercado/
+  Subscrições, Restauração/Rendimento. Só as categorias personalizadas o derivam do nome (`codeOf`).
 
 ### Tokens de `styles.css`
 
-Além das cores (`--bg`, `--surface*`, `--text*`, `--accent`, `--cyan`, `--green`, `--red`, `--amber`,
-`--radius`, `--shadow`), existem escalas que **devem** ser usadas em vez de números soltos:
+A paleta vem do design **Vaultrack v3**: escuro assente em `#0a0b10` e claro "papel" (cinzentos
+quentes, `#f6f5f1`) — não um claro azulado. Além das cores (`--bg`, `--panel`, `--surface*`,
+`--sel`, `--track`, `--text*`, `--accent*`, `--cyan`, `--green`, `--red`, `--amber`), existem
+escalas que **devem** ser usadas em vez de números soltos:
 
 | Grupo | Tokens |
 |---|---|
+| Tipografia | `--font` (Manrope, interface), `--font-mono` (JetBrains Mono, números) |
+| Forma | `--radius` 20px (cartões), `--radius-md` 16px, `--radius-sm` 11px, `--radius-xs` 9px |
 | Espaçamento | `--sp-1` (4px) … `--sp-8` (32px) |
 | Camadas | `--z-sidebar` 40, `--z-nav` 50, `--z-pop` 60, `--z-modal` 100, `--z-portal` 200, `--z-toast` 200 |
 | Movimento | `--dur-1/2/3` (120/200/280ms), `--ease-out`, `--ease-spring` |
 | Toque | `--tap` (44px, alvo tátil mínimo) |
-| Chrome mobile | `--nav-h` (62px), `--topbar-h` (56px) |
+| Chrome | `--topbar-h` (60px), `--nav-h` (66px), `--seg-h` (46px) |
 | Safe areas | `--safe-t/-b/-l/-r` (envolvem `env(safe-area-inset-*)`) |
 | Foco | `--ring` (anel de `:focus-visible`) |
 
-`--z-pop` é para popovers no fluxo (menu de perfil); `--z-portal` é para os popovers em portal
-(`Dropdown`, `DatePicker`), que têm de ficar **acima** dos modais.
+`--z-pop` é para popovers ancorados no fluxo da página; `--z-portal` é para os popovers em portal
+(`Dropdown`, `DatePicker`, paleta ⌘K), que têm de ficar **acima** dos modais.
+
+**Números são mono.** Todo o dinheiro, data e percentagem leva `.mono` (que é o `--font-mono` com
+`tabular-nums`). É o que dá o alinhamento das colunas de valores em toda a app.
+
+**Contraste é regra, não gosto.** O `e2e/tests/a11y.spec.ts` corre o axe nos nove ecrãs em tema
+claro e escuro e bloqueia em qualquer violação de contraste. Por isso `--text-dim` e `--text-faint`
+são mais claros (escuro) e mais escuros (claro) do que os do design: os originais davam 3.1–3.7:1.
+Ao pôr texto sobre um fundo com tinte (`--accent-soft` e afins), verifica — foi aí que o nome da
+moeda ativa caiu para 4.39:1.
 
 ### Breakpoints (só estes quatro)
 
@@ -131,9 +167,19 @@ sete breakpoints desiguais.
 - `<= 600px` — telemóvel em retrato: uma coluna, modais viram bottom sheets, `font-size: 16px` nos
   campos (evita o zoom automático do iOS).
 - `<= 760px` — telemóvel em paisagem / tablet pequeno: `table.responsive` vira lista de cartões.
-- `<= 900px` — **fronteira "isto é mobile"**: a sidebar vira barra de topo, surge a `.bottom-nav`,
-  e todo o interativo passa a ter pelo menos `--tap` de altura.
+- `<= 900px` — **fronteira "isto é mobile"**: a sidebar desaparece, o cabeçalho da página passa a
+  ser a barra de topo, surgem a `.bottom-nav` e os `.segments`, e todo o interativo passa a ter
+  pelo menos `--tap` de altura.
 - `<= 1000px` — desktop estreito: só ajustes de grelha.
+
+**Grelhas**: usa sempre `minmax(0, 1fr)`, nunca `1fr`. Itens de grelha têm `min-width: auto` e não
+encolhem abaixo do conteúdo — com `1fr` os cartões passavam dos 390px e ficavam cortados pelo
+`overflow-x: hidden` do body, sem sintoma visível a não ser conteúdo a desaparecer à direita.
+
+**Vistas duplicadas**: quando um ecrã tem duas apresentações (a tabela de Movimentos e os cartões
+por dia, por exemplo), as duas ficam no DOM e é o `.desktop-only` / `.mobile-only` que escolhe.
+Essas duas classes vivem **no fim** do ficheiro, mesmo antes do bloco dos alvos táteis: são
+seletores de classe simples e qualquer `display` declarado depois ganharia por cascata.
 
 Regras globais que já existem e não precisam de ser repetidas: supressão do realce de toque com
 `:active` próprios, `touch-action: manipulation`, `overscroll-behavior` nas sobreposições,
@@ -160,7 +206,8 @@ não a outro sítio.
 
 - `User` — id, name, email, passwordHash, `baseCurrency`, `currentBalance`, createdAt.
 - `IncomeSettings` — userId, `month`, monthlyIncome. `Allocation` — userId, month, name, percentage **ou** fixedAmount.
-- `Investment` — userId, name, symbol, type (STOCK/ETF/CRYPTO/OTHER), initialValue, quantity, fallbackValue, monthlyContribution, lastAppliedMonth.
+- `Investment` — userId, name, symbol, type (STOCK/ETF/CRYPTO/PPR/OTHER), initialValue, quantity, fallbackValue, monthlyContribution, lastAppliedMonth.
+- `Account` — userId, name, currentBalance. `Transaction` — userId, accountId, txDate, description, amount, inflow, category, `source` (IMPORT/MANUAL; null nas linhas antigas → o getter devolve MANUAL).
 - `Goal` — userId, name, targetAmount, monthlyAllocation, savedAmount, autoDeposit, lastAppliedMonth.
 - `CalendarEvent` — userId, name, category, inflow, amount, frequency (MONTHLY/YEARLY/ONCE), dayOfMonth/eventDate, active.
 - Conquistas **não têm entidade** — são calculadas a partir dos dados existentes.

@@ -1,0 +1,12 @@
+# O `COPY . .` do Dockerfile corre DEPOIS do `npm install`, por isso sem esta
+# lista o node_modules do host escreve por cima do que foi instalado na imagem.
+# Em Windows isso traz os binários nativos errados (o esbuild é o primeiro a
+# rebentar: "Host version does not match binary version").
+node_modules
+
+# artefactos de build e do projeto nativo — nada disto entra na imagem
+dist
+android
+.env
+.env.*
+*.log

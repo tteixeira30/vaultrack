@@ -42,9 +42,9 @@ export default function AuthPage() {
     <div className="auth-wrap">
       <div className="auth-card">
         <div className="auth-brand">
-          <IconLogo size={44} />
-          <h1>Vault<span>rack</span></h1>
-          <p>Gere o teu rendimento, investimentos e objetivos num só lugar.</p>
+          <IconLogo size={52} />
+          <h1>O teu património,<br />num só número.</h1>
+          <p>Contas, investimentos e objetivos no mesmo sítio — atualizados ao minuto.</p>
         </div>
 
         <div className="auth-tabs">
