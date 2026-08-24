@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import DashboardPage from './pages/DashboardPage'
 import IncomePage from './pages/IncomePage'
 import InvestmentsPage from './pages/InvestmentsPage'
@@ -17,12 +17,14 @@ import { IntentProvider, useIntentSetter } from './components/IntentContext'
 import BottomNav from './components/BottomNav'
 import Segments from './components/Segments'
 import CommandPalette from './components/CommandPalette'
+import Modal from './components/Modal'
 import { SCREENS, SCREEN_IDS, NAV_GROUPS, MOBILE_TABS, tabOfScreen } from './components/nav'
 import { useIsMobile } from './components/useMediaQuery'
 import {
   IconLogo, IconSun, IconMoon, IconEye, IconEyeOff, IconSearch, IconPlus, IconChevronLeft,
+  IconUpload, IconRefresh,
 } from './components/Icons'
-import { api, setPrivacyMode, CURRENCIES, CURRENCY_SYMBOLS } from './api'
+import { api, setPrivacyMode, CURRENCY_SYMBOLS } from './api'
 
 /** Ecrã inicial a partir do URL, para o refresh e as ligações diretas. */
 const screenFromHash = () => {
@@ -37,14 +39,18 @@ const reducedMotion = () =>
 /**
  * Ações do menu "Adicionar" (e da paleta). Cada uma navega para o ecrã que a
  * executa e deixa lá a intenção — ver `IntentContext`.
+ *
+ * São as seis do design, por esta ordem. A categoria de rendimento não está
+ * aqui de propósito: cria-se no próprio ecrã do Rendimento (e no "+" do
+ * cabeçalho mobile), que é onde se escolhe a percentagem.
  */
 const ADD_ACTIONS = [
-  { id: 'newTransaction', code: 'MV', label: 'Movimento', note: 'entrada ou saída', screen: 'expenses', tone: 'accent' },
-  { id: 'newInvestment', code: 'AT', label: 'Ativo', note: 'ação, ETF ou cripto', screen: 'investments', tone: 'cyan' },
-  { id: 'newGoal', code: 'OB', label: 'Objetivo', note: 'meta de poupança', screen: 'goals', tone: 'green' },
-  { id: 'newAllocation', code: 'RD', label: 'Categoria de rendimento', note: 'percentagem ou valor fixo', screen: 'income', tone: 'amber' },
-  { id: 'newEvent', code: 'CL', label: 'Evento do calendário', note: 'recorrente ou único', screen: 'calendar', tone: 'accent' },
-  { id: 'newAccount', code: 'CT', label: 'Conta corrente', note: 'para importar extratos', screen: 'accounts', tone: 'cyan' },
+  { id: 'newTransaction', code: 'MV', label: 'Movimento', note: 'despesa, receita ou transferência', screen: 'expenses' },
+  { id: 'importStatement', code: 'IM', label: 'Importar extrato', note: 'CSV ou PDF do banco', screen: 'expenses' },
+  { id: 'newInvestment', code: 'IN', label: 'Investimento', note: 'ETF, ação, cripto, PPR', screen: 'investments' },
+  { id: 'newGoal', code: 'OB', label: 'Objetivo', note: 'meta de poupança', screen: 'goals' },
+  { id: 'newEvent', code: 'EV', label: 'Evento recorrente', note: 'salário, renda, subscrição', screen: 'calendar' },
+  { id: 'newAccount', code: 'CT', label: 'Conta corrente', note: 'banco ou corretora', screen: 'accounts' },
 ]
 
 function MonthStepper({ compact = false }) {
@@ -58,35 +64,32 @@ function MonthStepper({ compact = false }) {
   )
 }
 
+/**
+ * Botão "Adicionar" da barra de topo.
+ *
+ * Abre uma janela ao centro do ecrã (não um popover ancorado ao botão): a lista
+ * das seis coisas que se podem criar é o assunto principal enquanto está aberta,
+ * e ao centro fica igualmente perto venha o rato de onde vier.
+ */
 function AddMenu({ open, setOpen, onPick }) {
-  const ref = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    const onDown = (e) => { if (!ref.current?.contains(e.target)) setOpen(false) }
-    const onKey = (e) => { if (e.key === 'Escape') setOpen(false) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
   return (
-    <div className={`add-menu ${open ? 'open' : ''}`} ref={ref}>
+    <>
       <button type="button" className="btn add-trigger" onClick={() => setOpen((o) => !o)}
-              aria-expanded={open} aria-haspopup="menu">
+              aria-expanded={open} aria-haspopup="dialog">
         <IconPlus size={15} />
         <span>Adicionar</span>
         <kbd>N</kbd>
       </button>
-      {open && (
-        <div className="add-pop" role="menu">
+
+      <Modal open={open} onClose={() => setOpen(false)} width={420}
+             title="Adicionar" subtitle="O que queres criar?">
+        <div className="add-list">
           {ADD_ACTIONS.map((a) => (
-            <button key={a.id} type="button" role="menuitem"
+            <button key={a.id} type="button"
                     onClick={() => { setOpen(false); onPick(a) }}>
-              <span className={`code-chip ${a.tone}`}>{a.code}</span>
+              {/* todos com a tinta do acento, como no design: a lista não é um
+                  mapa de cores, é seis coisas para criar */}
+              <span className="code-chip accent">{a.code}</span>
               <span className="am-text">
                 <strong>{a.label}</strong>
                 <small>{a.note}</small>
@@ -94,14 +97,15 @@ function AddMenu({ open, setOpen, onPick }) {
             </button>
           ))}
         </div>
-      )}
-    </div>
+      </Modal>
+    </>
   )
 }
 
 function Shell() {
-  const { user, loading, logout, baseCurrency, changeCurrency } = useAuth()
+  const { user, loading, logout, baseCurrency, rateLive, currencies, changeCurrency } = useAuth()
   const { theme, toggle: toggleTheme } = useTheme()
+  const { month } = useMonth()
   const setIntent = useIntentSetter()
   const isMobile = useIsMobile()
 
@@ -181,6 +185,27 @@ function Shell() {
     return () => document.removeEventListener('keydown', onKey)
   }, [togglePrivacy, toggleTheme])
 
+  /**
+   * Ações da paleta: as três do design. Não são as de criar — essas vivem no
+   * menu "Adicionar"; aqui ficam as que se querem fazer de qualquer ecrã.
+   */
+  const paletteActions = useMemo(() => [
+    {
+      id: 'importStatement', label: 'Importar extrato', note: 'CSV ou PDF do banco',
+      icon: IconUpload, run: () => runAction({ id: 'importStatement', screen: 'expenses' }),
+    },
+    {
+      id: 'refreshQuotes', label: 'Atualizar cotações', note: 'Yahoo Finance · CoinGecko',
+      icon: IconRefresh, run: () => runAction({ id: 'refreshQuotes', screen: 'investments' }),
+    },
+    {
+      id: 'togglePrivacy',
+      label: privacy ? 'Mostrar valores' : 'Ocultar valores',
+      note: 'mascara todos os montantes',
+      icon: privacy ? IconEye : IconEyeOff, run: togglePrivacy,
+    },
+  ], [privacy, runAction, togglePrivacy])
+
   const activeTab = useMemo(() => tabOfScreen(screen), [screen])
 
   // tocar outra vez no separador ativo sobe ao topo, como nas apps nativas
@@ -207,11 +232,15 @@ function Shell() {
   // em mobile o título é o do separador — são os segmentos por baixo que dizem
   // em que ecrã se está; em desktop o título é o do próprio ecrã
   const hasSegments = !!activeTab && activeTab.screens.length > 1
-  const title = isMobile && hasSegments ? activeTab.label : meta.label
+  const title = isMobile && activeTab ? activeTab.label : meta.label
+  // O Início é o único separador sem seletor de mês na própria página, por isso
+  // é o cabeçalho que diz de que mês se está a falar — como no design.
+  const eyebrow = isMobile && activeTab && !hasSegments ? fmtMonthShort(month) : null
   const isSystemScreen = screen === 'profile' || screen === 'accounts'
   const nextCurrency = () => {
-    const i = CURRENCIES.findIndex((c) => c.code === baseCurrency)
-    changeCurrency(CURRENCIES[(i + 1) % CURRENCIES.length].code)
+    // roda pelas que o backend aceita, não pela lista local
+    const i = currencies.findIndex((c) => c.code === baseCurrency)
+    changeCurrency(currencies[(i + 1) % currencies.length].code)
   }
 
   return (
@@ -281,14 +310,17 @@ function Shell() {
             </button>
           )}
           <div className="tb-title">
+            {eyebrow && <span className="tb-eyebrow">{eyebrow}</span>}
             <h2>{title}</h2>
-            <span className="tb-sub">{meta.subtitle}</span>
           </div>
 
           <div className="tb-tools">
             {meta.monthly && <MonthStepper />}
-            <button type="button" className="tb-chip mono" onClick={nextCurrency}
-                    title="Moeda base" aria-label={`Moeda base: ${baseCurrency}. Mudar.`}>
+            {/* âmbar quando o câmbio falhou: os montantes ainda são euros
+                por baixo do símbolo, e isso tem de se ver algures */}
+            <button type="button" className={`tb-chip mono ${rateLive ? '' : 'stale'}`} onClick={nextCurrency}
+                    title={rateLive ? 'Moeda base' : 'Câmbio indisponível — os valores estão em euros'}
+                    aria-label={`Moeda base: ${baseCurrency}.${rateLive ? '' : ' Câmbio indisponível, os valores estão em euros.'} Mudar.`}>
               {baseCurrency} <span>{CURRENCY_SYMBOLS[baseCurrency] ?? baseCurrency}</span>
             </button>
             <button type="button" className={`icon-btn ${privacy ? 'on' : ''}`} onClick={togglePrivacy}
@@ -341,7 +373,8 @@ function Shell() {
           {screen === 'profile' && (
             <ProfilePage
               user={user} initials={initials}
-              baseCurrency={baseCurrency} changeCurrency={changeCurrency}
+              baseCurrency={baseCurrency} changeCurrency={changeCurrency} rateLive={rateLive}
+              currencies={currencies}
               privacy={privacy} togglePrivacy={togglePrivacy}
               onGo={go} onLogout={logout}
             />
@@ -353,7 +386,7 @@ function Shell() {
 
       <CommandPalette
         open={paletteOpen} onClose={() => setPaletteOpen(false)} onGo={go}
-        actions={ADD_ACTIONS.map((a) => ({ ...a, run: () => runAction(a) }))}
+        actions={paletteActions}
       />
     </div>
   )

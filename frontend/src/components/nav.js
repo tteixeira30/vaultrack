@@ -7,7 +7,7 @@ import {
  * Mapa de ecrãs da aplicação.
  *
  * `label` é o nome no design ("Movimentos", "Carteira"); `subtitle` é a linha
- * mono que a barra de topo mostra ao lado do título em desktop; `badge` é o
+ * de apoio que a paleta ⌘K mostra por baixo do destino; `badge` é o
  * indicador da sidebar — recebe as contagens de `GET /api/nav` e devolve o que
  * escrever, ou nada quando o ecrã não tem número que valha a pena mostrar.
  *

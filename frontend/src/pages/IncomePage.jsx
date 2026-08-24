@@ -3,12 +3,18 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
-import { useMonth, fmtMonthShort as fmtMonth } from '../components/MonthContext'
+import { useMonth, fmtMonthShort as fmtMonth, monthAbbr } from '../components/MonthContext'
 import { useIntent } from '../components/IntentContext'
 import { useIsMobile } from '../components/useMediaQuery'
 import { IconChevronRight, IconPencil, IconPlus, IconPie, IconWallet, IconTrash } from '../components/Icons'
 
 const COLORS = ['#6366f1', '#22d3ee', '#10b981', '#f59e0b', '#ef4444', '#a78bfa', '#fb923c', '#e879f9']
+
+/** "2026-08" → "ago 26" — o formato longo não cabe num chip. */
+const chipLabel = (m) => {
+  const [y, mo] = m.split('-').map(Number)
+  return `${monthAbbr(new Date(y, mo - 1, 1))} ${String(y).slice(2)}`
+}
 
 const EMPTY_ALLOC = { name: '', mode: 'percentage', value: '', color: COLORS[0] }
 
@@ -29,7 +35,7 @@ function ChartTooltip({ active, payload }) {
 export default function IncomePage() {
   const toast = useToast()
   const cur = getCurrencySymbol()
-  const { month, step } = useMonth()
+  const { month, setMonth, step } = useMonth()
   const isMobile = useIsMobile()
   const [data, setData] = useState(null)
   const [incomeModal, setIncomeModal] = useState(false)
@@ -217,6 +223,28 @@ export default function IncomePage() {
       ? (income > 0 ? `≈ ${fmtEur(income * formValue / 100)} por mês` : null)
       : (income > 0 ? `≈ ${(formValue / income * 100).toFixed(1)}% do rendimento` : null)
 
+  /**
+   * Meses que já têm rendimento registado, do mais recente para trás.
+   *
+   * O seletor de mês anda de um em um sem fim à vista: sem isto não havia como
+   * saber onde é que os dados começam nem chegar a um mês distante sem clicar
+   * doze vezes. A lista vem do `availableMonths` da resposta.
+   */
+  const known = [...(data.availableMonths || [])].sort().reverse().slice(0, 12)
+  const monthChips = known.length > 1 ? (
+    <div className="month-chips" role="group" aria-label="Meses com rendimento registado">
+      {known.map((m) => (
+        // compara com o mês que a resposta traz, não com o do contexto: é esse
+        // que está mesmo em ecrã (o backend resolve o pedido sem mês)
+        <button key={m} type="button" className={`month-chip mono ${m === data.month ? 'active' : ''}`}
+                aria-current={m === data.month ? 'true' : undefined}
+                onClick={() => setMonth(m)}>
+          {chipLabel(m)}
+        </button>
+      ))}
+    </div>
+  ) : null
+
   // Os modais servem as duas vistas: declarados uma vez, injetados em ambas.
   const modals = (
     <>
@@ -365,6 +393,7 @@ export default function IncomePage() {
           <span>{fmtMonth(month)}</span>
           <button type="button" onClick={() => step(1)} aria-label="Mês seguinte">›</button>
         </div>
+        {monthChips}
 
         <section className="card m-hero">
           <span className="eyebrow">Rendimento mensal</span>
@@ -489,6 +518,8 @@ export default function IncomePage() {
         </button>
       </div>
 
+      {monthChips}
+
       <div className="income-grid">
         <div className="card income-breakdown">
           <div className="card-header">
@@ -550,9 +581,13 @@ export default function IncomePage() {
                             {a.effectivePercentage != null ? `${Number(a.effectivePercentage).toFixed(1)}%` : '—'}
                           </td>
                           <td data-label="Valor" className="mono">{fmtEur(a.amount)}</td>
-                          {/* o que já está escrutinado em itens, face ao orçamento da categoria */}
-                          <td data-label="Itens" className={`mono ${items.length === 0 ? 'dim' : overspent ? 'neg' : ''}`}>
-                            {items.length === 0 ? '—' : `${fmtEur(spent)} / ${fmtEur(budget)}`}
+                          {/* Só o que já está escrutinado em itens: o par
+                              "gasto / orçamento" repetia o valor da coluna ao
+                              lado. A comparação com o orçamento está no medidor
+                              da linha aberta — e a cor aqui já avisa se passou. */}
+                          <td data-label="Itens" className={`mono ${items.length === 0 ? 'dim' : overspent ? 'neg' : ''}`}
+                              title={items.length === 0 ? undefined : `${fmtEur(spent)} de ${fmtEur(budget)}`}>
+                            {items.length === 0 ? '—' : fmtEur(spent)}
                           </td>
                           <td className="actions-cell" style={{ textAlign: 'right' }}>
                             <button className="icon-btn" onClick={() => openEditAlloc(a, i)}

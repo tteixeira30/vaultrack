@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../App'
 import { useAuth } from '../components/AuthContext'
+import { CURRENCIES } from '../api'
 
 // AuthProvider vira passthrough; useAuth é controlado por teste
 vi.mock('../components/AuthContext', () => ({
@@ -28,7 +29,7 @@ const bottomNav = () => screen.getByRole('navigation', { name: 'Navegação por 
 
 const authed = {
   user: { name: 'Ana Silva', email: 'ana@ex.com' },
-  loading: false, baseCurrency: 'EUR',
+  loading: false, baseCurrency: 'EUR', rateLive: true, currencies: CURRENCIES,
   logout: vi.fn(), changeCurrency: vi.fn(),
 }
 
@@ -164,13 +165,15 @@ describe('App / Shell', () => {
     expect(authed.changeCurrency).toHaveBeenCalledWith('USD')
   })
 
-  it('o menu Adicionar leva ao ecrã da ação escolhida', async () => {
+  it('a janela Adicionar leva ao ecrã da ação escolhida', async () => {
     useAuth.mockReturnValue(authed)
     const user = userEvent.setup()
     render(<App />)
 
     await user.click(screen.getByRole('button', { name: /Adicionar/ }))
-    await user.click(screen.getByRole('menuitem', { name: /Objetivo/ }))
+    // a lista abre num diálogo ao centro, não num menu ancorado ao botão
+    const dialog = screen.getByRole('dialog')
+    await user.click(within(dialog).getByRole('button', { name: /Objetivo/ }))
     expect(screen.getByText('PÁGINA_OBJETIVOS')).toBeInTheDocument()
   })
 

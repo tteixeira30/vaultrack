@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmtEur, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
+import { api, fmtEur, fmtSigned, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import DatePicker from '../components/DatePicker'
 import Dropdown from '../components/Dropdown'
 import { useToast } from '../components/Toast'
-import { useMonth, fmtMonthShort as fmtMonth } from '../components/MonthContext'
+import { useMonth, fmtMonthShort as fmtMonth, fmtDayMonth, monthAbbr } from '../components/MonthContext'
 import { useIntent } from '../components/IntentContext'
 import { useIsMobile } from '../components/useMediaQuery'
 import { codeOf } from '../components/code'
-import { IconWallet, IconHome, IconRepeat, IconBell, IconCoins, IconInfo, IconPlus, IconArrowUp, IconArrowDown, IconPencil, IconTrash } from '../components/Icons'
+import {
+  IconWallet, IconHome, IconRepeat, IconBell, IconCoins, IconInfo, IconPlus,
+  IconArrowUp, IconArrowDown, IconPencil, IconTrash, IconPause, IconPlay,
+} from '../components/Icons'
 
 const CATEGORY_META = {
   INCOME: { label: 'Rendimento', icon: IconWallet },
@@ -23,7 +26,7 @@ const CATEGORY_META = {
 const CATEGORIES = Object.keys(CATEGORY_META)
 const WEEKDAYS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
 
-const EMPTY_FORM = { name: '', category: 'OTHER', inflow: false, amount: '', frequency: 'MONTHLY', dayOfMonth: '1', eventDate: '' }
+const EMPTY_FORM = { name: '', category: 'OTHER', inflow: false, amount: '', frequency: 'MONTHLY', dayOfMonth: '1', eventDate: '', active: true }
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
 
@@ -45,6 +48,7 @@ export default function CalendarPage() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [toDelete, setToDelete] = useState(null)
+  const [dayModal, setDayModal] = useState(null) // { day, occ } enquanto está aberto
   const [busy, setBusy] = useState(false)
 
   const loadMonth = (m) => api.getCalendar(m).then(setData)
@@ -64,17 +68,41 @@ export default function CalendarPage() {
   useIntent('newEvent', openAdd)
   const openAddForDay = (day) => {
     const iso = `${month}-${String(day).padStart(2, '0')}`
+    setDayModal(null)
     setEditing(null)
     setForm({ ...EMPTY_FORM, dayOfMonth: String(day), eventDate: iso })
     setAddModal(true)
   }
   const openEdit = (e) => {
+    setDayModal(null)
     setEditing(e)
     setForm({
       name: e.name, category: e.category, inflow: e.inflow, amount: String(fromEur(e.amount)),
       frequency: e.frequency, dayOfMonth: String(e.dayOfMonth || 1), eventDate: e.eventDate || '',
+      active: e.active !== false,
     })
     setAddModal(true)
+  }
+
+  /**
+   * Uma ocorrência do calendário (ou da agenda) é a projeção de algo: de um
+   * evento manual — e esse edita-se aqui — ou de um reforço de investimento /
+   * depósito de objetivo, que se muda no ecrã respetivo.
+   */
+  const eventOf = (occ) =>
+    (occ.source === 'MANUAL' || occ.source == null)
+      ? data.events.find((e) => e.id === occ.eventId) ?? null
+      : null
+
+  /**
+   * Tocar num dia: se já lá houver movimentos, abre a lista desse dia (é de lá
+   * que se editam); se estiver vazio, vai direto ao formulário — era o que o
+   * dia vazio já fazia e continua a ser o gesto mais rápido.
+   */
+  const openDay = (day) => {
+    const occ = (data.occurrences || []).filter((o) => Number(o.date.slice(8, 10)) === day)
+    if (occ.length === 0) openAddForDay(day)
+    else setDayModal({ day, occ })
   }
 
   const save = async () => {
@@ -90,7 +118,7 @@ export default function CalendarPage() {
       frequency: form.frequency,
       dayOfMonth: form.frequency === 'MONTHLY' ? Number(form.dayOfMonth) : null,
       eventDate: form.frequency === 'MONTHLY' ? null : (form.eventDate || null),
-      active: true,
+      active: form.active,
     }
     if (form.frequency === 'MONTHLY' && (payload.dayOfMonth < 1 || payload.dayOfMonth > 31)) {
       toast.error('Dia inválido', 'Indica um dia do mês entre 1 e 31.'); return
@@ -109,11 +137,36 @@ export default function CalendarPage() {
     finally { setBusy(false) }
   }
 
+  /**
+   * Pausa ou retoma um evento sem abrir o formulário.
+   *
+   * O `PUT` do backend substitui o evento inteiro, por isso reenvia-se tudo com
+   * o `active` trocado. Pausado, o evento continua guardado mas o backend
+   * deixa de gerar ocorrências — sai do calendário e da previsão de saldo.
+   */
+  const toggleActive = async (e) => {
+    const next = e.active === false
+    setBusy(true)
+    try {
+      await api.updateCalendarEvent(e.id, {
+        name: e.name, category: e.category, inflow: e.inflow, amount: e.amount,
+        frequency: e.frequency, dayOfMonth: e.dayOfMonth, eventDate: e.eventDate,
+        active: next,
+      })
+      await reloadAll()
+      toast.success(next ? 'Evento retomado' : 'Evento pausado',
+        next ? `"${e.name}" volta a contar no calendário.`
+          : `"${e.name}" fica guardado, mas fora do calendário e da previsão.`)
+    } catch (err) { toast.error('Erro ao guardar', err.message) }
+    finally { setBusy(false) }
+  }
+
   const remove = async () => {
     setBusy(true)
     try {
       await api.deleteCalendarEvent(toDelete.id)
       setToDelete(null)
+      setDayModal(null)
       await reloadAll()
       toast.info('Evento removido', `"${toDelete.name}" foi eliminado.`)
     } catch (e) { toast.error('Erro ao remover', e.message) }
@@ -216,7 +269,67 @@ export default function CalendarPage() {
                         onChange={(iso) => setForm({ ...form, eventDate: iso })} />
           </div>
         )}
+        {/* só ao editar: criar um evento já pausado não é gesto nenhum */}
+        {editing && (
+          <div className="field full">
+            <label className="check-row">
+              <input type="checkbox" checked={form.active}
+                     onChange={(e) => setForm({ ...form, active: e.target.checked })} />
+              <span>Evento ativo</span>
+            </label>
+            <span className="hint">
+              Um evento pausado fica guardado mas deixa de contar no calendário e na previsão de
+              saldo — é o que fazer a uma subscrição que se cancelou este mês e se pode retomar.
+            </span>
+          </div>
+        )}
       </div>
+    </Modal>
+
+    {/* A lista de um dia: é daqui que se editam os movimentos que já lá estão —
+        antes tocar num dia só sabia criar mais um. */}
+    <Modal open={!!dayModal} onClose={() => setDayModal(null)} width={480}
+           title={dayModal ? `${dayModal.day} de ${fmtMonth(month)}` : ''}
+           subtitle="Movimentos previstos neste dia."
+           footer={
+             <>
+               <button className="btn ghost" onClick={() => setDayModal(null)}>Fechar</button>
+               <button className="btn" onClick={() => openAddForDay(dayModal.day)}>
+                 <IconPlus size={14} /> Novo evento
+               </button>
+             </>
+           }>
+      <ul className="event-list">
+        {(dayModal?.occ || []).map((o, i) => {
+          const ev = eventOf(o)
+          const meta = CATEGORY_META[o.category] || CATEGORY_META.OTHER
+          return (
+            <li key={i} className="event-row" data-testid="day-occurrence">
+              <span className={`code-chip ${o.inflow ? 'green' : 'red'}`}>{occCode(o)}</span>
+              <div className="event-main">
+                <strong>{o.name}</strong>
+                <span>
+                  {o.source === 'INVESTMENT' ? 'Reforço automático · muda-se na Carteira'
+                    : o.source === 'GOAL' ? 'Depósito automático · muda-se nos Objetivos'
+                      : `${meta.label} · ${ev?.frequency === 'MONTHLY' ? `todo dia ${ev.dayOfMonth}`
+                        : ev?.frequency === 'YEARLY' ? 'anual' : 'única'}`}
+                </span>
+              </div>
+              <span className={`mono ${o.inflow ? 'pos' : 'neg'}`}>{o.inflow ? '+' : '−'}{fmtEur(o.amount)}</span>
+              <div className="event-actions">
+                {ev ? (
+                  <>
+                    <button className="icon-btn" onClick={() => openEdit(ev)}
+                            aria-label={`Editar ${o.name}`}><IconPencil size={14} /></button>
+                    <button className="icon-btn danger" onClick={() => setToDelete(ev)}
+                            aria-label={`Eliminar ${o.name}`}><IconTrash size={14} /></button>
+                  </>
+                ) : <span className="badge">auto</span>}
+              </div>
+            </li>
+          )
+        })}
+      </ul>
     </Modal>
 
     <ConfirmDialog open={!!toDelete} busy={busy}
@@ -255,7 +368,7 @@ export default function CalendarPage() {
                         aria-label={cell.occ.length
                           ? `Dia ${cell.day}: ${cell.occ.length} evento(s)`
                           : `Adicionar evento no dia ${cell.day}`}
-                        onClick={() => openAddForDay(cell.day)}>
+                        onClick={() => openDay(cell.day)}>
                   {cell.day}
                   {inflow && outflow && <span className="m-cal-both" aria-hidden="true" />}
                 </button>
@@ -283,25 +396,33 @@ export default function CalendarPage() {
           </div>
         ) : (
           <div className="card flush">
-            {forecast.points.map((pt, i) => (
-              <div key={i} className="m-cal-row">
-                <div className="m-cal-date">
-                  <div className="mono">{new Date(pt.date).toLocaleDateString('pt-PT', { day: '2-digit' })}</div>
-                  <div>{new Date(pt.date).toLocaleDateString('pt-PT', { month: 'short' }).replace('.', '')}</div>
-                </div>
-                <div className="row-main">
-                  <strong>{pt.name}</strong>
-                  <small>
-                    {pt.source === 'INVESTMENT' ? 'Investimento automático'
-                      : pt.source === 'GOAL' ? 'Objetivo · transferência'
-                        : (CATEGORY_META[pt.category] || CATEGORY_META.OTHER).label}
-                  </small>
-                </div>
-                <span className={`mono ${pt.inflow ? 'pos' : 'neg'}`}>
-                  {pt.inflow ? '+' : '−'}{fmtEur(pt.amount)}
-                </span>
-              </div>
-            ))}
+            {forecast.points.map((pt, i) => {
+              // os pontos que vêm de um evento manual abrem o formulário; os
+              // automáticos não têm nada para editar aqui
+              const ev = eventOf(pt)
+              const Row = ev ? 'button' : 'div'
+              return (
+                <Row key={i} className="m-cal-row" type={ev ? 'button' : undefined}
+                     onClick={ev ? () => openEdit(ev) : undefined}
+                     aria-label={ev ? `Editar ${pt.name}` : undefined}>
+                  <div className="m-cal-date">
+                    <div className="mono">{new Date(pt.date).toLocaleDateString('pt-PT', { day: '2-digit' })}</div>
+                    <div>{monthAbbr(new Date(pt.date))}</div>
+                  </div>
+                  <div className="row-main">
+                    <strong>{pt.name}</strong>
+                    <small>
+                      {pt.source === 'INVESTMENT' ? 'Investimento automático'
+                        : pt.source === 'GOAL' ? 'Objetivo · transferência'
+                          : (CATEGORY_META[pt.category] || CATEGORY_META.OTHER).label}
+                    </small>
+                  </div>
+                  <span className={`mono ${pt.inflow ? 'pos' : 'neg'}`}>
+                    {pt.inflow ? '+' : '−'}{fmtEur(pt.amount)}
+                  </span>
+                </Row>
+              )
+            })}
           </div>
         )}
 
@@ -313,11 +434,15 @@ export default function CalendarPage() {
         {data.events.length > 0 && (
           <div className="card flush">
             {data.events.map((e) => (
-              <button key={e.id} type="button" className="m-cal-row" onClick={() => openEdit(e)}>
+              <button key={e.id} type="button" className={`m-cal-row${e.active === false ? ' paused' : ''}`}
+                      onClick={() => openEdit(e)}>
                 <span className={`cat-icon ${e.inflow ? 'green' : 'red'}`}>{occCode(e)}</span>
                 <div className="row-main">
                   <strong>{e.name}</strong>
-                  <small>{e.frequency === 'MONTHLY' ? `todo dia ${e.dayOfMonth}` : e.frequency === 'YEARLY' ? `anual · ${e.eventDate}` : e.eventDate}</small>
+                  <small>
+                    {e.frequency === 'MONTHLY' ? `todo dia ${e.dayOfMonth}` : e.frequency === 'YEARLY' ? `anual · ${e.eventDate}` : e.eventDate}
+                    {e.active === false && ' · pausado'}
+                  </small>
                 </div>
                 <span className={`mono ${e.inflow ? 'pos' : 'neg'}`}>{e.inflow ? '+' : '−'}{fmtEur(e.amount)}</span>
               </button>
@@ -338,7 +463,7 @@ export default function CalendarPage() {
           <div className="reminders-list">
             {reminders.map((p, i) => (
               <span key={i} className={`mono reminder-chip ${p.inflow ? 'in' : 'out'}`}>
-                {new Date(p.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'short' })} · {p.name} · {p.inflow ? '+' : '−'}{fmtEur(p.amount)}
+                {fmtDayMonth(p.date)} · {p.name} · {p.inflow ? '+' : '−'}{fmtEur(p.amount)}
               </span>
             ))}
           </div>
@@ -352,7 +477,7 @@ export default function CalendarPage() {
             <div className="mono cal-summary">
               <span className="pos">↑ {fmtEur(data.inflows)}</span>
               <span className="neg">↓ {fmtEur(data.outflows)}</span>
-              <span className={Number(data.net) >= 0 ? 'pos' : 'neg'}>= {fmtEur(data.net)}</span>
+              <span className={Number(data.net) >= 0 ? 'pos' : 'neg'}>= {fmtSigned(data.net)}</span>
             </div>
           </div>
 
@@ -363,9 +488,13 @@ export default function CalendarPage() {
                    className={`cal-cell ${cell ? '' : 'empty'} ${cell && isToday(cell.day) ? 'today' : ''}`}
                    role={cell ? 'button' : undefined}
                    tabIndex={cell ? 0 : undefined}
-                   aria-label={cell ? `Adicionar evento no dia ${cell.day}` : undefined}
-                   onClick={cell ? () => openAddForDay(cell.day) : undefined}
-                   onKeyDown={cell ? (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openAddForDay(cell.day) } } : undefined}>
+                   aria-label={cell
+                     ? (cell.occ.length
+                       ? `Dia ${cell.day}: ${cell.occ.length} evento(s)`
+                       : `Adicionar evento no dia ${cell.day}`)
+                     : undefined}
+                   onClick={cell ? () => openDay(cell.day) : undefined}
+                   onKeyDown={cell ? (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDay(cell.day) } } : undefined}>
                 {cell && (
                   <>
                     <span className="mono cal-daynum">{cell.day}</span>
@@ -404,23 +533,32 @@ export default function CalendarPage() {
               <p className="dim" style={{ padding: '4px 2px' }}>Sem movimentos previstos nos próximos 60 dias.</p>
             ) : (
               <ul className="agenda">
-                {forecast.points.map((p, i) => (
-                  <li key={i}>
-                    <div className="mono agenda-date">
-                      <strong>{new Date(p.date).toLocaleDateString('pt-PT', { day: '2-digit' })}</strong>
-                      <span>{new Date(p.date).toLocaleDateString('pt-PT', { month: 'short' })}</span>
-                    </div>
-                    <span className={`code-chip ${p.inflow ? 'green' : 'red'}`}>{occCode(p)}</span>
-                    <div className="agenda-main">
-                      <strong>{p.name}</strong>
-                      {p.source !== 'MANUAL' && <span className="badge">auto</span>}
-                    </div>
-                    <div className="agenda-amounts">
-                      <span className={`mono ${p.inflow ? 'pos' : 'neg'}`}>{p.inflow ? '+' : '−'}{fmtEur(p.amount)}</span>
-                      {forecast.hasBalance && <span className="mono agenda-balance">{fmtEur(p.balanceAfter)}</span>}
-                    </div>
-                  </li>
-                ))}
+                {forecast.points.map((p, i) => {
+                  // o que vem de um evento manual edita-se aqui mesmo; o que é
+                  // automático muda-se na Carteira ou nos Objetivos
+                  const ev = eventOf(p)
+                  return (
+                    <li key={i} className={ev ? 'editable' : undefined}
+                        role={ev ? 'button' : undefined} tabIndex={ev ? 0 : undefined}
+                        aria-label={ev ? `Editar ${p.name}` : undefined}
+                        onClick={ev ? () => openEdit(ev) : undefined}
+                        onKeyDown={ev ? (k) => { if (k.key === 'Enter' || k.key === ' ') { k.preventDefault(); openEdit(ev) } } : undefined}>
+                      <div className="mono agenda-date">
+                        <strong>{new Date(p.date).toLocaleDateString('pt-PT', { day: '2-digit' })}</strong>
+                        <span>{monthAbbr(new Date(p.date))}</span>
+                      </div>
+                      <span className={`code-chip ${p.inflow ? 'green' : 'red'}`}>{occCode(p)}</span>
+                      <div className="agenda-main">
+                        <strong>{p.name}</strong>
+                        {p.source !== 'MANUAL' && <span className="badge">auto</span>}
+                      </div>
+                      <div className="agenda-amounts">
+                        <span className={`mono ${p.inflow ? 'pos' : 'neg'}`}>{p.inflow ? '+' : '−'}{fmtEur(p.amount)}</span>
+                        {forecast.hasBalance && <span className="mono agenda-balance">{fmtEur(p.balanceAfter)}</span>}
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </section>
@@ -441,14 +579,22 @@ export default function CalendarPage() {
                 {data.events.map((e) => {
                   const meta = CATEGORY_META[e.category] || CATEGORY_META.OTHER
                   return (
-                    <li key={e.id} className="event-row">
+                    <li key={e.id} className={`event-row${e.active === false ? ' paused' : ''}`}>
                       <span className={`code-chip ${e.inflow ? 'green' : 'red'}`}>{occCode(e)}</span>
                       <div className="event-main">
                         <strong>{e.name}</strong>
-                        <span>{meta.label} · {e.frequency === 'MONTHLY' ? `todo dia ${e.dayOfMonth}` : e.frequency === 'YEARLY' ? `anual · ${e.eventDate}` : e.eventDate}</span>
+                        <span>
+                          {meta.label} · {e.frequency === 'MONTHLY' ? `todo dia ${e.dayOfMonth}` : e.frequency === 'YEARLY' ? `anual · ${e.eventDate}` : e.eventDate}
+                          {e.active === false && <> · <span className="badge warn">pausado</span></>}
+                        </span>
                       </div>
                       <span className={`mono ${e.inflow ? 'pos' : 'neg'}`}>{e.inflow ? '+' : '−'}{fmtEur(e.amount)}</span>
                       <div className="event-actions">
+                        <button className="icon-btn" onClick={() => toggleActive(e)}
+                                aria-label={`${e.active === false ? 'Retomar' : 'Pausar'} ${e.name}`}
+                                title={e.active === false ? 'Retomar' : 'Pausar'}>
+                          {e.active === false ? <IconPlay size={13} /> : <IconPause size={13} />}
+                        </button>
                         <button className="icon-btn" onClick={() => openEdit(e)} aria-label={`Editar ${e.name}`}><IconPencil size={14} /></button>
                         <button className="icon-btn danger" onClick={() => setToDelete(e)} aria-label={`Eliminar ${e.name}`}><IconTrash size={14} /></button>
                       </div>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { api, fmtEur, fmtMoneyShort } from '../api'
+import { api, fmtEur, fmtSigned, fmtMoneyShort, fmtPct } from '../api'
 import { catLabel, catColor } from '../categories'
 import { useChartColors } from '../components/ThemeContext'
 import { fmtMonthShort } from '../components/MonthContext'
@@ -65,11 +65,12 @@ function sparkPath(values, w, h, close) {
   return close ? `${d} L${w} ${h} L0 ${h} Z` : d
 }
 
-/** Janelas da evolução do património. A série do backend cobre 6 meses diários. */
+/** Janelas da evolução do património. A série do backend cobre 1 ano diário. */
 const RANGES = [
   { id: '1M', label: '1M', days: 30, note: '1 mês' },
   { id: '3M', label: '3M', days: 90, note: '3 meses' },
-  { id: '6M', label: '6M', days: null, note: '6 meses' },
+  { id: '6M', label: '6M', days: 182, note: '6 meses' },
+  { id: '1A', label: '1A', days: null, note: '12 meses' },
 ]
 
 export default function DashboardPage({ onGo }) {
@@ -92,6 +93,13 @@ export default function DashboardPage({ onGo }) {
     const r = RANGES.find((x) => x.id === range) ?? RANGES[2]
     return r.days ? evolution.slice(-r.days) : evolution
   }, [evolution, range])
+
+  // Só se oferece a janela que a série cobre: com três meses de histórico, um
+  // botão "1A" que devolve exatamente o mesmo desenho é uma promessa falsa.
+  const ranges = useMemo(
+    () => RANGES.filter((r, i) => i === 0 || evolution.length > (RANGES[i - 1].days ?? 0)),
+    [evolution],
+  )
 
   if (error) {
     return (
@@ -184,7 +192,7 @@ export default function DashboardPage({ onGo }) {
             </div>
             {evolution.length > 0 && (
               <div className="seg-pills" role="group" aria-label="Janela do gráfico">
-                {RANGES.map((r) => (
+                {ranges.map((r) => (
                   <button key={r.id} type="button" className={`mono ${range === r.id ? 'active' : ''}`}
                           aria-pressed={range === r.id} onClick={() => setRange(r.id)}>
                     {r.label}
@@ -270,9 +278,15 @@ export default function DashboardPage({ onGo }) {
             <span className="eyebrow">Valor investido</span>
             <div>
               <div className="mono kpi-value">{fmtEur(data.totalInvested)}</div>
+              {/* percentagem primeiro, valor depois — a ordem do design */}
               <div className={`mono kpi-sub ${gainPositive ? 'pos' : 'neg'}`}>
-                {gainPositive ? '+' : '−'}{fmtEur(Math.abs(Number(data.investmentGain)))} · {Number(data.investmentGainPercent).toFixed(1)}%
+                {fmtPct(data.investmentGainPercent)} · {fmtEur(data.investmentGain)}
               </div>
+              {/* o valor grande é quanto a carteira vale hoje; sem o custo de
+                  aquisição ao lado, a percentagem de ganho não tem sobre o quê */}
+              {data.totalInvestedCost != null && (
+                <div className="mono kpi-foot">de {fmtEur(data.totalInvestedCost)} investidos</div>
+              )}
             </div>
           </div>
 
@@ -316,7 +330,7 @@ export default function DashboardPage({ onGo }) {
           <div className="ms-row">
             <span className="row-icon accent">=</span>
             <div className="row-main"><strong>Sobra</strong><small>entradas menos saídas</small></div>
-            <span className={`mono strong ${Number(thisMonth.net) >= 0 ? 'pos' : 'neg'}`}>{fmtEur(thisMonth.net)}</span>
+            <span className={`mono strong ${Number(thisMonth.net) >= 0 ? 'pos' : 'neg'}`}>{fmtSigned(thisMonth.net)}</span>
           </div>
         </section>
       )}

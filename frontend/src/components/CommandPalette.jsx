@@ -9,8 +9,12 @@ const fold = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCa
 /**
  * Paleta de comandos (⌘K / Ctrl+K).
  *
- * Só navegação e ações de criação — deliberadamente curta. As ações delegam no
- * mesmo mecanismo do menu "Adicionar" (ver `IntentContext`).
+ * A lista é a do design: os nove ecrãs, mais um punhado de ações que se fazem
+ * de qualquer sítio. Cada linha traz o ícone do destino à esquerda e o grupo a
+ * que pertence à direita — em vez de cabeçalhos de secção, que numa lista de
+ * doze linhas gastavam mais altura do que a que organizavam.
+ *
+ * Criar coisas é o trabalho do menu "Adicionar", não desta paleta.
  */
 export default function CommandPalette({ open, onClose, onGo, actions }) {
   const [q, setQ] = useState('')
@@ -19,8 +23,13 @@ export default function CommandPalette({ open, onClose, onGo, actions }) {
 
   const items = useMemo(() => {
     const nav = NAV_GROUPS.flatMap((g) =>
-      g.ids.map((id) => ({ key: `go:${id}`, group: g.name, label: SCREENS[id].label, hint: SCREENS[id].subtitle, run: () => onGo(id) })))
-    const acts = actions.map((a) => ({ key: `do:${a.id}`, group: 'Adicionar', label: a.label, hint: a.note, run: a.run }))
+      g.ids.map((id) => ({
+        key: `go:${id}`, group: g.name, label: SCREENS[id].label,
+        hint: SCREENS[id].subtitle, icon: SCREENS[id].icon, run: () => onGo(id),
+      })))
+    const acts = actions.map((a) => ({
+      key: `do:${a.id}`, group: 'Ação', label: a.label, hint: a.note, icon: a.icon, run: a.run,
+    }))
     const all = [...nav, ...acts]
     if (!q.trim()) return all
     const needle = fold(q.trim())
@@ -45,34 +54,28 @@ export default function CommandPalette({ open, onClose, onGo, actions }) {
     else if (e.key === 'Escape') { e.preventDefault(); onClose() }
   }
 
-  let lastGroup = null
-
   return createPortal(
     <div className="palette-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="palette" role="dialog" aria-modal="true" aria-label="Ir para">
         <div className="palette-search">
           <IconSearch size={16} />
           <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={onKeyDown}
-                 placeholder="Ir para…" aria-label="Procurar ecrã ou ação" />
+                 placeholder="Ecrãs, ações, contas…" aria-label="Procurar ecrã ou ação" />
           <kbd>esc</kbd>
         </div>
         <div className="palette-list">
           {items.length === 0 && <p className="palette-empty">Sem resultados para “{q}”.</p>}
-          {items.map((it, n) => {
-            const head = it.group !== lastGroup ? it.group : null
-            lastGroup = it.group
-            return (
-              <div key={it.key}>
-                {head && <div className="palette-group">{head}</div>}
-                <button type="button" className={`palette-item ${n === i ? 'sel' : ''}`}
-                        onMouseEnter={() => setI(n)}
-                        onClick={() => { it.run(); onClose() }}>
-                  <span className="pi-label">{it.label}</span>
-                  {it.hint && <span className="pi-hint">{it.hint}</span>}
-                </button>
-              </div>
-            )
-          })}
+          {items.map((it, n) => (
+            <button key={it.key} type="button" className={`palette-item ${n === i ? 'sel' : ''}`}
+                    onMouseEnter={() => setI(n)}
+                    onClick={() => { it.run(); onClose() }}>
+              <span className="pi-icon" aria-hidden="true">{it.icon ? <it.icon size={14} /> : null}</span>
+              <span className="pi-label">{it.label}</span>
+              {/* o grupo é a pista de onde a linha vive; não se lê em voz alta
+                  porque o nome do destino já diz tudo a quem ouve */}
+              <span className="pi-group" aria-hidden="true">{it.group}</span>
+            </button>
+          ))}
         </div>
       </div>
     </div>,

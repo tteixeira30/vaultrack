@@ -72,6 +72,19 @@ export const IconCheck = (p) => (
   </Icon>
 )
 
+export const IconPause = (p) => (
+  <Icon {...p}>
+    <line x1="9" y1="4" x2="9" y2="20" />
+    <line x1="15" y1="4" x2="15" y2="20" />
+  </Icon>
+)
+
+export const IconPlay = (p) => (
+  <Icon {...p}>
+    <path d="M6 4l14 8-14 8V4z" />
+  </Icon>
+)
+
 export const IconAlert = (p) => (
   <Icon {...p}>
     <circle cx="12" cy="12" r="10" />

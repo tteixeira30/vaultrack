@@ -1,3 +1,5 @@
+import { codeOf } from './components/code'
+
 // Categorias de movimentos — rótulos PT-PT e cores. Partilhado entre a página de
 // Despesas e o painel para evitar duplicar a definição.
 //
@@ -9,18 +11,24 @@
 // As cores são hex concretos, não `var(...)`: além de servirem para pintar
 // pontos e barras em CSS, são lidas em JS para compor o tinte do quadrado de
 // categoria — e uma custom property não se consegue misturar em JS.
+//
+// O `code` é o quadrado mono de duas letras das listas de movimentos. Vem
+// escrito à mão porque as iniciais dos rótulos colidem: Transportes e
+// Transferências dariam ambos "TR", Supermercado e Subscrições "SU",
+// Restauração e Rendimento "RE" — e o quadrado deixava de distinguir nada.
+// São os códigos do design (RE, SU, RS, TR, CA, SB, CP, SA, LZ, TF, OU).
 export const DEFAULT_CATEGORY_META = {
-  INCOME: { label: 'Rendimento', color: '#10b981' },
-  GROCERIES: { label: 'Supermercado', color: '#f59e0b' },
-  RESTAURANT: { label: 'Restauração', color: '#fb7185' },
-  TRANSPORT: { label: 'Transportes', color: '#22d3ee' },
-  HOUSING: { label: 'Casa & contas', color: '#a78bfa' },
-  SUBSCRIPTION: { label: 'Subscrições', color: '#818cf8' },
-  SHOPPING: { label: 'Compras', color: '#f472b6' },
-  HEALTH: { label: 'Saúde', color: '#34d399' },
-  LEISURE: { label: 'Lazer', color: '#fbbf24' },
-  TRANSFER: { label: 'Transferências', color: '#94a3b8' },
-  OTHER: { label: 'Outros', color: '#94a3b8' },
+  INCOME: { label: 'Rendimento', color: '#10b981', code: 'RE' },
+  GROCERIES: { label: 'Supermercado', color: '#f59e0b', code: 'SU' },
+  RESTAURANT: { label: 'Restauração', color: '#fb7185', code: 'RS' },
+  TRANSPORT: { label: 'Transportes', color: '#22d3ee', code: 'TR' },
+  HOUSING: { label: 'Casa & contas', color: '#a78bfa', code: 'CA' },
+  SUBSCRIPTION: { label: 'Subscrições', color: '#818cf8', code: 'SB' },
+  SHOPPING: { label: 'Compras', color: '#f472b6', code: 'CP' },
+  HEALTH: { label: 'Saúde', color: '#34d399', code: 'SA' },
+  LEISURE: { label: 'Lazer', color: '#fbbf24', code: 'LZ' },
+  TRANSFER: { label: 'Transferências', color: '#94a3b8', code: 'TF' },
+  OTHER: { label: 'Outros', color: '#8f96ad', code: 'OU' },
 }
 
 // Registo (mutável) das categorias personalizadas do utilizador: chave → { label, color }.
@@ -38,6 +46,12 @@ export const DEFAULT_CATEGORIES = Object.keys(DEFAULT_CATEGORY_META)
 const meta = (c) => customMeta[c] || DEFAULT_CATEGORY_META[c] || DEFAULT_CATEGORY_META.OTHER
 export const catLabel = (c) => meta(c).label
 export const catColor = (c) => meta(c).color
+
+/**
+ * Código de duas letras da categoria. As por omissão trazem-no escrito; as
+ * personalizadas não têm nenhum guardado, por isso deriva-se do nome.
+ */
+export const catCode = (c) => meta(c).code ?? codeOf(meta(c).label)
 
 /**
  * Fundo do quadrado de categoria: a cor da categoria a 15% de opacidade.

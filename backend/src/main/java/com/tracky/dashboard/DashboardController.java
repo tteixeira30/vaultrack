@@ -94,9 +94,11 @@ public class DashboardController {
 
         BigDecimal netWorth = inv.totalCurrent().add(totalSaved);
 
-        // evolução do património: histórico do portefólio deslocado pelo total poupado atual
+        // Evolução do património: histórico do portefólio deslocado pelo total
+        // poupado atual. Vem um ano porque o herói do painel tem quatro janelas
+        // (1M · 3M · 6M · 1A) e é o frontend que corta a série a cada uma.
         List<InvestmentController.PortfolioPoint> evolution = new ArrayList<>();
-        for (InvestmentController.PortfolioPoint p : investmentController.history(user, "6mo")) {
+        for (InvestmentController.PortfolioPoint p : investmentController.history(user, "1y")) {
             evolution.add(new InvestmentController.PortfolioPoint(p.date(),
                     p.value().add(totalSaved).setScale(2, RoundingMode.HALF_UP)));
         }

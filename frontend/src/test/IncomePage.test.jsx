@@ -178,4 +178,29 @@ describe('IncomePage', () => {
 
     await waitFor(() => expect(api.deleteAllocationItem).toHaveBeenCalledWith(9))
   })
+
+  // O seletor de mês anda de um em um sem fim: sem estes atalhos não havia como
+  // saber que meses têm dados nem chegar lá sem clicar N vezes.
+  it('mostra atalhos para os meses com rendimento registado', async () => {
+    api.getIncome.mockResolvedValue(income({ availableMonths: ['2025-04', '2025-05', '2025-06'] }))
+    const user = userEvent.setup()
+    render(<IncomePage />)
+
+    await waitFor(() => expect(screen.getByRole('group', { name: /Meses com rendimento/ })).toBeInTheDocument())
+    const chips = within(screen.getByRole('group', { name: /Meses com rendimento/ })).getAllByRole('button')
+    // do mais recente para trás
+    expect(chips.map((b) => b.textContent)).toEqual(['jun 25', 'mai 25', 'abr 25'])
+    expect(chips[0]).toHaveAttribute('aria-current', 'true')
+
+    await user.click(chips[2])
+    await waitFor(() => expect(api.getIncome).toHaveBeenCalledWith('2025-04'))
+  })
+
+  it('com um mês só não mostra atalhos nenhuns', async () => {
+    api.getIncome.mockResolvedValue(income())
+    render(<IncomePage />)
+
+    await waitFor(() => expect(screen.getAllByText('Poupança').length).toBeGreaterThan(0))
+    expect(screen.queryByRole('group', { name: /Meses com rendimento/ })).not.toBeInTheDocument()
+  })
 })

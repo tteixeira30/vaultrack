@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmtEur, fromEur, toEur, parseAmount, getCurrencySymbol } from '../api'
-import { DEFAULT_CATEGORIES, catLabel, catColor, catTint, setCustomCategories } from '../categories'
+import { api, fmtEur, fmtSigned, fromEur, toEur, parseAmount, getCurrencySymbol } from '../api'
+import { DEFAULT_CATEGORIES, catLabel, catColor, catCode, catTint, setCustomCategories } from '../categories'
 import { useToast } from '../components/Toast'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import Dropdown from '../components/Dropdown'
 import DatePicker from '../components/DatePicker'
 import StatementImport, { AccountModal, validateAccount } from '../components/StatementImport'
-import { useMonth, fmtMonth, fmtMonthShort } from '../components/MonthContext'
+import { useMonth, fmtMonth, fmtMonthShort, fmtDayMonth } from '../components/MonthContext'
 import { useIsMobile } from '../components/useMediaQuery'
 import { useIntent } from '../components/IntentContext'
-import { codeOf } from '../components/code'
 import {
   IconPlus, IconPencil, IconTrash, IconUpload, IconBank, IconArrowUp, IconArrowDown,
   IconSearch, IconReceipt,
@@ -23,8 +22,13 @@ const CATEGORY_COLORS = [
 const EMPTY_TX = { accountId: '', date: '', description: '', amount: '', inflow: false, category: 'OTHER' }
 
 const todayIso = () => new Date().toISOString().slice(0, 10)
-const fmtDay = (iso) => new Date(iso).toLocaleDateString('pt-PT', { weekday: 'short', day: '2-digit', month: 'short' })
-const fmtShortDate = (iso) => new Date(iso).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit' })
+/** Cabeçalho de um dia na lista mobile: "terça, 18 ago" (o CSS põe em versaletes). */
+const fmtDay = (iso) => {
+  // 'short' porque o 'long' do pt-PT diz "terça-feira" e o cabeçalho é estreito;
+  // sábado e domingo saem iguais nas duas formas
+  const wd = new Date(iso).toLocaleDateString('pt-PT', { weekday: 'short' }).replace('.', '')
+  return `${wd}, ${fmtDayMonth(iso)}`
+}
 
 /** Ignora acentos e maiúsculas na pesquisa por descrição. */
 const fold = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -44,6 +48,7 @@ export default function ExpensesPage() {
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
   const [categories, setCategories] = useState([]) // categorias personalizadas do utilizador
+  const [rules, setRules] = useState([]) // regras de categoria já aprendidas (coluna lateral)
 
   // filtros e ordenação (tudo do lado do cliente — o mês já vem filtrado do backend)
   const [q, setQ] = useState('')
@@ -80,7 +85,25 @@ export default function ExpensesPage() {
     load().catch(() => toast.error('Erro', 'Não foi possível carregar os movimentos.'))
   }, [month, accountFilter])
 
-  useEffect(() => { loadCategories().catch(() => {}) }, [])
+  useEffect(() => {
+    loadCategories().catch(() => {})
+    api.getCategoryRules().then(setRules).catch(() => {})
+  }, [])
+
+  /**
+   * Esquece uma regra aprendida. Sem confirmação de propósito: nada se perde —
+   * os movimentos já categorizados ficam como estão e a regra volta a
+   * aprender-se ao mudar outra vez a categoria de um movimento.
+   */
+  const removeRule = async (rule) => {
+    try {
+      await api.deleteCategoryRule(rule.id)
+      setRules((rs) => rs.filter((r) => r.id !== rule.id))
+      toast.info('Regra esquecida', `"${rule.matchKey}" deixa de ser categorizada automaticamente.`)
+    } catch (e) {
+      toast.error('Erro ao esquecer a regra', e.message)
+    }
+  }
 
   // opções de categoria para os seletores: por omissão + personalizadas
   const catOptions = useMemo(() => [
@@ -165,6 +188,7 @@ export default function ExpensesPage() {
     setTxModal(true)
   }
   useIntent('newTransaction', openTxAdd)
+  useIntent('importStatement', () => setImportModal(true))
 
   const openTxEdit = (t) => {
     setEditingTx(t)
@@ -283,6 +307,33 @@ export default function ExpensesPage() {
     else { setSort(key); setDir(key === 'desc' ? 1 : -1) }
   }
   const arrow = (key) => (sort === key ? (dir === 1 ? ' ↑' : ' ↓') : '')
+
+  /**
+   * Filtro de conta: um seletor, não a fila com todas as contas — com quatro ou
+   * cinco contas a fila enchia a largura e empurrava tudo para baixo. As ações
+   * da conta escolhida ficam ao lado; a gestão completa vive no ecrã Contas.
+   */
+  const accountFilterRow = hasAccounts && (
+    <div className="account-filter">
+      <Dropdown label="Conta" value={accountFilter} onChange={setAccountFilter}
+                options={[
+                  { value: '', label: 'Todas as contas' },
+                  ...data.accounts.map((a) => ({ value: String(a.id), label: a.name })),
+                ]} />
+      <div className="account-filter-actions">
+        {selectedAccount && (
+          <>
+            <button className="icon-btn" onClick={() => openAccountEdit(selectedAccount)}
+                    aria-label={`Editar ${selectedAccount.name}`}><IconPencil size={14} /></button>
+            <button className="icon-btn danger" onClick={() => setAccountToDelete(selectedAccount)}
+                    aria-label={`Eliminar ${selectedAccount.name}`}><IconTrash size={14} /></button>
+          </>
+        )}
+        <button className="icon-btn" data-testid="new-account" onClick={openAccountAdd}
+                aria-label="Nova conta"><IconPlus size={14} /></button>
+      </div>
+    </div>
+  )
 
   // agrupar movimentos por dia (a vista mobile é uma lista de cartões por dia)
   const byDay = []
@@ -494,25 +545,8 @@ export default function ExpensesPage() {
           <button type="button" onClick={() => step(1)} aria-label="Mês seguinte">›</button>
         </div>
 
-        {/* ---------- filtros (contas e categorias deslizam numa linha) ---------- */}
-        {hasAccounts && (
-          <div className="chip-scroll">
-            <button className={`account-chip ${accountFilter === '' ? 'active' : ''}`} onClick={() => setAccountFilter('')}>
-              Todas as contas
-            </button>
-            {data.accounts.map((a) => (
-              <button key={a.id} data-testid="account-chip"
-                      className={`account-chip ${accountFilter === String(a.id) ? 'active' : ''}`}
-                      onClick={() => setAccountFilter(String(a.id))}>
-                {a.name}
-                {a.currentBalance != null && <span className="mono account-chip-balance">{fmtEur(a.currentBalance)}</span>}
-              </button>
-            ))}
-            <button data-testid="account-chip-add" className="account-chip add" onClick={openAccountAdd} aria-label="Nova conta">
-              <IconPlus size={13} />
-            </button>
-          </div>
-        )}
+        {/* ---------- conta ---------- */}
+        {accountFilterRow}
 
         {/* ---------- lista por dia ---------- */}
         {!hasAccounts ? (
@@ -545,7 +579,7 @@ export default function ExpensesPage() {
                   {g.txs.map((t) => (
                     <div key={t.id} data-testid="movement-row" className="tx-card-row" onClick={() => openTxEdit(t)}>
                       <span className="cat-icon" style={{ background: catTint(t.category), color: catColor(t.category) }}>
-                        {codeOf(catLabel(t.category))}
+                        {catCode(t.category)}
                       </span>
                       <div className="row-main">
                         <strong>{t.description}</strong>
@@ -576,28 +610,9 @@ export default function ExpensesPage() {
 
   return (
     <div className="mov">
-      {/* ---------- contas + importar ---------- */}
+      {/* ---------- conta + importar ---------- */}
       <div className="chip-row">
-        <div className="chip-scroll">
-        <button className={`account-chip ${accountFilter === '' ? 'active' : ''}`} onClick={() => setAccountFilter('')}>
-          Todas as contas
-        </button>
-        {data.accounts.map((a) => (
-          <button key={a.id} data-testid="account-chip"
-                  className={`account-chip ${accountFilter === String(a.id) ? 'active' : ''}`}
-                  onClick={() => setAccountFilter(String(a.id))}>
-            {a.name}
-            {a.currentBalance != null && <span className="mono account-chip-balance">{fmtEur(a.currentBalance)}</span>}
-            <span className="account-chip-actions">
-              <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); openAccountEdit(a) }} aria-label={`Editar ${a.name}`}><IconPencil size={12} /></span>
-              <span role="button" tabIndex={0} onClick={(e) => { e.stopPropagation(); setAccountToDelete(a) }} aria-label={`Eliminar ${a.name}`}><IconTrash size={12} /></span>
-            </span>
-          </button>
-        ))}
-        <button data-testid="account-chip-add" className="account-chip add" onClick={openAccountAdd} aria-label="Nova conta">
-          <IconPlus size={13} />
-        </button>
-        </div>
+        {accountFilterRow}
 
         <div className="chip-row-end">
           <button className="btn ghost" data-testid="import-statement"
@@ -624,7 +639,7 @@ export default function ExpensesPage() {
         </div>
         <div className="card mini-kpi">
           <span className="eyebrow">Saldo do mês</span>
-          <div className={`mono ${Number(data.net) >= 0 ? 'pos' : 'neg'}`}>{fmtEur(data.net)}</div>
+          <div className={`mono ${Number(data.net) >= 0 ? 'pos' : 'neg'}`}>{fmtSigned(data.net)}</div>
         </div>
         <div className="card mini-kpi">
           <span className="eyebrow">{selectedAccount ? 'Saldo da conta' : 'Saldo em contas'}</span>
@@ -648,6 +663,14 @@ export default function ExpensesPage() {
                        placeholder="Filtrar descrição…" aria-label="Filtrar descrição" />
               </div>
               <div className="filter-chips">
+                {/* "Todas" a abrir a fila, como no design: sem ela, limpar o
+                    filtro obrigava a voltar a tocar no chip já ativo. */}
+                <button className={`filter-chip ${catFilter === '' ? 'active' : ''}`}
+                        aria-pressed={catFilter === ''}
+                        onClick={() => setCatFilter('')}>
+                  <span className="tx-cat-dot" style={{ background: 'var(--text-faint)' }} />
+                  Todas
+                </button>
                 {monthCats.map((c) => (
                   <button key={c} className={`filter-chip ${catFilter === c ? 'active' : ''}`}
                           aria-pressed={catFilter === c}
@@ -729,16 +752,20 @@ export default function ExpensesPage() {
                            aria-label={`Selecionar ${t.description}`} />
                     <div className="tx-desc">
                       <span className="code-chip cat" style={{ background: catTint(t.category) }}>
-                        {codeOf(catLabel(t.category))}
+                        {catCode(t.category)}
                       </span>
-                      <button className="tx-open" onClick={() => openTxEdit(t)}>{t.description}</button>
+                      <span className="tx-desc-text">
+                        <button className="tx-open" onClick={() => openTxEdit(t)}>{t.description}</button>
+                        {/* de onde veio a linha: o design escreve-o por baixo da descrição */}
+                        <small>{t.source === 'IMPORT' ? 'importado' : 'manual'}</small>
+                      </span>
                     </div>
                     <span className="tx-cat">
                       <span className="tx-cat-dot" style={{ background: catColor(t.category) }} />
                       {catLabel(t.category)}
                     </span>
                     <span className="tx-acc">{t.accountName}</span>
-                    <span className="mono tx-date">{fmtShortDate(t.date)}</span>
+                    <span className="mono tx-date">{fmtDayMonth(t.date)}</span>
                     <span className={`mono tx-amt ${t.inflow ? 'pos' : 'neg'}`}>
                       {t.inflow ? '+' : '−'}{fmtEur(t.amount)}
                     </span>
@@ -759,7 +786,7 @@ export default function ExpensesPage() {
                       {g.txs.map((t) => (
                         <div key={t.id} data-testid="movement-row" className="tx-card-row" onClick={() => openTxEdit(t)}>
                           <span className="code-chip cat" style={{ background: catTint(t.category) }}>
-                            {codeOf(catLabel(t.category))}
+                            {catCode(t.category)}
                           </span>
                           <div className="row-main">
                             <strong>{t.description}</strong>
@@ -810,6 +837,27 @@ export default function ExpensesPage() {
               Ao mudares a categoria de um movimento, a Vaultrack aplica-a a todos com a mesma
               descrição e memoriza-a para as próximas importações.
             </p>
+            {/* as que já existem, como no design — a explicação sozinha não
+                deixa ver o que a app aprendeu até agora. E com o caixote:
+                uma regra mal aprendida repetia-se em cada importação e não
+                havia forma de a tirar. */}
+            {rules.length > 0 && (
+              <ul className="rule-list scroll" style={{ marginTop: 12 }}>
+                {rules.map((r) => (
+                  <li key={r.id}>
+                    <span className="mono rule-key">{r.matchKey}</span>
+                    <span className="rule-cat">
+                      <span className="tx-cat-dot" style={{ background: catColor(r.category) }} />
+                      {catLabel(r.category)}
+                    </span>
+                    <button type="button" className="icon-btn danger" onClick={() => removeRule(r)}
+                            aria-label={`Esquecer a regra ${r.matchKey}`} title="Esquecer esta regra">
+                      <IconTrash size={14} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
         </aside>
       </div>

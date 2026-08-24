@@ -42,8 +42,10 @@ export class ExpensesPage extends TabPage {
     return this.page.getByText(/Sem movimentos em/)
   }
 
-  accountChip(name: string): Locator {
-    return this.page.getByTestId('account-chip').filter({ hasText: name })
+  /** O seletor de conta da barra de filtros (fora de qualquer modal). */
+  get accountFilter(): Locator {
+    // `exact`: sem ele "Nova conta" também casa
+    return this.page.locator('.account-filter').getByRole('button', { name: 'Conta', exact: true })
   }
 
   /**
@@ -66,30 +68,37 @@ export class ExpensesPage extends TabPage {
 
   async createAccount(name: string, balance?: number): Promise<void> {
     await test.step(`criar conta "${name}"`, async () => {
-      // sem contas nenhumas a fila de chips não existe — a entrada é o botão do
-      // estado vazio, que é o que o utilizador vê da primeira vez
-      const addChip = this.page.getByTestId('account-chip-add')
-      if (await addChip.isVisible()) await addChip.click()
+      // sem contas nenhumas a barra de filtros não existe — a entrada é o botão
+      // do estado vazio, que é o que o utilizador vê da primeira vez
+      const addButton = this.page.getByTestId('new-account')
+      if (await addButton.isVisible()) await addButton.click()
       else await this.page.getByRole('button', { name: 'Criar conta' }).click()
       await this.dialog.field('Ex: Santander').fill(name)
       if (balance != null) await this.dialog.field(/Deixa em branco/).fill(String(balance))
       await this.dialog.save()
-      await expect(this.accountChip(name)).toBeVisible()
+      await this.expectAccountListed(name)
     })
+  }
+
+  /** A conta existe se estiver entre as opções do seletor. */
+  async expectAccountListed(name: string): Promise<void> {
+    await this.accountFilter.click()
+    await expect(this.page.getByRole('option', { name, exact: true })).toBeVisible()
+    await this.page.keyboard.press('Escape')
   }
 
   /** Filtra a página por uma conta. */
   async selectAccount(name: string): Promise<void> {
-    await this.accountChip(name).click()
+    await this.accountFilter.click()
+    await this.page.getByRole('option', { name, exact: true }).click()
   }
 
   async deleteAccount(name: string): Promise<void> {
     await test.step(`eliminar conta "${name}"`, async () => {
-      const chip = this.accountChip(name)
-      await chip.hover()
-      await chip.getByRole('button', { name: `Eliminar ${name}` }).click()
+      // as ações são da conta escolhida no seletor
+      await this.selectAccount(name)
+      await this.page.getByRole('button', { name: `Eliminar ${name}` }).click()
       await this.confirmDialog.accept('Eliminar conta?')
-      await expect(this.accountChip(name)).toHaveCount(0)
     })
   }
 

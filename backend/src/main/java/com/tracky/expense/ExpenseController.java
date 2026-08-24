@@ -59,8 +59,9 @@ public class ExpenseController {
     /** Categoria personalizada do utilizador (as por omissão não têm entidade). */
     public record CategoryDto(Long id, String key, String label, String color) {}
     public record CategoryRequest(@NotBlank String label, String color) {}
+    /** source: "IMPORT" quando veio de um extrato, "MANUAL" quando foi escrito à mão. */
     public record TransactionDto(Long id, Long accountId, String accountName, LocalDate date, String description,
-                                 BigDecimal amount, boolean inflow, String category) {}
+                                 BigDecimal amount, boolean inflow, String category, String source) {}
     public record ImportRow(@NotNull LocalDate date, @NotBlank String description,
                             @NotNull @Positive BigDecimal amount, boolean inflow, String category) {}
     /** closingBalance: saldo da conta no fim do extrato, em EUR; null quando o extrato não o traz. */
@@ -409,6 +410,7 @@ public class ExpenseController {
             t.setInflow(row.inflow());
             String ruled = ruleMap.get(categoryKey(row.description()));
             t.setCategory(ruled != null ? ruled : resolveCategory(user, row.category()));
+            t.setSource("IMPORT");
             batch.add(t);
             imported++;
         }
@@ -570,6 +572,6 @@ public class ExpenseController {
 
     private static TransactionDto toDto(Transaction t, Map<Long, String> accountNames) {
         return new TransactionDto(t.getId(), t.getAccountId(), accountNames.get(t.getAccountId()), t.getTxDate(),
-                t.getDescription(), t.getAmount(), t.isInflow(), t.getCategory());
+                t.getDescription(), t.getAmount(), t.isInflow(), t.getCategory(), t.getSource());
     }
 }

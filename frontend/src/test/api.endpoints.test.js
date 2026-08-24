@@ -97,4 +97,11 @@ describe('endpoints da API', () => {
     const del = await call(() => api.deleteExpenseCategory(7))
     expect(del).toMatchObject({ url: '/api/expenses/categories/7', method: 'DELETE' })
   })
+
+  it('despesas: regras de categoria aprendidas', async () => {
+    expect((await call(() => api.getCategoryRules())).url).toBe('/api/expenses/rules')
+
+    const del = await call(() => api.deleteCategoryRule(3))
+    expect(del).toMatchObject({ url: '/api/expenses/rules/3', method: 'DELETE' })
+  })
 })

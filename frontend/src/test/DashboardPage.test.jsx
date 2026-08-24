@@ -12,7 +12,7 @@ vi.mock('../components/ThemeContext', () => ({ useChartColors: () => ({ grid: '#
 
 const data = {
   netWorth: 1500, incomeMonth: '2025-06', monthlyIncome: 2000, unallocated: 300,
-  totalInvested: 1000, investmentGain: 100, investmentGainPercent: 10,
+  totalInvested: 1000, totalInvestedCost: 900, investmentGain: 100, investmentGainPercent: 10,
   totalSaved: 500, totalGoalsTarget: 5000, goalsProgressPercent: 10,
   goalsCount: 2, goalsCompleted: 1,
   evolution: [{ date: '2025-01-01', value: 1000 }, { date: '2025-06-01', value: 1500 }],
@@ -40,6 +40,8 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Valor investido')).toBeInTheDocument()
     expect(screen.getByText('Poupado em objetivos')).toBeInTheDocument()
     expect(screen.getByText('1/2')).toBeInTheDocument() // objetivos concluídos/total
+    // sem o custo de aquisição ao lado, a percentagem de ganho não tem base
+    expect(screen.getByText(/de 900,00.*investidos/)).toBeInTheDocument()
   })
 
   it('mostra os destaques (insights) e a atividade recente', async () => {

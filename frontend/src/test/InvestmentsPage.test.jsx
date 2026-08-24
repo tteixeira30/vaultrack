@@ -43,6 +43,30 @@ describe('InvestmentsPage', () => {
     expect(container.querySelector('.skeleton')).toBeInTheDocument()
   })
 
+  // O formulário promete "calculamos ... as unidades" e não as mostrava.
+  it('mostra as unidades detidas nos ativos com cotação', async () => {
+    api.getInvestments.mockResolvedValue({
+      summary: { totalInvested: 1000, totalCurrent: 1100, totalGain: 100, totalGainPercent: 10 },
+      investments: [{
+        id: 2, name: 'Bitcoin', symbol: 'BTC', type: 'CRYPTO', initialValue: 1000,
+        currentValue: 1100, currentPrice: 50000, quantity: 0.022, gain: 100, gainPercent: 10,
+        live: true, monthlyContribution: null, contributionDay: null,
+      }],
+    })
+    render(<InvestmentsPage />)
+
+    await waitFor(() => expect(screen.getByText('Bitcoin')).toBeInTheDocument())
+    expect(screen.getByText(/0,022 un/)).toBeInTheDocument()
+  })
+
+  it('não inventa unidades para ativos sem cotação', async () => {
+    api.getInvestments.mockResolvedValue(portfolio())
+    render(<InvestmentsPage />)
+
+    await waitFor(() => expect(screen.getByText('PPR Manual')).toBeInTheDocument())
+    expect(screen.queryByText(/un$/)).not.toBeInTheDocument()
+  })
+
   it('mostra o resumo e a tabela de investimentos', async () => {
     api.getInvestments.mockResolvedValue(portfolio())
     render(<InvestmentsPage />)

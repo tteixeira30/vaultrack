@@ -66,6 +66,16 @@ describe('cliente HTTP central', () => {
     await expect(api.getDashboard()).rejects.toThrow('Erro 500')
   })
 
+  // Quem apanha o erro precisa de distinguir "o token não presta" (401) de
+  // "não se chegou ao servidor" (502): só o primeiro termina a sessão.
+  it('os erros levam o código HTTP anexado', async () => {
+    fetch.mockReturnValue(Promise.resolve(new Response('', { status: 502 })))
+    await expect(api.getDashboard()).rejects.toMatchObject({ status: 502 })
+
+    fetch.mockReturnValue(Promise.resolve(new Response('', { status: 401 })))
+    await expect(api.getDashboard()).rejects.toMatchObject({ status: 401 })
+  })
+
   it('respostas vazias devolvem null', async () => {
     fetch.mockReturnValue(Promise.resolve(new Response('', { status: 200 })))
 

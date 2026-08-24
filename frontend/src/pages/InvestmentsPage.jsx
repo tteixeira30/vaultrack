@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
-import { api, fmtEur, fmtPct, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
+import {
+  api, fmtEur, fmtSigned, fmtPct, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount,
+  getPrivacyMode,
+} from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import Dropdown from '../components/Dropdown'
 import { useChartColors } from '../components/ThemeContext'
@@ -26,6 +29,25 @@ const TYPES = [
 ]
 
 const typeLabel = (t) => TYPES.find((x) => x.id === t)?.label ?? t
+
+/**
+ * Unidades detidas de um ativo com cotação.
+ *
+ * O backend calcula-as (valor ÷ preço do momento) e é com elas que segue a
+ * carteira em tempo real; o formulário já prometia "calculamos ... as unidades"
+ * e depois não as mostrava em lado nenhum.
+ *
+ * Vão até seis casas porque 0,00123456 BTC é uma posição normal. E entram no
+ * modo privacidade: com o preço à vista de qualquer um, as unidades dizem o
+ * valor da posição tão bem como o próprio valor.
+ */
+const fmtUnits = (q) => {
+  if (q == null) return null
+  const n = Number(q)
+  if (!Number.isFinite(n) || n <= 0) return null
+  if (getPrivacyMode()) return '•••• un'
+  return `${new Intl.NumberFormat('pt-PT', { maximumFractionDigits: 6 }).format(n)} un`
+}
 // tipos sem cotação pública — símbolo não aplicável, valor sempre manual
 const isManualType = (t) => t === 'PPR' || t === 'OTHER'
 
@@ -132,7 +154,6 @@ export default function InvestmentsPage() {
 
   const load = useCallback(() => api.getInvestments().then(setPortfolio), [])
 
-  useIntent('newInvestment', () => setAddModal(true))
 
   useEffect(() => {
     load().catch(() => toast.error('Erro', 'Não foi possível carregar os investimentos.'))
@@ -140,7 +161,13 @@ export default function InvestmentsPage() {
     return () => clearInterval(t)
   }, [load])
 
+  // O guarda não é decorativo: no primeiro render `portfolio` é null e a
+  // dependência vale `undefined`; quando o load() resolve passa ao número de
+  // ativos e o efeito voltava a correr. Eram dois pedidos por visita ao ecrã —
+  // e o histórico não é barato, faz uma chamada HTTP ao Yahoo/CoinGecko por
+  // cada ativo. O primeiro ia sempre para o lixo.
   useEffect(() => {
+    if (!portfolio) return
     setHistory(null)
     api.getPortfolioHistory(range).then(setHistory).catch(() => setHistory([]))
   }, [range, portfolio?.investments?.length])
@@ -176,6 +203,10 @@ export default function InvestmentsPage() {
     } catch { toast.error('Erro', 'Não foi possível atualizar as cotações.') }
     finally { setRefreshing(false) }
   }
+
+  useIntent('newInvestment', () => setAddModal(true))
+  // "Atualizar cotações" da paleta de comandos chega aqui
+  useIntent('refreshQuotes', () => { refresh() })
 
   const add = async () => {
     if (!form.name.trim() || !form.currentValue) {
@@ -373,7 +404,8 @@ export default function InvestmentsPage() {
     <Modal open={!!editing} onClose={() => setEditing(null)} onSubmit={saveEdit} busy={busy}
            title="Editar investimento"
            subtitle={editing?.live
-             ? 'Ativo com cotação em tempo real — o valor atual ajusta a tua posição ao preço do momento.'
+             ? `Ativo com cotação em tempo real${fmtUnits(editing.quantity) ? ` (${fmtUnits(editing.quantity)})` : ''}`
+               + ' — o valor atual ajusta a tua posição ao preço do momento.'
              : 'Atualiza o valor atual e a percentagem de ganho.'}
            footer={
              <>
@@ -558,7 +590,7 @@ export default function InvestmentsPage() {
           </div>
           <div className="card mini-kpi">
             <span className="eyebrow">Ganho</span>
-            <div className={`mono ${gainCls}`}>{fmtEur(summary.totalGain)}</div>
+            <div className={`mono ${gainCls}`}>{fmtSigned(summary.totalGain)}</div>
           </div>
           <div className="card mini-kpi">
             <span className="eyebrow">Rentabilidade</span>
@@ -583,7 +615,7 @@ export default function InvestmentsPage() {
           <div className="card-header">
             <div>
               <h3>Evolução do portefólio</h3>
-              <div className="sub">Ativos com cotação pública · {liveCount} live</div>
+              <div className="sub">Ativos com cotação pública · {liveCount} de {investments.length} com cotação</div>
             </div>
             <div className="seg-pills" role="group" aria-label="Janela do gráfico">
               {RANGES.map((r) => (
@@ -798,16 +830,20 @@ export default function InvestmentsPage() {
                       <span className={`badge ${inv.live ? 'live' : ''}`}>{inv.live ? '● live' : 'manual'}</span>
                     </div>
                     <div className="mono asset-sub">
-                      {inv.symbol}
-                      {inv.symbol && inv.monthlyContribution && ' · '}
-                      {inv.monthlyContribution && `+${fmtEur(inv.monthlyContribution)}/mês · dia ${inv.contributionDay ?? 1}`}
+                      {[
+                        inv.symbol || 'sem cotação pública',
+                        fmtUnits(inv.quantity),
+                        inv.monthlyContribution
+                          ? `+${fmtEur(inv.monthlyContribution)}/mês · dia ${inv.contributionDay ?? 1}`
+                          : null,
+                      ].filter(Boolean).join(' · ')}
                     </div>
                   </div>
                   <span className="type-chip">{typeLabel(inv.type)}</span>
                   <span className="mono right dim" data-label="Preço">{fmtEur(inv.currentPrice)}</span>
                   <span className="mono right dim" data-label="Investido">{fmtEur(inv.initialValue)}</span>
                   <span className="mono right strong" data-label="Valor atual">{fmtEur(inv.currentValue)}</span>
-                  <span className={`mono right ${cls}`} data-label="Ganho">{fmtEur(inv.gain)}</span>
+                  <span className={`mono right ${cls}`} data-label="Ganho">{fmtSigned(inv.gain)}</span>
                   <span className={`mono right ${cls}`} data-label="Rentabilidade">{fmtPct(inv.gainPercent)}</span>
                   <span className="event-actions">
                     <button className="icon-btn" onClick={() => openEdit(inv)} aria-label={`Editar ${inv.name}`}><IconPencil size={14} /></button>

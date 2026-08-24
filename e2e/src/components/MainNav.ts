@@ -138,7 +138,9 @@ export class MainNav {
     }
     const group = this.mobileTabOf(label)
     if (group) await expect(this.mobileTab(group.label)).toHaveClass(/active/)
-    await expect(this.page.locator('.tb-title h2')).toHaveText(group && group.screens.length > 1 ? group.label : label)
+    // em mobile o cabeçalho diz o separador, não o ecrã: os ecrãs de dentro
+    // identificam-se pelos segmentos, e o "Início" chama-se "Início"
+    await expect(this.page.locator('.tb-title h2')).toHaveText(group ? group.label : label)
   }
 
   /**

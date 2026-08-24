@@ -78,4 +78,25 @@ describe('ProfilePage', () => {
     await user.click(screen.getByRole('button', { name: /Terminar sessão/ }))
     expect(props.onLogout).toHaveBeenCalledOnce()
   })
+
+  // Com a taxa a 1,0 os montantes são euros com outro símbolo à frente: sem
+  // este aviso o número está errado e não há sintoma nenhum.
+  it('avisa quando o câmbio não está disponível', () => {
+    renderProfile({ baseCurrency: 'USD', rateLive: false })
+    expect(screen.getByRole('status')).toHaveTextContent(/Câmbio de EUR para USD indisponível/)
+  })
+
+  it('sem falha de câmbio não mostra aviso nenhum', () => {
+    renderProfile({ baseCurrency: 'USD', rateLive: true })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  // A lista de moedas é a que o backend aceita; o CURRENCIES local só lhe
+  // acrescenta símbolo e nome.
+  it('mostra apenas as moedas que lhe são passadas', () => {
+    renderProfile({ currencies: [{ code: 'EUR', symbol: '€', name: 'Euro' }, { code: 'SEK', symbol: 'SEK', name: 'SEK' }] })
+    expect(screen.getByRole('button', { name: /EUR/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /SEK/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /JPY/ })).not.toBeInTheDocument()
+  })
 })

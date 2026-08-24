@@ -87,7 +87,9 @@ testes e os leitores de ecrã ao mesmo tempo.
 ### Moeda (importante)
 
 - **Todo o cálculo é em EUR.** `PriceService` converte cotações de mercado para EUR (Yahoo `{CUR}EUR=X`).
-- A **moeda base** do utilizador (`User.baseCurrency`, default EUR) é só de **apresentação**. `CurrencyService` dá a taxa EUR→base (Yahoo `EUR{CUR}=X`, com cache). `GET /api/currency` devolve `{ base, rate, supported }`.
+- A **moeda base** do utilizador (`User.baseCurrency`, default EUR) é só de **apresentação**. `CurrencyService` dá a taxa EUR→base (Yahoo `EUR{CUR}=X`, com cache). `GET /api/currency` devolve `{ base, rate, rateLive, supported }`.
+- **`rateLive: false` não é um pormenor.** Quando o câmbio falha, a taxa devolvida é 1,0 — os montantes continuam a ser euros, só com outro símbolo à frente. O `AuthContext` propaga-o e a UI tem de o dizer (aviso no cartão "Moeda base" e o chip da barra de topo a âmbar). Nunca mostres valores convertidos sem verificar este campo.
+- **A lista de moedas é a do backend.** O `supported` de `GET /api/currency` manda; o `CURRENCIES` do `api.js` só lhe acrescenta símbolo e nome. Uma moeda nova no `CurrencyService.SUPPORTED` aparece na UI sem se mexer no frontend (com o código a fazer de nome até alguém lho dar).
 - No frontend, `api.js` converte na apresentação: `fmtEur(v)` recebe EUR e formata na moeda base; `toEur(v)` converte input da base→EUR antes de enviar. Ao trocar de moeda, as páginas remontam via `key={baseCurrency}` no `App.jsx`.
 
 ### Mensal / recorrência
@@ -107,12 +109,23 @@ testes e os leitores de ecrã ao mesmo tempo.
   um escolhe-se nos segmentos por baixo do cabeçalho. As duas coexistem no DOM — é o CSS que
   decide qual se vê — por isso têm nomes de landmark diferentes.
 - **Estado partilhado pelo shell**: `MonthContext` (o mês ativo, que a barra de topo troca e as
-  páginas mensais consomem) e `IntentContext` (o menu "Adicionar" e a paleta ⌘K navegam para um
-  ecrã e deixam lá a intenção; a página consome-a com `useIntent`).
-- **`api.js`** é o único cliente HTTP. Anexa o Bearer token, trata 401 (limpa sessão). Exporta `fmtEur`, `fmtMoneyShort`, `fmtPct`, `toEur`, `setDisplayCurrency`.
+  páginas mensais consomem) e `IntentContext` (a janela "Adicionar" e a paleta ⌘K navegam para um
+  ecrã e deixam lá a intenção; a página consome-a com `useIntent`). O "Adicionar" da barra de topo
+  abre um `<Modal>` ao centro, não um popover ancorado ao botão.
+- **`api.js`** é o único cliente HTTP. Anexa o Bearer token, trata 401 (limpa sessão). Exporta `fmtEur`, `fmtSigned`, `fmtMoneyShort`, `fmtPct`, `toEur`, `setDisplayCurrency`.
+- **Só um 401 termina a sessão.** Os erros que o `request()` lança levam o código HTTP em `err.status` precisamente para isto: um 502 (backend a reiniciar) ou o telemóvel sem rede **não** são o servidor a recusar o token, e apagá-lo aí obriga a entrar de novo por nada. Nunca faças `.catch(() => clearToken())` — filtra pelo `status`.
 - **Contextos/components**: `AuthContext` (sessão + moeda), `Toast` (`useToast()`), `Modal` + `ConfirmDialog`. `Icons.jsx` são SVG inline (adiciona novos aqui).
 - **Estilos**: um único `styles.css` com design tokens em `:root`. Segue as classes/tokens existentes; evita estilos inline exceto valores dinâmicos.
-- Formata dinheiro **sempre** via `fmtEur`/`fmtMoneyShort` (respeitam a moeda base). Converte inputs monetários com `toEur` antes de enviar.
+- Formata dinheiro **sempre** via `fmtEur`/`fmtMoneyShort` (respeitam a moeda base). Converte inputs
+  monetários com `toEur` antes de enviar. O que é uma **variação** — ganho da carteira, saldo do
+  mês, líquido do calendário — leva `fmtSigned`, que escreve o "+"/"−" à frente: no design esses
+  números têm sempre sinal, e a cor sozinha não distingue positivo de negativo.
+- **Datas curtas**: `fmtDayMonth` e `monthAbbr` (em `components/MonthContext.jsx`). Não peças dia e
+  mês curto na mesma chamada a `toLocaleDateString` — em pt-PT o CLDR responde "18/08", não
+  "18 ago"; o mês tem de vir sozinho (e sem o ponto que ele lhe põe).
+- **Códigos de categoria**: o quadrado mono de duas letras vem do `code` de `categories.js`
+  (`catCode`), escrito à mão porque as iniciais colidem — Transportes/Transferências, Supermercado/
+  Subscrições, Restauração/Rendimento. Só as categorias personalizadas o derivam do nome (`codeOf`).
 
 ### Tokens de `styles.css`
 
@@ -133,7 +146,7 @@ escalas que **devem** ser usadas em vez de números soltos:
 | Safe areas | `--safe-t/-b/-l/-r` (envolvem `env(safe-area-inset-*)`) |
 | Foco | `--ring` (anel de `:focus-visible`) |
 
-`--z-pop` é para popovers no fluxo (menu "Adicionar"); `--z-portal` é para os popovers em portal
+`--z-pop` é para popovers ancorados no fluxo da página; `--z-portal` é para os popovers em portal
 (`Dropdown`, `DatePicker`, paleta ⌘K), que têm de ficar **acima** dos modais.
 
 **Números são mono.** Todo o dinheiro, data e percentagem leva `.mono` (que é o `--font-mono` com
@@ -193,7 +206,8 @@ não a outro sítio.
 
 - `User` — id, name, email, passwordHash, `baseCurrency`, `currentBalance`, createdAt.
 - `IncomeSettings` — userId, `month`, monthlyIncome. `Allocation` — userId, month, name, percentage **ou** fixedAmount.
-- `Investment` — userId, name, symbol, type (STOCK/ETF/CRYPTO/OTHER), initialValue, quantity, fallbackValue, monthlyContribution, lastAppliedMonth.
+- `Investment` — userId, name, symbol, type (STOCK/ETF/CRYPTO/PPR/OTHER), initialValue, quantity, fallbackValue, monthlyContribution, lastAppliedMonth.
+- `Account` — userId, name, currentBalance. `Transaction` — userId, accountId, txDate, description, amount, inflow, category, `source` (IMPORT/MANUAL; null nas linhas antigas → o getter devolve MANUAL).
 - `Goal` — userId, name, targetAmount, monthlyAllocation, savedAmount, autoDeposit, lastAppliedMonth.
 - `CalendarEvent` — userId, name, category, inflow, amount, frequency (MONTHLY/YEARLY/ONCE), dayOfMonth/eventDate, active.
 - Conquistas **não têm entidade** — são calculadas a partir dos dados existentes.

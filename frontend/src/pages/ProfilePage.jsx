@@ -13,7 +13,8 @@ const THEME_OPTIONS = [
   { id: 'system', label: 'Sistema' },
 ]
 
-export default function ProfilePage({ user, initials, baseCurrency, changeCurrency, privacy, togglePrivacy, onGo, onLogout }) {
+export default function ProfilePage({ user, initials, baseCurrency, changeCurrency, rateLive = true,
+                                     currencies = CURRENCIES, privacy, togglePrivacy, onGo, onLogout }) {
   const { pref, setPref } = useTheme()
 
   return (
@@ -36,8 +37,17 @@ export default function ProfilePage({ user, initials, baseCurrency, changeCurren
               </div>
             </div>
           </div>
+          {/* sem câmbio a taxa cai para 1,0: os montantes ficam a ser euros
+              com outro símbolo à frente — dizê-lo é a diferença entre um
+              número desatualizado e um número errado sem sintoma */}
+          {!rateLive && (
+            <p className="notice warn" role="status">
+              Câmbio de EUR para {baseCurrency} indisponível de momento. Os valores mostrados
+              são euros — só o símbolo mudou. Volta a tentar mais tarde ou escolhe EUR.
+            </p>
+          )}
           <div className="currency-grid">
-            {CURRENCIES.map((c) => (
+            {currencies.map((c) => (
               <button key={c.code} type="button"
                       className={`currency-opt ${baseCurrency === c.code ? 'active' : ''}`}
                       aria-pressed={baseCurrency === c.code}

@@ -30,6 +30,21 @@ export const fmtMonthShort = (m) => {
   return clean.charAt(0).toUpperCase() + clean.slice(1)
 }
 
+/** "ago" — mês abreviado sem o ponto que o pt-PT lhe põe. */
+export const monthAbbr = (date) =>
+  date.toLocaleDateString('pt-PT', { month: 'short' }).replace('.', '')
+
+/**
+ * "2026-08-18" → "18 ago".
+ *
+ * Pedir dia e mês curto na mesma chamada devolve "18/08" em pt-PT — o CLDR
+ * escolhe o formato numérico —, por isso o mês vem separado.
+ */
+export const fmtDayMonth = (iso) => {
+  const d = new Date(iso)
+  return `${String(d.getDate()).padStart(2, '0')} ${monthAbbr(d)}`
+}
+
 /** Desloca um AAAA-MM em `delta` meses. */
 export const shiftMonth = (m, delta) => {
   const [y, mo] = m.split('-').map(Number)

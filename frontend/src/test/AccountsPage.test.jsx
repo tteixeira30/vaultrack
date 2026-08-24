@@ -9,7 +9,7 @@ vi.mock('../api', async (importOriginal) => {
   return {
     ...actual,
     api: {
-      getExpenses: vi.fn(), getCategoryRules: vi.fn(),
+      getExpenses: vi.fn(), getCategoryRules: vi.fn(), deleteCategoryRule: vi.fn(),
       addExpenseAccount: vi.fn(), updateExpenseAccount: vi.fn(), deleteExpenseAccount: vi.fn(),
     },
   }
@@ -78,10 +78,28 @@ describe('AccountsPage', () => {
   })
 
   it('mostra as regras de categoria aprendidas', async () => {
-    api.getCategoryRules.mockResolvedValue([{ matchKey: 'continente', category: 'GROCERIES' }])
+    api.getCategoryRules.mockResolvedValue([{ id: 7, matchKey: 'continente', category: 'GROCERIES' }])
     render(<AccountsPage />)
 
     await waitFor(() => expect(screen.getByText('continente')).toBeInTheDocument())
     expect(screen.getByText('Supermercado')).toBeInTheDocument()
+  })
+
+  // Uma regra mal aprendida repetia-se em cada importação sem forma de a tirar.
+  it('esquecer uma regra chama a API e tira-a da lista', async () => {
+    api.getCategoryRules.mockResolvedValue([
+      { id: 7, matchKey: 'continente', category: 'GROCERIES' },
+      { id: 8, matchKey: 'galp', category: 'TRANSPORT' },
+    ])
+    api.deleteCategoryRule.mockResolvedValue(null)
+    const user = userEvent.setup()
+    render(<AccountsPage />)
+
+    await waitFor(() => expect(screen.getByText('continente')).toBeInTheDocument())
+    await user.click(screen.getByLabelText('Esquecer a regra continente'))
+
+    await waitFor(() => expect(api.deleteCategoryRule).toHaveBeenCalledWith(7))
+    expect(screen.queryByText('continente')).not.toBeInTheDocument()
+    expect(screen.getByText('galp')).toBeInTheDocument()
   })
 })

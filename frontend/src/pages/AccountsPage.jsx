@@ -33,6 +33,21 @@ export default function AccountsPage() {
     api.getCategoryRules().then(setRules).catch(() => {})
   }, [])
 
+  /**
+   * Esquece uma regra aprendida. Sem confirmação de propósito: nada se perde —
+   * os movimentos já categorizados ficam como estão e a regra volta a
+   * aprender-se ao mudar outra vez a categoria de um movimento.
+   */
+  const removeRule = async (rule) => {
+    try {
+      await api.deleteCategoryRule(rule.id)
+      setRules((rs) => rs.filter((r) => r.id !== rule.id))
+      toast.info('Regra esquecida', `"${rule.matchKey}" deixa de ser categorizada automaticamente.`)
+    } catch (e) {
+      toast.error('Erro ao esquecer a regra', e.message)
+    }
+  }
+
   const openAdd = () => { setEditing(null); setAccountModal(true) }
   const openEdit = (a) => {
     setEditing({ ...a, balanceInput: a.currentBalance != null ? String(fromEur(a.currentBalance)) : '' })
@@ -119,11 +134,6 @@ export default function AccountsPage() {
             <strong className="mono">{withBalance > 0 ? fmtEur(total) : '—'}</strong>
           </div>
         )}
-
-        <p className="note-box">
-          Sem ligação bancária: os bancos portugueses não abrem API a particulares.
-          A Vaultrack lê o ficheiro que exportas — e reconhece o formato sozinha.
-        </p>
       </section>
 
       <section className="card">
@@ -152,14 +162,18 @@ export default function AccountsPage() {
             com a mesma descrição e memoriza-a para as próximas importações.
           </p>
         ) : (
-          <ul className="rule-list">
-            {rules.slice(0, 12).map((r) => (
-              <li key={r.matchKey}>
+          <ul className="rule-list scroll">
+            {rules.map((r) => (
+              <li key={r.id}>
                 <span className="mono rule-key">{r.matchKey}</span>
                 <span className="rule-cat">
                   <span className="tx-cat-dot" style={{ background: catColor(r.category) }} />
                   {catLabel(r.category)}
                 </span>
+                <button type="button" className="icon-btn danger" onClick={() => removeRule(r)}
+                        aria-label={`Esquecer a regra ${r.matchKey}`} title="Esquecer esta regra">
+                  <IconTrash size={14} />
+                </button>
               </li>
             ))}
           </ul>

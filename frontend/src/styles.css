@@ -62,7 +62,7 @@
   /* Camadas: manter esta ordem ao acrescentar sobreposições novas */
   --z-sidebar: 40;
   --z-nav: 50;
-  --z-pop: 60;      /* popovers no fluxo (menu de perfil, menu Adicionar) */
+  --z-pop: 60;      /* popovers ancorados no fluxo da página */
   --z-modal: 100;
   --z-portal: 200;  /* popovers em portal (Dropdown, DatePicker): acima dos modais */
   --z-toast: 200;
@@ -187,14 +187,13 @@ input[type='checkbox'], input[type='radio'], select {
 }
 
 /* Um toque longo num controlo não deve selecionar o rótulo. */
-button, .nav-item, .account-chip, .cal-cell {
+button, .nav-item, .cal-cell {
   -webkit-user-select: none;
   user-select: none;
 }
 
 /* Sem hover no telemóvel, o :active é o único sinal de que o toque pegou. */
 .icon-btn:active { background: var(--surface-3); }
-.account-chip:active,
 .seg button:active,
 .mode-toggle button:active,
 .auth-tabs button:active { filter: brightness(1.15); }
@@ -214,7 +213,7 @@ button, .nav-item, .account-chip, .cal-cell {
 .tb-search:focus-visible,
 .tb-avatar:focus-visible,
 .month-stepper button:focus-visible,
-.add-pop button:focus-visible,
+.add-list button:focus-visible,
 .palette-item:focus-visible,
 .theme-opt:focus-visible,
 .currency-opt:focus-visible,
@@ -226,7 +225,6 @@ button, .nav-item, .account-chip, .cal-cell {
 .seg button:focus-visible,
 .mode-toggle button:focus-visible,
 .auth-tabs button:focus-visible,
-.account-chip:focus-visible,
 .toast-close:focus-visible,
 .alloc-toggle:focus-visible,
 .exp-back:focus-visible {
@@ -373,7 +371,6 @@ button, .nav-item, .account-chip, .cal-cell {
 .tb-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .tb-title h2 { font-size: 16.5px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
 .tb-eyebrow { display: none; }
-.tb-sub { font-family: var(--font-mono); font-size: 11.5px; font-weight: 700; color: var(--text-faint); white-space: nowrap; }
 .tb-tools { display: flex; align-items: center; gap: 7px; margin-left: auto; }
 .tb-avatar { display: none; }
 .tb-back { flex: none; }
@@ -387,6 +384,9 @@ button, .nav-item, .account-chip, .cal-cell {
 }
 .tb-chip:hover { border-color: var(--accent); }
 .tb-chip span { color: var(--text-faint); }
+/* câmbio indisponível: a moeda mudou de símbolo mas não de valor */
+.tb-chip.stale { border-color: var(--amber); background: var(--amber-soft); }
+.tb-chip.stale span { color: var(--text); }
 
 .tb-search {
   display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 11px; width: 172px;
@@ -414,25 +414,19 @@ kbd {
 .month-stepper button:hover { color: var(--text); background: var(--surface-2); }
 .ms-label { font-size: 12px; font-weight: 700; min-width: 104px; text-align: center; }
 
-/* ---------- Menu Adicionar ---------- */
+/* ---------- Janela Adicionar ----------
+   A lista vive dentro de um <Modal> ao centro do ecra: aqui so as linhas. */
 
-.add-menu { position: relative; }
 .add-trigger { height: 34px; padding: 0 13px; font-size: 12.5px; gap: 7px; }
 .add-trigger kbd { background: rgba(255, 255, 255, 0.18); color: #fff; opacity: 0.85; }
 
-.add-pop {
-  position: absolute; top: 42px; right: 0; width: 268px; padding: 7px;
-  background: var(--surface); border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md); box-shadow: var(--shadow);
-  z-index: var(--z-pop); animation: pop-in var(--dur-1) var(--ease-out) both;
-}
-@keyframes pop-in { from { opacity: 0; transform: translateY(-8px) scale(0.985); } }
-.add-pop button {
-  display: flex; align-items: center; gap: 11px; width: 100%; min-height: 44px; padding: 0 10px;
+.add-list { display: flex; flex-direction: column; gap: 2px; }
+.add-list button {
+  display: flex; align-items: center; gap: 11px; width: 100%; min-height: 48px; padding: 0 10px;
   border-radius: var(--radius-sm); background: transparent; border: none;
   cursor: pointer; text-align: left; font-family: inherit; color: var(--text);
 }
-.add-pop button:hover { background: var(--surface-2); }
+.add-list button:hover { background: var(--surface-2); }
 .am-text { flex: 1; min-width: 0; }
 .am-text strong { display: block; font-size: 12.5px; font-weight: 700; }
 .am-text small { display: block; font-size: 10.5px; font-weight: 600; color: var(--text-faint); }
@@ -465,8 +459,9 @@ kbd {
   display: flex; justify-content: center; align-items: flex-start;
   padding: 12vh 16px 16px; overscroll-behavior: contain;
 }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-8px) scale(0.985); } }
 .palette {
-  width: min(560px, 100%); max-height: 60vh; display: flex; flex-direction: column;
+  width: min(520px, 100%); max-height: 60vh; display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--border-strong);
   border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
   animation: pop-in var(--dur-2) var(--ease-out) both;
@@ -477,19 +472,22 @@ kbd {
   flex: 1; min-width: 0; height: 100%; background: transparent; border: none; outline: none;
   color: var(--text); font-family: inherit; font-size: 14px; font-weight: 600; padding: 0;
 }
-.palette-list { overflow-y: auto; padding: 6px; }
-.palette-group {
-  font-size: 9.5px; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--text-faint); padding: 10px 10px 5px;
-}
+.palette-list { overflow-y: auto; padding: 7px; max-height: 320px; }
+/* Linha da paleta: icone, nome, e o grupo encostado a direita — o design nao
+   tem cabecalhos de seccao, poe a etiqueta do grupo na propria linha. */
 .palette-item {
-  display: flex; align-items: baseline; gap: 10px; width: 100%; min-height: 38px; padding: 0 10px;
+  display: flex; align-items: center; gap: 11px; width: 100%; min-height: 40px; padding: 0 10px;
   border: none; background: transparent; border-radius: var(--radius-sm);
   font-family: inherit; text-align: left; cursor: pointer; color: var(--text);
 }
 .palette-item.sel { background: var(--surface-2); }
-.pi-label { font-size: 13px; font-weight: 700; }
-.pi-hint { font-size: 11.5px; font-weight: 600; color: var(--text-faint); }
+.pi-icon {
+  width: 24px; height: 24px; border-radius: var(--radius-xs); flex: none;
+  display: grid; place-items: center;
+  background: var(--surface-2); color: var(--text-dim);
+}
+.pi-label { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pi-group { flex: none; font-size: 10.5px; font-weight: 700; color: var(--text-faint); }
 .palette-empty { padding: 18px 12px; font-size: 13px; color: var(--text-dim); }
 
 /* ---------- Segmentos (sub-navegacao mobile) ---------- */
@@ -579,7 +577,6 @@ td.actions-cell .icon-btn:hover { background: var(--surface-2); border-color: tr
   }
   .tb-title h2 { font-size: 19px; font-weight: 800; letter-spacing: -0.4px; }
   .topbar { align-items: center; padding-bottom: 11px; }
-  .tb-sub { display: none; }
   /* os controlos da barra de topo desktop (mês, moeda, privacidade, ⌘K,
      Adicionar) vivem no Perfil e nos cabeçalhos de cada página em mobile */
   .tb-tools { display: none; }
@@ -1212,6 +1209,16 @@ tr:last-child td { border-bottom: none; }
 @keyframes toast-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 
 /* ---------- Empty & loading states ---------- */
+
+/* Aviso em linha dentro de um cartão. O texto é `--text`, não a cor do aviso:
+   sobre um fundo com tinte o âmbar chega a 4.4:1 e o axe bloqueia (ver
+   CLAUDE.md). A cor vive no fundo e na barra lateral, que não são texto. */
+.notice {
+  margin: 0 0 14px; padding: 10px 12px; border-radius: var(--radius-sm);
+  font-size: 12.5px; line-height: 1.5; color: var(--text);
+  background: var(--surface-2); border-left: 3px solid var(--text-faint);
+}
+.notice.warn { background: var(--amber-soft); border-left-color: var(--amber); }
 
 .empty-state { text-align: center; padding: 44px 20px; }
 .empty-state .empty-icon {
@@ -1980,6 +1987,8 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .kpi-sub { font-size: 11px; font-weight: 700; color: var(--text-faint); margin-top: 4px; }
 .kpi-sub.pos { color: var(--green); }
 .kpi-sub.neg { color: var(--red); }
+/* linha de contexto por baixo do valor e da variação (ex.: o custo de aquisição) */
+.kpi-foot { font-size: 10.5px; font-weight: 600; color: var(--text-faint); margin-top: 2px; }
 .kpi.ring { flex-direction: row; align-items: center; gap: 14px; }
 
 .kpi-ring {
@@ -2189,6 +2198,19 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .reminder-chip.in { color: var(--green); }
 .reminder-chip.out { color: var(--red); }
 
+/* Meses com dados (Rendimento): atalho para não andar de mês em mês às cegas.
+   Mesma calha deslizante dos lembretes. */
+.month-chips { display: flex; gap: 7px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
+.month-chips::-webkit-scrollbar { display: none; }
+.month-chip {
+  flex: none; white-space: nowrap; cursor: pointer;
+  font-size: 11.5px; font-weight: 700; padding: 6px 10px; border-radius: var(--radius-xs);
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim);
+  transition: color var(--dur-1), border-color var(--dur-1);
+}
+.month-chip:hover { color: var(--text); border-color: var(--accent); }
+.month-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
 .cal-body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .cal-side { display: flex; flex-direction: column; gap: 16px; }
 
@@ -2266,6 +2288,8 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   color: var(--text); font-family: inherit;
 }
 .card.flush > .m-cal-row:first-child { border-top: none; }
+button.m-cal-row { cursor: pointer; }
+button.m-cal-row:active { background: var(--surface-2); }
 .m-cal-date { width: 40px; text-align: center; flex: none; }
 .m-cal-date .mono { font-size: 15px; font-weight: 700; line-height: 1; }
 .m-cal-date > div:last-child { font-size: 10px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; }
@@ -2312,6 +2336,10 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .agenda { list-style: none; }
 .agenda li { display: flex; align-items: center; gap: 11px; padding: 8px 0; border-bottom: 1px solid var(--border); }
 .agenda li:last-child { border-bottom: none; }
+/* as linhas que vêm de um evento manual abrem-no para edição */
+.agenda li.editable { cursor: pointer; border-radius: var(--radius-xs); }
+.agenda li.editable:hover { background: var(--surface-2); box-shadow: 0 0 0 6px var(--surface-2); }
+.agenda li.editable:focus-visible { outline: none; box-shadow: var(--ring); }
 .agenda-date { width: 34px; flex: none; text-align: center; line-height: 1.15; }
 .agenda-date strong { display: block; font-size: 13px; font-weight: 700; }
 .agenda-date span { font-size: 9.5px; font-weight: 700; color: var(--text-faint); }
@@ -2336,6 +2364,12 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .event-row > span.pos, .event-row > span.neg { font-size: 12.5px; font-weight: 700; flex: none; }
 .event-actions { display: flex; gap: 2px; flex: none; }
 .event-row .code-chip { width: 26px; height: 26px; border-radius: 8px; font-size: 9px; }
+
+/* Evento pausado: fica na lista mas não conta no calendário nem na previsão.
+   O sinal é o crachá "pausado" e o valor a cinzento — nada de `opacity`, que
+   baixaria o contraste da linha inteira e faria o axe bloquear o ecrã. */
+.event-row.paused > span.pos, .event-row.paused > span.neg { color: var(--text-faint); }
+.m-cal-row.paused .mono { color: var(--text-faint); }
 
 @media (max-width: 1100px) {
   .cal-body { grid-template-columns: minmax(0, 1fr); }
@@ -2404,34 +2438,16 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .mov { display: flex; flex-direction: column; gap: 11px; }
 .mov .card { margin-bottom: 0; }
 
-/* linha de chips de conta + ações */
+/* linha do filtro de conta + acoes */
 .chip-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-.chip-scroll { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; min-width: 0; }
 .chip-row-end { display: flex; gap: 7px; margin-left: auto; }
 
-.account-chip {
-  display: inline-flex; align-items: center; gap: 8px;
-  height: 34px; padding: 0 11px; flex: none; white-space: nowrap;
-  border-radius: var(--radius-xs); cursor: pointer;
-  background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-dim);
-  font-family: inherit; font-size: 12px; font-weight: 700;
-  transition: border-color var(--dur-1), color var(--dur-1), background var(--dur-1);
-}
-.account-chip:hover { color: var(--text); border-color: var(--text-faint); }
-.account-chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
-.account-chip.add { border-style: dashed; width: 34px; padding: 0; justify-content: center; }
-.account-chip-balance { font-size: 10.5px; font-weight: 700; color: var(--text-faint); }
-.account-chip.active .account-chip-balance { color: var(--accent-text); }
-
-/* as ações por chip só aparecem em hover/foco — em mobile ficam sempre visíveis */
-.account-chip-actions { display: none; gap: 4px; margin-left: 2px; }
-.account-chip:hover .account-chip-actions,
-.account-chip:focus-within .account-chip-actions { display: inline-flex; }
-.account-chip-actions [role='button'] {
-  display: grid; place-items: center; width: 18px; height: 18px;
-  border-radius: 5px; color: var(--text-faint); cursor: pointer;
-}
-.account-chip-actions [role='button']:hover { background: var(--surface-2); color: var(--text); }
+/* O filtro de conta: um seletor com a largura do nome mais comprido e, ao lado,
+   as acoes da conta escolhida. */
+.account-filter { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.account-filter .dropdown { min-width: 190px; }
+.account-filter .dd-trigger { height: 34px; }
+.account-filter-actions { display: flex; align-items: center; gap: 4px; }
 
 /* ---------- KPIs compactos do mês ---------- */
 
@@ -2517,6 +2533,8 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .tx-open:hover { color: var(--accent-text); }
+.tx-desc-text { display: flex; flex-direction: column; min-width: 0; }
+.tx-desc-text small { font-size: 10px; font-weight: 700; color: var(--text-faint); }
 .tx-cat, .tx-acc {
   display: flex; align-items: center; gap: 7px; min-width: 0;
   font-size: 12px; font-weight: 700; color: var(--text-dim);
@@ -2587,15 +2605,17 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 @media (max-width: 900px) {
   .chip-row-end { margin-left: 0; width: 100%; }
   .chip-row-end .btn { flex: 1; }
-  .account-chip-actions { display: inline-flex; }
+  /* o seletor de conta ocupa a largura toda; as ações ficam à direita */
+  .account-filter { width: 100%; }
+  .account-filter .dropdown { flex: 1; min-width: 0; }
   .mov-side { grid-template-columns: minmax(0, 1fr); }
   .filter-manage { margin-left: 0; }
   .search-box { flex: 1; width: auto; min-width: 140px; }
 
   /* Chips numa linha que desliza, em vez de empilharem.
-     Com sete categorias e duas contas, o cromo enchia o ecrã todo e a lista de
-     movimentos — que é o conteúdo — só aparecia depois de rolar. */
-  .chip-scroll, .filter-chips {
+     Com sete categorias, o cromo enchia o ecrã todo e a lista de movimentos —
+     que é o conteúdo — só aparecia depois de rolar. */
+  .filter-chips {
     flex-wrap: nowrap;
     width: 100%;
     overflow-x: auto;
@@ -2604,7 +2624,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
     padding: 2px calc(18px + var(--safe-r)) 2px calc(18px + var(--safe-l));
     margin: -2px calc(-18px - var(--safe-r)) -2px calc(-18px - var(--safe-l));
   }
-  .chip-scroll::-webkit-scrollbar, .filter-chips::-webkit-scrollbar { display: none; }
+  .filter-chips::-webkit-scrollbar { display: none; }
 }
 
 /* nota: as barras de categoria e o cartão de despesas vivem na secção
@@ -2617,11 +2637,6 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   font-size: 12.5px; font-weight: 600; padding: 10px 2px 4px;
 }
 
-.account-chip-balance {
-  font-size: 11px; font-weight: 600; opacity: 0.75;
-  padding-left: 6px; margin-left: 2px; border-left: 1px solid currentColor;
-  font-variant-numeric: tabular-nums;
-}
 .import-range { margin: 2px 2px 6px; font-size: 12px; }
 .import-overlap {
   margin: 0 2px 8px; padding: 8px 10px; font-size: 12px; line-height: 1.45;
@@ -2755,12 +2770,6 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 }
 .account-total strong { font-size: 15px; color: var(--text); }
 
-.note-box {
-  margin-top: 14px; padding: 13px 14px; border-radius: var(--radius-md);
-  background: var(--surface-2); border: 1px solid var(--border);
-  font-size: 11.5px; font-weight: 600; color: var(--text-dim); line-height: 1.55;
-}
-
 .dropzone {
   width: 100%; padding: 22px; cursor: pointer; font-family: inherit; color: var(--text);
   background: var(--surface-2); border: 1.5px dashed var(--border-strong);
@@ -2789,6 +2798,14 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 }
 .rule-key { flex: 1; min-width: 0; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rule-cat { display: flex; align-items: center; gap: 5px; color: var(--text-dim); flex: none; }
+/* a lista cresce com o uso; a caixa não. Sem `slice` não fica nenhuma regra
+   inalcançável — era o que impedia apagar as últimas aprendidas. */
+.rule-list.scroll { max-height: 268px; overflow-y: auto; overscroll-behavior: contain; }
+/* dentro da lista o caixote é discreto — a dimensão fica ao cargo do
+   .icon-btn, para o bloco de alvos táteis do fim do ficheiro continuar a
+   mandar em mobile (um seletor descendente com width ganhava-lhe) */
+.rule-list .icon-btn { background: transparent; border-color: transparent; }
+.rule-list .icon-btn:hover { background: var(--surface-2); }
 
 /* ---------- Visibilidade por tamanho ----------
    Tem de ficar depois de todas as secções: são seletores de classe simples e,
@@ -2819,14 +2836,14 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   .mode-toggle button,
   .seg-pills button,
   .segments button,
-  .account-chip,
   .filter-chip,
+  .month-chip,
   .currency-opt,
   .theme-opt,
   .dropzone,
   .tb-avatar,
   .month-stepper button,
-  .add-pop button,
+  .add-list button,
   .palette-item,
   .row-item,
   .tx-card-row,
@@ -2842,9 +2859,27 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
     min-height: var(--tap);
   }
   /* os que têm conteúdo largo ou vivem em grelha: chega garantir a altura */
-  .account-chip, .filter-chip, .exp-back, .segments button,
+  .filter-chip, .month-chip, .exp-back, .segments button,
   .currency-opt, .theme-opt, .dropzone, .row-item, .tx-card-row,
-  .add-pop button, .palette-item { min-width: 0; }
+  .add-list button, .palette-item { min-width: 0; }
+
+  /* Controlos que nunca chegaram a ser inscritos aqui e davam 15px a 38px
+     medidos a 375px: o "+" do cabeçalho (a única forma de criar em mobile),
+     os saltos de mês das duas barras, os "Novo/Nova" das listas e os botões
+     pequenos. Os seletores descendentes vivem neste bloco de propósito — no
+     fim do ficheiro e depois das regras que os dimensionam. */
+  .tb-add,
+  .m-link,
+  .btn.small,
+  .m-monthbar button,
+  .m-cal-nav button {
+    min-width: var(--tap);
+    min-height: var(--tap);
+  }
+
+  /* Sete colunas não deixam a célula do mês chegar aos 44 de largura — garante-se
+     a altura, o mesmo critério do .dp-day. É por aqui que se cria um evento. */
+  .m-cal-day { min-height: var(--tap); height: auto; }
 
   /* o interruptor é maior do que parece: a área de toque envolve a calha */
   .switch { min-height: var(--tap); background-clip: content-box; padding: 12px 3px; }
