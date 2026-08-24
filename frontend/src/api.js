@@ -239,5 +239,35 @@ export const fmtMoneyShort = (v) => {
   return parts.map((p) => p.value).join('')
 }
 
-export const fmtPct = (v) =>
-  v == null ? '—' : `${v >= 0 ? '+' : ''}${Number(v).toFixed(2)}%`
+/**
+ * Percentagem na convenção pt-PT: vírgula decimal, como todos os outros números
+ * da app, e sem espaço antes do "%" (o `style: 'percent'` do Intl mete lá um
+ * espaço fino que o design não tem).
+ *
+ * `digits` fixa as casas decimais; omitido, mostra até duas e só as que
+ * existirem — é o que serve as percentagens escritas pelo utilizador (12,5%
+ * fica "12,5%", 30% fica "30%"), enquanto os valores calculados pedem um
+ * número fixo de casas para as colunas alinharem.
+ */
+export const fmtPercent = (v, digits = null) => {
+  if (v == null) return '—'
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '—'
+  const fmt = new Intl.NumberFormat('pt-PT', digits == null
+    ? { minimumFractionDigits: 0, maximumFractionDigits: 2 }
+    : { minimumFractionDigits: digits, maximumFractionDigits: digits })
+  return `${fmt.format(n)}%`
+}
+
+/**
+ * Percentagem que é uma **variação** (rentabilidade), com duas casas e o sinal
+ * sempre à frente — o `fmtSigned` do mundo das percentagens, incluindo o menos
+ * tipográfico (U+2212). Para percentagens que são uma proporção (peso na
+ * carteira, progresso de um objetivo) usa-se o `fmtPercent`, sem sinal.
+ */
+export const fmtPct = (v) => {
+  if (v == null) return '—'
+  const n = Number(v)
+  if (!Number.isFinite(n)) return '—'
+  return `${n >= 0 ? '+' : '−'}${fmtPercent(Math.abs(n), 2)}`
+}

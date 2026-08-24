@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import {
-  api, fmtEur, fmtSigned, fmtPct, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount,
+  api, fmtEur, fmtSigned, fmtPct, fmtPercent, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount,
   getPrivacyMode,
 } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
@@ -66,7 +66,12 @@ const SCENARIO_META = {
 
 const scenarioMeta = (id) => SCENARIO_META[id] ?? { label: id, color: '#8b93a7' }
 
-const fmtRate = (r) => `${r > 0 ? '+' : ''}${Number(r) % 1 === 0 ? Number(r) : Number(r).toFixed(1)}%/ano`
+// A taxa do cenário leva sinal explícito (o pessimista é negativo), com o mesmo
+// menos tipográfico do `fmtSigned`/`fmtPct`.
+const fmtRate = (r) => {
+  const n = Number(r)
+  return `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmtPercent(Math.abs(n), n % 1 === 0 ? 0 : 1)}/ano`
+}
 
 /**
  * Traça uma série como caminho SVG (o mesmo desenho do herói do Painel).
@@ -557,7 +562,7 @@ export default function InvestmentsPage() {
                   <span className="m-asset-main">
                     <strong>{inv.name}</strong>
                     <small className="mono">
-                      {inv.currentPrice != null ? `${fmtEur(inv.currentPrice)} · ` : ''}{weight.toFixed(0)}%
+                      {inv.currentPrice != null ? `${fmtEur(inv.currentPrice)} · ` : ''}{fmtPercent(weight, 0)}
                     </small>
                   </span>
                   <span className="m-asset-num">

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { api, fmtEur, fmtSigned, fmtMoneyShort, fmtPct } from '../api'
+import { api, fmtEur, fmtSigned, fmtMoneyShort, fmtPct, fmtPercent } from '../api'
 import { catLabel, catColor } from '../categories'
 import { useChartColors } from '../components/ThemeContext'
 import { fmtMonthShort } from '../components/MonthContext'
@@ -182,7 +182,7 @@ export default function DashboardPage({ onGo }) {
               {hasSeries && (
                 <div className="hero-delta">
                   <span className={`delta-chip mono ${deltaAbs === 0 ? 'flat' : deltaUp ? 'up' : 'down'}`}>
-                    {deltaUp ? '▲' : '▼'} {deltaPct != null ? `${Math.abs(deltaPct).toFixed(1)}%` : '—'}
+                    {deltaUp ? '▲' : '▼'} {deltaPct != null ? fmtPercent(Math.abs(deltaPct), 1) : '—'}
                   </span>
                   <span className="mono dim">
                     {deltaUp ? '+' : '−'}{fmtEur(Math.abs(deltaAbs))} · {rangeNote}
@@ -246,12 +246,12 @@ export default function DashboardPage({ onGo }) {
                 <span>
                   <span className="comp-dot" style={{ background: 'var(--accent)' }} />
                   Investimentos <strong className="mono">{fmtEur(invested)}</strong>
-                  <span className="dim">{investPct.toFixed(0)}%</span>
+                  <span className="dim">{fmtPercent(investPct, 0)}</span>
                 </span>
                 <span>
                   <span className="comp-dot" style={{ background: 'var(--cyan)' }} />
                   Poupança <strong className="mono">{fmtEur(saved)}</strong>
-                  <span className="dim">{savedPct.toFixed(0)}%</span>
+                  <span className="dim">{fmtPercent(savedPct, 0)}</span>
                 </span>
               </div>
             </div>
@@ -302,7 +302,7 @@ export default function DashboardPage({ onGo }) {
 
           <div className="card kpi ring">
             <div className="kpi-ring" style={{ background: `conic-gradient(var(--accent) ${goalsPct * 3.6}deg, var(--track) 0)` }}>
-              <span className="mono">{Math.round(goalsPct)}%</span>
+              <span className="mono">{fmtPercent(goalsPct, 0)}</span>
             </div>
             <div>
               <span className="eyebrow">Objetivos</span>
@@ -349,7 +349,7 @@ export default function DashboardPage({ onGo }) {
                 <strong className="mono neg">
                   {fmtEur(spent)}
                   {spentDeltaPct != null && (
-                    <span className={spentUp ? 'neg' : 'pos'}> {spentUp ? '+' : '−'}{Math.abs(spentDeltaPct).toFixed(0)}%</span>
+                    <span className={spentUp ? 'neg' : 'pos'}> {spentUp ? '+' : '−'}{fmtPercent(Math.abs(spentDeltaPct), 0)}</span>
                   )}
                 </strong>
               </div>
@@ -409,7 +409,7 @@ export default function DashboardPage({ onGo }) {
                         <li key={c.category}>
                           <div className="cat-bar-head">
                             <span><span className="tx-cat-dot" style={{ background: catColor(c.category) }} />{catLabel(c.category)}</span>
-                            <span className="mono">{fmtEur(c.total)} · {pct.toFixed(0)}%</span>
+                            <span className="mono">{fmtEur(c.total)} · {fmtPercent(pct, 0)}</span>
                           </div>
                           <div className="cat-bar-track">
                             <div className="cat-bar-fill" style={{ width: `${pct}%`, background: catColor(c.category) }} />

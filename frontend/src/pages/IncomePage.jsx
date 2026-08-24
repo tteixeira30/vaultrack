@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { api, fmtEur, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
+import { api, fmtEur, fmtPercent, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { useMonth, fmtMonthShort as fmtMonth, monthAbbr } from '../components/MonthContext'
@@ -221,7 +221,7 @@ export default function IncomePage() {
   const formHint = !formValue ? null
     : isPct
       ? (income > 0 ? `≈ ${fmtEur(income * formValue / 100)} por mês` : null)
-      : (income > 0 ? `≈ ${(formValue / income * 100).toFixed(1)}% do rendimento` : null)
+      : (income > 0 ? `≈ ${fmtPercent(formValue / income * 100, 1)} do rendimento` : null)
 
   /**
    * Meses que já têm rendimento registado, do mais recente para trás.
@@ -419,7 +419,7 @@ export default function IncomePage() {
                 return (
                   <span key={seg.name} style={{ flex: `${pct} 1 0`, background: seg.color }}
                         title={`${seg.name}: ${fmtEur(seg.amount)}`}>
-                    {pct >= 9 && <span className="mono">{Math.round(pct)}%</span>}
+                    {pct >= 9 && <span className="mono">{fmtPercent(pct, 0)}</span>}
                   </span>
                 )
               })}
@@ -480,7 +480,7 @@ export default function IncomePage() {
                   <span className="m-alloc-main">
                     <strong>{a.name}</strong>
                     <small>
-                      {a.fixedAmount != null ? 'valor fixo' : `${Number(a.percentage ?? 0)}% do rendimento`}
+                      {a.fixedAmount != null ? 'valor fixo' : `${fmtPercent(a.percentage ?? 0)} do rendimento`}
                       {items.length > 0 && ` · ${items.length} item(s)`}
                     </small>
                   </span>
@@ -512,7 +512,7 @@ export default function IncomePage() {
             {data.copiedFrom && <> · copiado de {fmtMonth(data.copiedFrom)}, ajusta o que for preciso</>}
           </div>
         </div>
-        <span className={`badge ${overAllocated ? 'warn' : 'accent'}`}>{totalPct.toFixed(0)}% alocado</span>
+        <span className={`badge ${overAllocated ? 'warn' : 'accent'}`}>{fmtPercent(totalPct, 0)} alocado</span>
         <button className="btn ghost" onClick={() => { setIncomeInput(income ? fromEur(income) : ''); setIncomeModal(true) }}>
           <IconPencil size={14} /> Editar rendimento
         </button>
@@ -573,12 +573,12 @@ export default function IncomePage() {
                             </label>
                             <span className="row-title">{a.name}</span>
                             <span className="rule-chip">
-                              {a.fixedAmount != null ? 'fixo' : `${Number(a.percentage ?? 0)}%`}
+                              {a.fixedAmount != null ? 'fixo' : fmtPercent(a.percentage ?? 0)}
                             </span>
                             {items.length > 0 && <span className="item-count">{items.length}</span>}
                           </td>
                           <td data-label="% do rendimento" className={`mono ${a.fixedAmount != null ? 'dim' : ''}`}>
-                            {a.effectivePercentage != null ? `${Number(a.effectivePercentage).toFixed(1)}%` : '—'}
+                            {fmtPercent(a.effectivePercentage, 1)}
                           </td>
                           <td data-label="Valor" className="mono">{fmtEur(a.amount)}</td>
                           {/* Só o que já está escrutinado em itens: o par
@@ -658,7 +658,7 @@ export default function IncomePage() {
                   })}
                   <tr>
                     <td className="dim">Não alocado</td>
-                    <td data-label="% do rendimento" className="mono dim">{income > 0 ? `${Math.max(0, 100 - totalPct).toFixed(1)}%` : '—'}</td>
+                    <td data-label="% do rendimento" className="mono dim">{income > 0 ? fmtPercent(Math.max(0, 100 - totalPct), 1) : '—'}</td>
                     <td data-label="Valor" className={`mono ${Number(data.unallocated) < 0 ? 'neg' : 'dim'}`}>{fmtEur(data.unallocated)}</td>
                     <td></td>
                     <td></td>
@@ -711,7 +711,7 @@ export default function IncomePage() {
                     <li key={i} className="leg-row">
                       <span className="leg-swatch" style={{ background: d.color }} />
                       <span className="leg-name" title={d.name}>{d.name}</span>
-                      <span className="mono leg-pct">{pct.toFixed(0)}%</span>
+                      <span className="mono leg-pct">{fmtPercent(pct, 0)}</span>
                       <span className="mono leg-amount">{fmtEur(d.value)}</span>
                     </li>
                   )

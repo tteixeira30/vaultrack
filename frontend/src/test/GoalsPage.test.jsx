@@ -57,7 +57,7 @@ describe('GoalsPage', () => {
     await waitFor(() => expect(screen.getByText('Fundo de emergência')).toBeInTheDocument())
     const card = document.querySelector('.goal-card')
     expect(within(card).getByText(/300,00/)).toBeInTheDocument()
-    expect(within(card).getByText(/30.0%/)).toBeInTheDocument()
+    expect(within(card).getByText(/30,0%/)).toBeInTheDocument()
   })
 
   it('criar um objetivo envia os valores convertidos e recarrega', async () => {
