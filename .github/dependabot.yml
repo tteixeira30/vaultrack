@@ -1,5 +1,14 @@
 # Atualizações automáticas de dependências — PRs semanais com limites
 # para evitar uma inundação inicial.
+#
+# Os updates vêm agrupados. Sem grupos, o dependabot abre um PR por
+# dependência e todos mexem no mesmo package-lock.json: mergeado o primeiro,
+# os restantes ficam em conflito e cada um precisa de um rebase e de uma volta
+# inteira de CI. Aconteceu com cinco PRs de dev-dependencies do frontend.
+#
+# Dev e produção ficam em grupos separados de propósito: o ruído das
+# ferramentas (eslint, tipos, testes) não deve arrastar consigo uma
+# dependência que vai parar ao bundle sem alguém reparar.
 version: 2
 updates:
   - package-ecosystem: maven
@@ -7,30 +16,64 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      backend:
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    groups:
+      frontend-dev:
+        dependency-type: development
+        patterns:
+          - "*"
+      frontend-prod:
+        dependency-type: production
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /e2e
     schedule:
       interval: weekly
     open-pull-requests-limit: 2
+    groups:
+      e2e-dev:
+        dependency-type: development
+        patterns:
+          - "*"
+      e2e-prod:
+        dependency-type: production
+        patterns:
+          - "*"
 
   - package-ecosystem: docker
     directory: /backend
     schedule:
       interval: weekly
+    groups:
+      docker-backend:
+        patterns:
+          - "*"
 
   - package-ecosystem: docker
     directory: /frontend
     schedule:
       interval: weekly
+    groups:
+      docker-frontend:
+        patterns:
+          - "*"
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
