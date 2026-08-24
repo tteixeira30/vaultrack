@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, fmtEur, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
+import { api, fmtEur, fmtMoneyShort, fmtPercent, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { useIntent } from '../components/IntentContext'
@@ -35,7 +35,7 @@ function GoalRing({ percent, done }) {
                 strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset}
                 transform="rotate(-90 39 39)" />
       </svg>
-      <span className="mono">{Math.round(percent)}%</span>
+      <span className="mono">{fmtPercent(percent, 0)}</span>
     </span>
   )
 }
@@ -422,7 +422,7 @@ export default function GoalsPage() {
                 <div>
                   <div className="goal-amounts">
                     <span className="mono big">{fmtEur(g.savedAmount)}</span>
-                    <span className="of">de {fmtEur(g.targetAmount)} · {Number(g.progressPercent).toFixed(1)}%</span>
+                    <span className="of">de {fmtEur(g.targetAmount)} · {fmtPercent(g.progressPercent, 1)}</span>
                   </div>
                   <div className="progress-track">
                     <div className={`progress-fill ${done ? 'done' : ''}`}

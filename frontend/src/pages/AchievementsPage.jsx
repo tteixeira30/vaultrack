@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, fmtEur } from '../api'
+import { api, fmtEur, fmtPercent } from '../api'
 import { IconLock, IconInfo } from '../components/Icons'
 import { codeOf } from '../components/code'
 import { useIsMobile } from '../components/useMediaQuery'
@@ -9,7 +9,7 @@ const CATEGORY_ORDER = ['Investimento', 'Poupança', 'Consistência', 'Objetivos
 function fmtValue(v, unit) {
   if (v == null) return ''
   if (unit === 'eur') return fmtEur(v)
-  if (unit === 'pct') return `${Math.round(v)}%`
+  if (unit === 'pct') return fmtPercent(v, 0)
   return String(Math.round(v))
 }
 
@@ -110,7 +110,7 @@ export default function AchievementsPage() {
           </div>
           <div className="level-foot">
             <span>{data.level >= 8 ? 'Nível máximo atingido!' : `${data.pointsForNextLevel - data.pointsIntoLevel} pontos para o nível ${data.level + 1}`}</span>
-            <span>{data.unlocked}/{data.total} desbloqueadas · {data.percentUnlocked}%</span>
+            <span>{data.unlocked}/{data.total} desbloqueadas · {fmtPercent(data.percentUnlocked)}</span>
           </div>
         </div>
       </section>

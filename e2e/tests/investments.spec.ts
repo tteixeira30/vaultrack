@@ -21,7 +21,7 @@ test.describe('investimentos (manuais, sem cotação)', () => {
     // 1100€ com +10% de ganho → investido = 1000€
     await investmentsPage.createManual({ name: 'Com Ganho', value: 1100, gain: 10 })
 
-    await expect(investmentsPage.row('Com Ganho').getByText('+10.00%')).toBeVisible()
+    await expect(investmentsPage.row('Com Ganho').getByText('+10,00%')).toBeVisible()
   })
 
   test('editar o nome de um investimento', async ({ investmentsPage }) => {

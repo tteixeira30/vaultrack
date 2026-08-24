@@ -4,6 +4,7 @@ import {
   fmtEur,
   fmtMoneyShort,
   fmtPct,
+  fmtPercent,
   fromEur,
   getCurrencySymbol,
   getDisplayCurrency,
@@ -76,10 +77,19 @@ describe('formatação', () => {
     expect(fmtMoneyShort(null)).toBe('')
   })
 
-  it('fmtPct prefixa o sinal e usa 2 casas', () => {
-    expect(fmtPct(3.456)).toBe('+3.46%')
-    expect(fmtPct(-1.5)).toBe('-1.50%')
-    expect(fmtPct(0)).toBe('+0.00%')
+  it('fmtPercent usa vírgula decimal e não põe espaço antes do %', () => {
+    expect(fmtPercent(30)).toBe('30%')
+    expect(fmtPercent(12.5)).toBe('12,5%')
+    expect(fmtPercent(33.333, 1)).toBe('33,3%')
+    expect(fmtPercent(33.333, 0)).toBe('33%')
+    expect(fmtPercent(40, 0)).toBe('40%')
+    expect(fmtPercent(null)).toBe('—')
+  })
+
+  it('fmtPct prefixa o sinal e usa 2 casas com vírgula decimal', () => {
+    expect(fmtPct(3.456)).toBe('+3,46%')
+    expect(fmtPct(-1.5)).toBe('−1,50%')
+    expect(fmtPct(0)).toBe('+0,00%')
     expect(fmtPct(null)).toBe('—')
   })
 
