@@ -5,7 +5,7 @@ RUN mvn -q dependency:go-offline
 COPY src ./src
 RUN mvn -q package -DskipTests
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:24-jre-alpine
 WORKDIR /app
 # netcat para o wait-for-db do entrypoint (espera a DB antes de arrancar o Java)
 RUN apk add --no-cache netcat-openbsd
