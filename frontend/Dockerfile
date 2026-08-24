@@ -1,5 +1,5 @@
 # 24 é a LTS atual (o Dependabot propunha 25, que é versão ímpar/non-LTS)
-FROM node:24-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 COPY package.json ./
 RUN npm install
