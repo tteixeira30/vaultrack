@@ -115,6 +115,12 @@ testes e os leitores de ecrã ao mesmo tempo.
 - **`api.js`** é o único cliente HTTP. Anexa o Bearer token, trata 401 (limpa sessão). Exporta `fmtEur`, `fmtSigned`, `fmtMoneyShort`, `fmtPct`, `toEur`, `setDisplayCurrency`.
 - **Só um 401 termina a sessão.** Os erros que o `request()` lança levam o código HTTP em `err.status` precisamente para isto: um 502 (backend a reiniciar) ou o telemóvel sem rede **não** são o servidor a recusar o token, e apagá-lo aí obriga a entrar de novo por nada. Nunca faças `.catch(() => clearToken())` — filtra pelo `status`.
 - **Contextos/components**: `AuthContext` (sessão + moeda), `Toast` (`useToast()`), `Modal` + `ConfirmDialog`. `Icons.jsx` são SVG inline (adiciona novos aqui).
+- **O único `import()` dinâmico é o parser de PDF** (`pdfStatement`, que arrasta o pdf.js). Chunks
+  têm hash no nome, por isso uma página aberta antes de um rebuild pede ficheiros que já não
+  existem — daí o `registerSW` do `main.jsx` (recarrega quando o service worker novo assume) e o
+  `try_files ... =404` do `nginx.conf` (o fallback do SPA respondia 200 com o index.html a pedidos
+  de `/assets/*.js`, e o import rebentava como se o PDF é que estivesse mal). Se acrescentares
+  outro `import()` dinâmico, trata a falha como "versão desatualizada", não como erro do ficheiro.
 - **Estilos**: um único `styles.css` com design tokens em `:root`. Segue as classes/tokens existentes; evita estilos inline exceto valores dinâmicos.
 - Formata dinheiro **sempre** via `fmtEur`/`fmtMoneyShort` (respeitam a moeda base). Converte inputs
   monetários com `toEur` antes de enviar. O que é uma **variação** — ganho da carteira, saldo do
