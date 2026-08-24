@@ -13,6 +13,17 @@ const FORMAT_LABEL = {
 }
 
 /**
+ * O parser de PDF vem num chunk carregado por import() dinâmico, com hash no
+ * nome. Se a app for atualizada com esta página já aberta, o ficheiro que ela
+ * pede deixa de existir e o import rejeita — não é o PDF que está ilegível, é a
+ * página que é da versão anterior. Sem distinguir os dois casos, quem importa
+ * lia "usa o extrato em CSV ou PDF do banco" e ia procurar outro ficheiro que
+ * nunca havia de resolver nada.
+ */
+const isStaleChunkError = (e) =>
+  /dynamically imported module|module script failed|Importing a module/i.test(String(e?.message || ''))
+
+/**
  * Importação de extrato bancário (CSV ou PDF), em modal.
  *
  * Vive fora da página de Movimentos porque o design tem dois pontos de entrada:
@@ -64,7 +75,11 @@ export default function StatementImport({ open, onClose, accounts, defaultAccoun
       }
       setFile({ name: f.name, analysis })
       setMapping(analysis.mapping)
-    } catch {
+    } catch (err) {
+      if (isStaleChunkError(err)) {
+        toast.error('Versão desatualizada', 'A app foi atualizada entretanto. Recarrega a página e importa outra vez.')
+        return
+      }
       toast.error('Erro ao ler', 'Não foi possível ler o ficheiro. Usa o extrato em CSV ou PDF do banco.')
     }
   }
