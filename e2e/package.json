@@ -18,11 +18,11 @@
     "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.62.1",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.0",
     "eslint": "^10.9.1",
     "eslint-plugin-playwright": "^2.2.0",
     "globals": "^17.11.0",
     "typescript": "^5.7.2",
-    "typescript-eslint": "^8.68.0"
+    "typescript-eslint": "^8.69.0"
   }
 }
