@@ -5,6 +5,12 @@ import { TabPage } from './BasePage'
 
 export type MovementType = 'Entrada' | 'Saída'
 
+export interface StatementFile {
+  name: string
+  mimeType: string
+  buffer: Buffer
+}
+
 export interface MovementInput {
   description: string
   amount: number
@@ -132,16 +138,31 @@ export class ExpensesPage extends TabPage {
    * confirmar — é o que distingue "importou 3" de "importou 0 em silêncio".
    */
   async importStatement(csv: string, expectedCount: number): Promise<void> {
-    await test.step(`importar extrato (${expectedCount} movimentos)`, async () => {
+    await this.importStatementFile(
+      { name: 'extrato.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) }, expectedCount)
+  }
+
+  /** O mesmo para um extrato em PDF, que o importador lê com o pdf.js. */
+  async importStatementPdf(pdf: Buffer, expectedCount: number): Promise<void> {
+    await this.importStatementFile(
+      { name: 'extrato.pdf', mimeType: 'application/pdf', buffer: pdf }, expectedCount)
+  }
+
+  async importStatementFile(file: StatementFile, expectedCount: number): Promise<void> {
+    await test.step(`importar ${file.name} (${expectedCount} movimentos)`, async () => {
       await this.importButton.click()
-      await this.dialog.root.locator('input[type="file"]').setInputFiles({
-        name: 'extrato.csv',
-        mimeType: 'text/csv',
-        buffer: Buffer.from(csv),
-      })
+      await this.dialog.root.locator('input[type="file"]').setInputFiles(file)
       await expect(this.dialog.root.getByText(`${expectedCount} movimento(s) prontos a importar`)).toBeVisible()
       await this.dialog.button(new RegExp(`Importar ${expectedCount} movimento`)).click()
       await this.dialog.expectClosed()
     })
+  }
+
+  /**
+   * A pilha de avisos. Serve para confirmar o saldo com que a conta ficou: é o
+   * único sítio da página de Movimentos onde esse número aparece.
+   */
+  get toast(): Locator {
+    return this.page.locator('.toast-stack')
   }
 }
