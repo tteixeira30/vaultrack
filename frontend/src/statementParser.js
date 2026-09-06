@@ -205,6 +205,45 @@ export function findOpeningBalance(rows) {
   return null
 }
 
+// Rótulo do saldo com que a tabela de movimentos fecha. Tem de exigir
+// "final"/"fecho": "Saldo contabilístico" sozinho é o **nome da coluna** de saldo
+// nos extratos da Revolut, e tratá-lo como fim de tabela cortava o extrato todo.
+const CLOSING_BALANCE_LABEL =
+  /saldo\s*(contabil[ií]stico|dispon[ií]vel)?\s*(final|de\s*fecho)\b|closing\s*balance/i
+
+/**
+ * Procura a linha que fecha a tabela de movimentos ("Saldo Contabilístico Final",
+ * "Closing balance"), a partir de `from`. Devolve `{ index, value }` — o índice
+ * serve para cortar o que vem a seguir, o valor é o saldo que o próprio banco
+ * declara. Devolve null quando o extrato não traz esse rótulo.
+ *
+ * Existe por causa do extrato consolidado do Santander: depois da conta à ordem
+ * vem a tabela da conta poupança, com o mesmo cabeçalho e as mesmas colunas. Sem
+ * este corte os movimentos da poupança entravam na conta escolhida (reforços
+ * lidos como rendimento) e os saldos deixavam de encadear, pelo que o saldo de
+ * fecho era descartado e a conta ficava por atualizar.
+ */
+export function findClosingBalance(rows, from = 0) {
+  if (!rows) return null
+  for (let i = Math.max(from, 0); i < rows.length; i++) {
+    const r = rows[i]
+    const idx = r.findIndex((c) => CLOSING_BALANCE_LABEL.test(String(c)))
+    if (idx === -1) continue
+    // valor noutra célula numérica da mesma linha (o rótulo fica na descrição, o
+    // valor na coluna do saldo)
+    for (let k = r.length - 1; k >= 0; k--) {
+      if (k === idx) continue
+      const v = parseAmount(r[k])
+      if (v != null) return { index: i, value: v }
+    }
+    // ou colado ao próprio rótulo ("Saldo final: 1.684,21 €")
+    const m = String(r[idx]).match(/(-?\(?[\d.,]+\)?)\s*€?\s*$/)
+    if (m) { const v = parseAmount(m[1]); if (v != null) return { index: i, value: v } }
+    return { index: i, value: null }
+  }
+  return null
+}
+
 // Categorias de colunas usadas para reconhecer a linha de cabeçalho de uma tabela de movimentos.
 const HEADER_CATEGORIES = [
   /data|date|\bmov\b/i,
@@ -261,10 +300,15 @@ export function analyzeRows(rows) {
   const openingBalance = findOpeningBalance(rows)
 
   const headerIdx = findHeaderIndex(rows)
-  if (headerIdx === -1) return { format: 'unknown', headers: rows[0], dataRows: rows.slice(1), mapping: emptyMapping(), dateHint, openingBalance }
+  if (headerIdx === -1) {
+    return { format: 'unknown', headers: rows[0], dataRows: rows.slice(1), mapping: emptyMapping(), dateHint, openingBalance, statedClosingBalance: null }
+  }
 
   const headers = rows[headerIdx].map((h) => h.trim())
-  const dataRows = rows.slice(headerIdx + 1)
+  // a tabela acaba onde o banco declara o saldo de fecho — o que vier depois é
+  // outro quadro (no extrato consolidado do Santander, a conta poupança)
+  const closing = findClosingBalance(rows, headerIdx + 1)
+  const dataRows = rows.slice(headerIdx + 1, closing ? closing.index : undefined)
   const lower = headers.map((h) => h.toLowerCase())
   const find = (re) => lower.findIndex((h) => re.test(h))
 
@@ -317,7 +361,7 @@ export function analyzeRows(rows) {
   if (mapping.date === -1 || mapping.description === -1 || (mapping.amount === -1 && mapping.debit === -1)) {
     format = 'unknown'
   }
-  return { format, headers, dataRows, mapping, dateHint, openingBalance }
+  return { format, headers, dataRows, mapping, dateHint, openingBalance, statedClosingBalance: closing ? closing.value : null }
 }
 
 /**
@@ -395,7 +439,7 @@ function emptyMapping() {
  * Constrói as transações a importar a partir das linhas de dados e do mapeamento.
  * Devolve { rows: [{date, description, amount, inflow, category}], ignored }.
  */
-export function buildTransactions(dataRows, mapping, dateHint, openingBalance = null) {
+export function buildTransactions(dataRows, mapping, dateHint, openingBalance = null, statedClosingBalance = null) {
   const out = []
   let ignored = 0
   for (const cells of dataRows) {
@@ -468,7 +512,9 @@ export function buildTransactions(dataRows, mapping, dateHint, openingBalance = 
       }
     }),
     ignored,
-    closingBalance: closingBalanceOf(out),
+    // o saldo encadeado é o mais seguro (confirma-se movimento a movimento); o
+    // rótulo do extrato ("Saldo Contabilístico Final") entra quando não encadeia
+    closingBalance: closingBalanceOf(out) ?? statedClosingBalance,
   }
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  parseAmount, parseDate, buildTransactions, findOpeningBalance, analyzeRows, analyzeStatement, categoryKey,
+  parseAmount, parseDate, buildTransactions, findOpeningBalance, findClosingBalance,
+  analyzeRows, analyzeStatement, categoryKey,
 } from '../statementParser'
 
 describe('parseAmount — formatos monetários', () => {
@@ -245,6 +246,80 @@ describe('findOpeningBalance — deteção do saldo inicial', () => {
   })
   it('devolve null quando não há linha de saldo inicial', () => {
     expect(findOpeningBalance([['Data', 'Descrição', 'Valor'], ['2026-03-01', 'X', '10']])).toBeNull()
+  })
+})
+
+describe('findClosingBalance — onde a tabela de movimentos fecha', () => {
+  it('devolve o índice e o valor do "Saldo Contabilístico Final"', () => {
+    expect(findClosingBalance([
+      ['Mov', 'Descritivo do Movimento', 'Valor', 'Saldo'],
+      ['03-08', 'COMPRA *6222 UCI CINEMAS', '-25,40', '856,99'],
+      ['', 'Saldo Contabilístico Final EUR', '', '1.684,21'],
+    ], 1)).toEqual({ index: 2, value: 1684.21 })
+  })
+
+  it('rótulo e valor na mesma célula', () => {
+    expect(findClosingBalance([['Saldo final: 1.684,21 €']])).toEqual({ index: 0, value: 1684.21 })
+  })
+
+  it('ignora "Saldo contabilístico" sozinho — é o nome da coluna na Revolut', () => {
+    expect(findClosingBalance([['Data', 'Descrição', 'Dinheiro retirado', 'Saldo contabilístico']])).toBeNull()
+  })
+
+  it('devolve null quando o extrato não declara saldo de fecho', () => {
+    expect(findClosingBalance([['Data', 'Descrição', 'Valor'], ['2026-03-01', 'X', '10']])).toBeNull()
+  })
+})
+
+describe('extrato consolidado — a tabela acaba no saldo de fecho', () => {
+  // Estrutura do extrato consolidado do Santander: a conta à ordem fecha com
+  // "Saldo Contabilístico Final" e logo a seguir vem a tabela da conta poupança,
+  // com o mesmo cabeçalho. Sem o corte, os reforços da poupança entravam na conta
+  // escolhida (como rendimento) e os saldos deixavam de encadear, pelo que o saldo
+  // de fecho era descartado e a conta ficava por atualizar.
+  const rows = [
+    ['EXTRATO Nº', '84', 'CONTA Nº 0003.51145134020', 'PERÍODO DE 2026-08-01 A 2026-08-31'],
+    ['Detalhe de Movimentos da Conta à Ordem'],
+    ['Mov', 'Valor', 'Descritivo do Movimento', 'Moeda', 'Valor', 'Saldo'],
+    ['', '', '', 'Saldo Inicial EUR', '', '1.302,79'],
+    ['03-08', '03-08', 'TRF.IMED. DE BARBARA FILIPA MARQUES CAM-97433692', '', '15,00', '1.317,79'],
+    ['03-08', '03-08', 'FUNDO DE EMERGÊNCIA-71373694', '', '-250,00', '1.067,79'],
+    ['', '', '', 'Saldo Contabilístico Final EUR', '', '1.067,79'],
+    ['', '', '', 'Saldo Disponível Final EUR', '', '1.020,23'],
+    ['Detalhes de Movimentos da Conta Rendimento e Poupança'],
+    ['Mov', 'Valor', 'Descritivo do Movimento', 'Moeda', 'Valor', 'Saldo'],
+    ['', '', '', 'Saldo Inicial EUR', '', '660,00'],
+    ['03-08', '03-08', 'Fundo de emergência-71373694', '', '250,00', '910,00'],
+    ['27-08', '27-08', 'REFORCO CRP-02097499', '', '5,00', '915,00'],
+    ['', '', '', 'Saldo Final EUR', '', '915,00'],
+  ]
+
+  it('deixa de fora os movimentos da segunda conta', () => {
+    const a = analyzeRows(rows)
+    expect(a.statedClosingBalance).toBe(1067.79)
+
+    const { rows: txs } = buildTransactions(a.dataRows, a.mapping, a.dateHint, a.openingBalance, a.statedClosingBalance)
+    expect(txs.map((r) => r.description)).toEqual([
+      'TRF.IMED. DE BARBARA FILIPA MARQUES CAM-97433692',
+      'FUNDO DE EMERGÊNCIA-71373694',
+    ])
+  })
+
+  it('atualiza a conta com o saldo de fecho da primeira tabela', () => {
+    const a = analyzeRows(rows)
+    const { closingBalance } = buildTransactions(a.dataRows, a.mapping, a.dateHint, a.openingBalance, a.statedClosingBalance)
+    expect(closingBalance).toBe(1067.79)
+  })
+
+  it('usa o saldo declarado quando a coluna de saldo não encadeia', () => {
+    const a = analyzeRows([
+      ['Data', 'Descrição', 'Valor', 'Saldo'],
+      ['2026-08-03', 'Continente', '-85,40', '914,60'],
+      ['2026-08-15', 'Farmácia', '-15,00', '880,00'],   // 899,60 seria o encadeado
+      ['Saldo final', '', '', '880,00'],
+    ])
+    const { closingBalance } = buildTransactions(a.dataRows, a.mapping, a.dateHint, a.openingBalance, a.statedClosingBalance)
+    expect(closingBalance).toBe(880)
   })
 })
 
