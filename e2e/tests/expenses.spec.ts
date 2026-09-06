@@ -1,6 +1,7 @@
 import { expect, test } from '@fixtures/test'
 import { buildCsv } from '@utils/data'
 import { eur } from '@utils/money'
+import { buildConsolidatedStatementPdf, closingBalanceOf } from '@utils/pdf'
 
 /**
  * Despesas — contas correntes, movimentos manuais e importação de extratos.
@@ -139,5 +140,46 @@ test.describe('despesas — importação de extrato', () => {
     await expensesPage.importStatement(csv, 3)
 
     await expect(expensesPage.movement('Continente Lisboa')).toHaveCount(1)
+  })
+
+  /**
+   * O único teste que corre o caminho do PDF de ponta a ponta — o pdf.js e o seu
+   * web worker só existem no browser, por isso nenhum teste unitário lhes chega.
+   * Foi por aqui que passou o "Erro ao ler" de produção: o worker era o único
+   * ficheiro do bundle fora da pré-cache do service worker, e bastava um deploy
+   * para o pedido dar 404.
+   *
+   * O extrato é consolidado (conta à ordem + conta poupança, duas tabelas com o
+   * mesmo cabeçalho): a importação tem de acabar no saldo de fecho da primeira e
+   * não arrastar os reforços da poupança para a conta escolhida.
+   */
+  test('importar um extrato PDF consolidado traz só a conta à ordem @smoke', async ({ expensesPage }) => {
+    await expensesPage.goto()
+    await expensesPage.createAccount('Conta PDF E2E')
+
+    const statement = {
+      current: {
+        opening: 1000,
+        movements: [
+          { day: 5, description: 'COMPRA 6222 CONTINENTE', amount: -45.3 },
+          { day: 6, description: 'TRF CRED SEPA ORDENADO', amount: 1500 },
+          { day: 7, description: 'COMPRA 6222 NETFLIX', amount: -12.99 },
+        ],
+      },
+      savings: {
+        opening: 500,
+        movements: [{ day: 8, description: 'REFORCO CRP-02097499', amount: 5 }],
+      },
+    }
+
+    await expensesPage.importStatementPdf(buildConsolidatedStatementPdf(statement), 3)
+
+    await expect(expensesPage.movement('COMPRA 6222 CONTINENTE')).toBeVisible()
+    await expect(expensesPage.movement('TRF CRED SEPA ORDENADO')).toBeVisible()
+    await expect(expensesPage.movement('COMPRA 6222 NETFLIX')).toBeVisible()
+    // a poupança é outra conta: os seus movimentos não entram na conta escolhida
+    await expect(expensesPage.movement('REFORCO CRP-02097499')).toHaveCount(0)
+    // e o saldo passa a ser o que o banco declara no fim da conta à ordem
+    await expect(expensesPage.toast).toContainText(eur(closingBalanceOf(statement)))
   })
 })

@@ -80,14 +80,18 @@ export default function StatementImport({ open, onClose, accounts, defaultAccoun
         toast.error('Versão desatualizada', 'A app foi atualizada entretanto. Recarrega a página e importa outra vez.')
         return
       }
-      toast.error('Erro ao ler', 'Não foi possível ler o ficheiro. Usa o extrato em CSV ou PDF do banco.')
+      // o motivo vai no aviso: sem ele, um PDF protegido por palavra-passe, um
+      // ficheiro corrompido e uma falha a carregar o pdf.js são indistinguíveis
+      toast.error('Erro ao ler',
+        `Não foi possível ler o ficheiro. Usa o extrato em CSV ou PDF do banco.${err?.message ? ` (${err.message})` : ''}`)
     }
   }
 
   const preview = useMemo(() => {
     if (!file || !mapping) return null
     if (mapping.date === -1 || mapping.description === -1 || (mapping.amount === -1 && mapping.debit === -1)) return null
-    const result = buildTransactions(file.analysis.dataRows, mapping, file.analysis.dateHint, file.analysis.openingBalance)
+    const result = buildTransactions(file.analysis.dataRows, mapping, file.analysis.dateHint,
+                                     file.analysis.openingBalance, file.analysis.statedClosingBalance)
     if (rules) {
       for (const r of result.rows) {
         const ruled = rules[categoryKey(r.description)]

@@ -190,11 +190,25 @@ export function linesToTable(lines) {
  * Lê um PDF (ArrayBuffer) e devolve { rows, hasText } com as linhas de células
  * de todas as páginas, prontas para analyzeRows(). A biblioteca é carregada por
  * dynamic import para não pesar no bundle principal.
+ *
+ * O worker do pdf.js entra por `?worker` (o Vite empacota-o e serve-o como
+ * `.js`) e não por `?url` para o pdf.js o ir buscar sozinho. A razão é o service
+ * worker da PWA: o `globPatterns` do Workbox pré-carrega `.js` mas não `.mjs`,
+ * pelo que o worker era o único ficheiro fora da cache. Bastava um deploy para o
+ * ficheiro com o hash antigo desaparecer do servidor enquanto a app continuava a
+ * correr da cache — o pedido dava 404, o pdf.js não arrancava e a importação de
+ * PDF respondia "Erro ao ler" (o CSV, que não usa worker, continuava a funcionar).
+ * Empacotado, o worker é versionado e pré-carregado com o resto do bundle, e
+ * deixa de depender do tipo MIME que o servidor dá a `.mjs`.
  */
 export async function extractPdfRows(data) {
   const pdfjs = await import('pdfjs-dist')
-  const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
-  pdfjs.GlobalWorkerOptions.workerSrc = worker.default
+  const { default: PdfWorker } = await import('pdfjs-dist/build/pdf.worker.min.mjs?worker')
+
+  // um worker por documento: o destroy() do pdf.js não termina um worker que
+  // recebeu de fora, por isso é aqui que ele tem de ser desligado
+  const worker = new PdfWorker()
+  pdfjs.GlobalWorkerOptions.workerPort = worker
 
   const task = pdfjs.getDocument({ data })
   const lines = []
@@ -210,6 +224,7 @@ export async function extractPdfRows(data) {
     }
   } finally {
     await task.destroy()
+    worker.terminate()
   }
   return { rows: linesToTable(mergeWrappedLines(lines)), hasText }
 }
