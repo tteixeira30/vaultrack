@@ -30,7 +30,7 @@ jobs:
     steps:
       - name: Metadados do update
         id: meta
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v3
 
       # Lista de permitidos, não de excluídos, de propósito: o `update-type` é
       # "the highest semver change being made by this PR", mas a documentação
