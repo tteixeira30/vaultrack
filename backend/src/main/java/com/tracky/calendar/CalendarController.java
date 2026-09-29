@@ -123,7 +123,7 @@ public class CalendarController {
     @PutMapping("/events/{id}")
     public EventDto update(@AuthenticationPrincipal User user, @PathVariable Long id,
                            @Valid @RequestBody EventRequest req) {
-        CalendarEvent e = repo.findByIdAndUserId(id, user.getId()).orElseThrow();
+        CalendarEvent e = repo.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evento não encontrado."));
         apply(e, req);
         return toDto(repo.save(e));
     }

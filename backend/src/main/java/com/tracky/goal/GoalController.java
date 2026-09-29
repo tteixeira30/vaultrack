@@ -51,7 +51,7 @@ public class GoalController {
     @PutMapping("/{id}")
     public GoalDto update(@AuthenticationPrincipal User user, @PathVariable Long id,
                           @Valid @RequestBody GoalRequest req) {
-        Goal g = repo.findByIdAndUserId(id, user.getId()).orElseThrow();
+        Goal g = require(user, id);
         apply(g, req);
         return toDto(repo.save(g));
     }
@@ -62,14 +62,20 @@ public class GoalController {
                               @Valid @RequestBody ContributionRequest req) {
         // valida posse (404 se não for do utilizador) e incrementa atomicamente, sem
         // read-modify-write — dois depósitos concorrentes ao mesmo objetivo não se perdem
-        repo.findByIdAndUserId(id, user.getId()).orElseThrow();
+        require(user, id);
         repo.addToSavedAmount(id, user.getId(), req.amount());
-        return toDto(repo.findByIdAndUserId(id, user.getId()).orElseThrow());
+        return toDto(require(user, id));
     }
 
     @DeleteMapping("/{id}")
     public void delete(@AuthenticationPrincipal User user, @PathVariable Long id) {
         repo.findByIdAndUserId(id, user.getId()).ifPresent(repo::delete);
+    }
+
+    /** O objetivo do utilizador, ou 404 — também quando existe mas é de outro utilizador. */
+    private Goal require(User user, Long id) {
+        return repo.findByIdAndUserId(id, user.getId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Objetivo não encontrado."));
     }
 
     private void apply(Goal g, GoalRequest req) {
