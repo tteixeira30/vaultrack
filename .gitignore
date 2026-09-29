@@ -15,8 +15,13 @@ target/
 .bloop/
 .bsp/
 
-# ferramentas locais do Claude Code (ex: .claude/launch.json do preview)
-.claude/
+# ferramentas locais do Claude Code (ex: .claude/launch.json do preview);
+# os agentes e as skills do projeto são versionados
+**/.claude/
+!/.claude/
+/.claude/*
+!/.claude/agents/
+!/.claude/skills/
 
 # testes
 coverage/

@@ -4,6 +4,71 @@ Aplicação web de **finanças pessoais**: gestão de rendimento mensal, investi
 
 > Notas para quem trabalha aqui: os comentários e textos de UI são em PT-PT. Mantém esse registo. Todo o cálculo monetário interno é feito em **EUR**; a moeda base é apenas de apresentação (ver secção *Moeda*).
 
+**Always look for the most resource efficient path.** Menos leituras, menos chamadas, menos
+tokens, o modelo mais barato que resolve: lê secções em vez de ficheiros inteiros, corre o teste
+afetado antes da suite, não lances subagentes para o que se resolve com um `grep`.
+
+## Como os agentes trabalham aqui
+
+- **Idioma**: mensagens ao utilizador, planos e relatórios em **PT-PT**, frases curtas e diretas,
+  um significado por termo. Código, identificadores, texto citado e output de comandos ficam como estão.
+- **Diff mínimo**: a menor alteração que resolve o pedido. Sem refactors, renomeações ou correções
+  adjacentes "de passagem" — se vires algo a corrigir, assinala-o para uma alteração separada.
+- **Delegação só quando poupa contexto.** O agente principal faz o trabalho pequeno e direto; um
+  subagente justifica-se para pesquisas largas, trabalho paralelo independente ou revisão com
+  olhos frescos. Encaminha pelo custo:
+  - `haiku` — tarefas mecânicas e de baixo risco (procurar, renomear, formatar);
+  - `sonnet` — trabalho normal (implementação, testes, revisão);
+  - `opus` — só o que é difícil ou de alto risco (arquitetura, auth, dinheiro, migrações de dados).
+- **Contexto relevante acima de tudo.** Muda de subagente numa fronteira de fase (descoberta →
+  implementação → validação) ou quando caminhos falhados e output bruto dominam o contexto. Em
+  tarefas longas, o subagente mantém um `context.md` curto **no scratchpad, fora do repo**
+  (objetivo, critérios de aceitação, ficheiros tocados, decisões, estado da validação, próximos
+  passos — sem logs nem diffs), para que outro o retome sem reexplorar.
+- **Agentes do projeto** (`.claude/agents/`, versionados): `e2e-runner`, `tdd-guide`,
+  `security-reviewer` — versões Tracky que substituem as genéricas. Os restantes (`planner`,
+  `code-architect`, `code-explorer`, `code-reviewer`, `loop-operator`) vivem em `~/.claude/agents/`
+  e leem as convenções deste ficheiro.
+- **Skills do projeto** (`.claude/skills/`, versionadas): `error-handling` (Java/Spring e o
+  contrato de erros do `api.js`), `security-scan` (auditoria à config do Claude, sem dependências),
+  `ai-regression-testing`, `grill-me`, `council`, `research` e `deep-research`. Todas têm cópia
+  **idêntica** em `~/.claude/skills/` (para os outros projetos). Com o mesmo nome nos dois níveis
+  ganha a do utilizador — ao editar uma skill, edita as duas cópias.
+
+## Onde vive X
+
+**Abre primeiro o ficheiro indicado e faz grep do símbolo — não varras a árvore.** Lê a secção
+relevante (offset/limit); leitura integral só para ficheiros com menos de ~300 linhas. Se uma linha
+desta tabela estiver errada, corrige-a na mesma alteração.
+
+| Alteração | Abrir primeiro | Grep por |
+|---|---|---|
+| Ecrã novo / navegação | `frontend/src/components/nav.js`, `frontend/src/App.jsx` | `SCREENS`, `NAV_GROUPS`, `MOBILE_TABS`, `page-swap` |
+| Formatação de dinheiro / input monetário | `frontend/src/api.js` | `fmtEur`, `fmtSigned`, `fmtMoneyShort`, `parseAmount`, `toEur` |
+| Pedido HTTP / sessão | `frontend/src/api.js`, `components/AuthContext.jsx` | `request`, `httpError`, `setOnUnauthorized` |
+| Moeda base / câmbio | `backend/.../currency/CurrencyService.java` | `SUPPORTED`, `rateLive` |
+| Cotações de investimentos | `backend/.../investment/PriceService.java` | `EUR=X` |
+| Despesas, contas, import de extratos | `backend/.../expense/ExpenseController.java`, `frontend/src/statementParser.js`, `pdfStatement.js` | `Transaction`, `CategoryRule` |
+| Endpoints abertos / JWT | `backend/.../auth/SecurityConfig.java`, `JwtAuthFilter.java` | `permitAll` |
+| Reforços automáticos do dia 1 | `backend/.../contribution/` | `lastAppliedMonth` |
+| Vista agregada nova | `backend/.../dashboard/DashboardController.java` | padrão de injeção dos controllers de funcionalidade |
+| Estilos / tokens / breakpoints | `frontend/src/styles.css` | `:root`, bloco dos alvos táteis no fim |
+| Page Object E2E | `e2e/src/pages/<Ecrã>Page.ts`, `e2e/README.md` | `BasePage` |
+
+(`backend/...` = `backend/src/main/java/com/tracky`.)
+
+## Obrigatório: checks antes de commitar
+
+Os mesmos gates do CI (`.github/workflows/ci.yml`). Corre só os da área que alteraste:
+
+```bash
+cd backend && ./mvnw -B verify                                    # backend (unit + integração)
+cd frontend && npm run lint && npm run test:run && npx vite build # frontend
+cd e2e && npm run typecheck && npm run lint && npm test           # E2E (stack Docker a correr)
+```
+
+Tudo verde antes de commitar. Se não correste um gate, diz qual e porquê.
+
 ## Stack
 
 - **Backend**: Spring Boot 3, Java 21, Spring Security + JWT, Spring Data JPA/Hibernate, PostgreSQL 16. Build com Maven.
@@ -222,6 +287,19 @@ Definidas em `application.yml` com defaults de dev; sobrepostas por ambiente em 
 - `TRACKY_CORS_ORIGINS` — origens CORS permitidas (lista separada por vírgulas); default de dev permite tudo. Em produção: domínio do frontend + origens Capacitor (`http://localhost`, `https://localhost`, `capacitor://localhost`).
 
 Nunca comitar segredos. `.env`, `*.key`, `backup-*.sql` estão no `.gitignore`.
+
+## CRÍTICO: repo público
+
+Tudo o que entra em commits, PRs e comentários é público e permanente.
+
+- **Nunca**: segredos, tokens, passwords, IPs, domínio real, código de convite, emails ou URLs de
+  sessões do Claude (`claude.ai/...`).
+- Descrições de PR só com informação técnica: o que mudou, porquê e como testar.
+- Revê o diff à procura de fugas antes de cada commit e PR.
+
+**Correções de segurança** (commits, PRs, notas): descreve só a classe do problema, a área afetada,
+o que a correção faz e que há testes de regressão. **Nunca** payloads, passos de reprodução nem o
+mapa exato do que estava desprotegido. Na dúvida, escreve menos.
 
 ## Deploy
 
