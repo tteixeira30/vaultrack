@@ -100,7 +100,7 @@ public class ExpenseController {
     @PutMapping("/accounts/{id}")
     public AccountDto updateAccount(@AuthenticationPrincipal User user, @PathVariable Long id,
                                     @Valid @RequestBody AccountRequest req) {
-        Account a = accounts.findByIdAndUserId(id, user.getId()).orElseThrow();
+        Account a = accounts.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conta não encontrada."));
         a.setName(req.name().trim());
         a.setCurrentBalance(roundBalance(req.currentBalance()));
         return toDto(user, accounts.save(a));
@@ -220,7 +220,7 @@ public class ExpenseController {
     @Transactional
     public TransactionDto update(@AuthenticationPrincipal User user, @PathVariable Long id,
                                  @Valid @RequestBody TransactionRequest req) {
-        Transaction t = transactions.findByIdAndUserId(id, user.getId()).orElseThrow();
+        Transaction t = transactions.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Movimento não encontrado."));
         Long fromAccountId = t.getAccountId();
         BigDecimal before = effect(t.getAmount(), t.isInflow());
 
@@ -313,7 +313,7 @@ public class ExpenseController {
     @PutMapping("/categories/{id}")
     public CategoryDto updateCategory(@AuthenticationPrincipal User user, @PathVariable Long id,
                                       @Valid @RequestBody CategoryRequest req) {
-        ExpenseCategory c = categories.findByIdAndUserId(id, user.getId()).orElseThrow();
+        ExpenseCategory c = categories.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Categoria não encontrada."));
         String label = req.label() == null ? "" : req.label().trim();
         if (label.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indica o nome da categoria.");
         c.setLabel(truncateLabel(label));

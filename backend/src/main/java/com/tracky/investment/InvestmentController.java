@@ -85,7 +85,7 @@ public class InvestmentController {
     @PutMapping("/{id}")
     public InvestmentDto update(@AuthenticationPrincipal User user, @PathVariable Long id,
                                 @Valid @RequestBody UpdateRequest req) {
-        Investment inv = repo.findByIdAndUserId(id, user.getId()).orElseThrow();
+        Investment inv = repo.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Investimento não encontrado."));
         inv.setName(req.name());
         if (req.type() != null) inv.setType(req.type());
         inv.setSymbol(normalizeSymbol(req.symbol(), inv.getType()));

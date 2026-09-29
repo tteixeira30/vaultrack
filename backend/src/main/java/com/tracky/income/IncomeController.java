@@ -207,7 +207,7 @@ public class IncomeController {
     public IncomeResponse updateAllocation(@AuthenticationPrincipal User user, @PathVariable Long id,
                                            @Valid @RequestBody AllocationRequest req) {
         validate(req);
-        Allocation a = allocationRepo.findByIdAndUserId(id, user.getId()).orElseThrow();
+        Allocation a = allocationRepo.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Categoria não encontrada."));
         apply(a, req);
         allocationRepo.save(a);
         return get(user, a.getMonth());
@@ -231,7 +231,7 @@ public class IncomeController {
     @PostMapping("/allocations/{allocId}/items")
     public IncomeResponse addItem(@AuthenticationPrincipal User user, @PathVariable Long allocId,
                                   @Valid @RequestBody AllocationItemRequest req) {
-        Allocation alloc = allocationRepo.findByIdAndUserId(allocId, user.getId()).orElseThrow();
+        Allocation alloc = allocationRepo.findByIdAndUserId(allocId, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Categoria não encontrada."));
         validateItem(req);
         AllocationItem it = new AllocationItem();
         it.setUserId(user.getId());
@@ -246,7 +246,7 @@ public class IncomeController {
     public IncomeResponse updateItem(@AuthenticationPrincipal User user, @PathVariable Long id,
                                      @Valid @RequestBody AllocationItemRequest req) {
         validateItem(req);
-        AllocationItem it = itemRepo.findByIdAndUserId(id, user.getId()).orElseThrow();
+        AllocationItem it = itemRepo.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item não encontrado."));
         it.setName(req.name().trim());
         it.setAmount(req.amount());
         itemRepo.save(it);

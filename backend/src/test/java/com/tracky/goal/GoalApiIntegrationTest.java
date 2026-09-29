@@ -137,6 +137,49 @@ class GoalApiIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void alterarObjetivoDeOutroUtilizadorDa404ENao500() throws Exception {
+        String tokenA = registerAndGetToken();
+        String tokenB = registerAndGetToken();
+
+        String created = mvc.perform(post("/api/goals")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Carro","targetAmount":8000,"monthlyAllocation":300}
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        Number id = JsonPath.read(created, "$.id");
+
+        // 404 e não 403: B não fica a saber que o id existe
+        mvc.perform(put("/api/goals/" + id)
+                        .header("Authorization", "Bearer " + tokenB)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Roubado","targetAmount":1,"monthlyAllocation":1}
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Objetivo não encontrado."));
+
+        mvc.perform(post("/api/goals/" + id + "/contribute")
+                        .header("Authorization", "Bearer " + tokenB)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"amount":100}
+                                """))
+                .andExpect(status().isNotFound());
+
+        // id que não existe de todo → a mesma resposta
+        mvc.perform(put("/api/goals/999999999")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"X","targetAmount":1,"monthlyAllocation":1}
+                                """))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void validacaoRejeitaObjetivoSemNomeOuComAlvoNegativo() throws Exception {
         String token = registerAndGetToken();
 

@@ -122,12 +122,14 @@ class IncomeControllerCrudTest {
     }
 
     @Test
-    void updateAllocationInexistenteRebentaComNoSuchElement() {
+    void updateAllocationInexistenteDa404() {
         when(allocationRepo.findByIdAndUserId(99L, 1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> controller.updateAllocation(user, 99L,
                 new IncomeController.AllocationRequest("X", new BigDecimal("10"), null, null)))
-                .isInstanceOf(java.util.NoSuchElementException.class);
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     // ---------- deleteAllocation ----------
