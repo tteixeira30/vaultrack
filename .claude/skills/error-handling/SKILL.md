@@ -401,7 +401,8 @@ for (User u : users) {
 mockMvc.perform(post("/api/goals").contentType(JSON).content("{\"targetAmount\":-1}")
         .header("Authorization", bearer(user)))
     .andExpect(status().isBadRequest())
-    .andExpect(jsonPath("$.message").value(containsString("positivo")));
+    // MockMvc has no /error dispatch: the body is empty, the message is the "reason"
+    .andExpect(status().reason(containsString("positivo")));
 
 // Another user's resource → 404, not 403 and not 200
 mockMvc.perform(get("/api/goals/" + otherUsersGoalId).header("Authorization", bearer(user)))
@@ -492,5 +493,5 @@ Before merging any code that touches error handling:
 - [ ] Retry logic only retries retriable errors (not 4xx client errors)
 - [ ] Java: `ResponseStatusException` with a PT-PT message; no `catch (Exception e)` around business logic
 - [ ] Java: external calls have timeouts and a visible fallback (`rateLive`, `fallbackValue`)
-- [ ] Java: another user's resource returns 404; the error test asserts status and `$.message`
+- [ ] Java: another user's resource returns 404; the MockMvc test asserts the status and `status().reason(...)` (the JSON body with `message` only exists in the real server)
 - [ ] React components are wrapped in `ErrorBoundary` for rendering errors

@@ -159,7 +159,7 @@ class GoalApiIntegrationTest extends AbstractIntegrationTest {
                                 {"name":"Roubado","targetAmount":1,"monthlyAllocation":1}
                                 """))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.message").value("Objetivo não encontrado."));
+                .andExpect(status().reason("Objetivo não encontrado."));
 
         mvc.perform(post("/api/goals/" + id + "/contribute")
                         .header("Authorization", "Bearer " + tokenB)
