@@ -1,4 +1,4 @@
-import { test as base } from '@playwright/test'
+import { test as base, expect } from '@playwright/test'
 import { AchievementsPage } from '../pages/AchievementsPage'
 import { AuthPage } from '../pages/AuthPage'
 import { CalendarPage } from '../pages/CalendarPage'
@@ -22,6 +22,9 @@ import { registerViaApi, TOKEN_KEY, type TestUser } from './api'
  * `test.use({ storageState: { cookies: [], origins: [] } })`.
  */
 export interface Fixtures {
+  /** Opção: `test.use({ allowConsoleErrors: true })` desliga a guarda de consola. */
+  allowConsoleErrors: boolean
+  consoleGuard: void
   user: TestUser
   achievementsPage: AchievementsPage
   authPage: AuthPage
@@ -34,6 +37,36 @@ export interface Fixtures {
 }
 
 export const test = base.extend<Fixtures>({
+  allowConsoleErrors: [false, { option: true }],
+
+  /**
+   * Falha o teste se a página lançar uma exceção não apanhada ou escrever um
+   * erro na consola — incluindo violações da CSP, que em modo Report-Only só
+   * aparecem aí. Os "Failed to load resource" ficam de fora: são as respostas
+   * 4xx/5xx que os testes negativos provocam de propósito (a UI trata-as).
+   */
+  consoleGuard: [
+    async ({ page, allowConsoleErrors }, use) => {
+      const errors: string[] = []
+      // As violações da CSP são registadas pelo próprio browser e não passam pelo
+      // evento `console` do Playwright — o evento DOM é que as traz para aqui.
+      await page.addInitScript(() => {
+        document.addEventListener('securitypolicyviolation', (e) =>
+          console.error(`CSP: ${e.violatedDirective} bloqueou ${e.blockedURI || 'inline'}`))
+      })
+      page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`))
+      page.on('console', (msg) => {
+        if (msg.type() !== 'error') return
+        const text = msg.text()
+        if (text.startsWith('Failed to load resource')) return
+        errors.push(`console.error: ${text}`)
+      })
+      await use()
+      if (!allowConsoleErrors) expect(errors, 'erros na consola do browser').toEqual([])
+    },
+    { auto: true },
+  ],
+
   user: async ({ playwright, baseURL }, use) => {
     // Contexto de request próprio: usar a fixture `request` criaria um ciclo,
     // porque essa também consome a opção `storageState` que redefinimos abaixo.

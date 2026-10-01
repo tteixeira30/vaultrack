@@ -1,5 +1,5 @@
 import { useTheme } from '../components/ThemeContext'
-import { CURRENCIES } from '../api'
+import { CURRENCIES, PRIVACY_URL } from '../api'
 import { IconChevronRight, IconEyeOff, IconBank, IconLogout } from '../components/Icons'
 
 /**
@@ -97,6 +97,14 @@ export default function ProfilePage({ user, initials, baseCurrency, changeCurren
             </div>
             <IconChevronRight size={16} />
           </button>
+          <a className="row-item flat link" href={PRIVACY_URL} target="_blank" rel="noopener">
+            <span className="row-icon"><IconBank size={17} /></span>
+            <div className="row-main">
+              <strong>Política de privacidade</strong>
+              <small>Que dados guardamos e porquê</small>
+            </div>
+            <IconChevronRight size={16} />
+          </a>
           <button type="button" className="row-item flat link danger" onClick={onLogout}>
             <span className="row-icon"><IconLogout size={17} /></span>
             <div className="row-main"><strong>Terminar sessão</strong></div>

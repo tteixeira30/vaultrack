@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, fmtEur, fromEur, toEur, parseAmount, getCurrencySymbol } from '../api'
+import { api, fmtEur, fromEur, toEur, parseAmount, getCurrencySymbol, toInput } from '../api'
 import { catLabel, catColor } from '../categories'
 import { useToast } from '../components/Toast'
 import { ConfirmDialog } from '../components/Modal'
@@ -50,7 +50,7 @@ export default function AccountsPage() {
 
   const openAdd = () => { setEditing(null); setAccountModal(true) }
   const openEdit = (a) => {
-    setEditing({ ...a, balanceInput: a.currentBalance != null ? String(fromEur(a.currentBalance)) : '' })
+    setEditing({ ...a, balanceInput: a.currentBalance != null ? toInput(fromEur(a.currentBalance)) : '' })
     setAccountModal(true)
   }
 

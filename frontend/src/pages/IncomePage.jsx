@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
-import { api, fmtEur, fmtPercent, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
+import { api, fmtEur, fmtPercent, toEur, fromEur, getCurrencySymbol, parseAmount, toInput } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { useMonth, fmtMonthShort as fmtMonth, monthAbbr } from '../components/MonthContext'
@@ -95,7 +95,7 @@ export default function IncomePage() {
     const form = {
       name: a.name,
       mode: a.fixedAmount != null ? 'fixed' : 'percentage',
-      value: String(a.fixedAmount != null ? fromEur(a.fixedAmount) : a.percentage),
+      value: toInput(a.fixedAmount != null ? fromEur(a.fixedAmount) : a.percentage),
       color: allocColor(a, i),
     }
     setAllocEditId(a.id)
@@ -162,7 +162,7 @@ export default function IncomePage() {
 
   const openAddItem = (alloc) => { setItemForm(EMPTY_ITEM); setItemModal({ alloc, item: null }) }
   const openEditItem = (alloc, item) => {
-    setItemForm({ name: item.name, value: String(fromEur(item.amount)) })
+    setItemForm({ name: item.name, value: toInput(fromEur(item.amount)) })
     setItemModal({ alloc, item })
   }
 
@@ -404,7 +404,7 @@ export default function IncomePage() {
             {/* o rótulo visível é curto por causa do espaço, mas o nome acessível
                 diz o que se edita — há mais do que um "Editar" no ecrã */}
             <button className="btn ghost small" aria-label="Editar rendimento"
-                    onClick={() => { setIncomeInput(income ? fromEur(income) : ''); setIncomeModal(true) }}>
+                    onClick={() => { setIncomeInput(income ? toInput(fromEur(income)) : ''); setIncomeModal(true) }}>
               <IconPencil size={13} /> Editar
             </button>
           </div>
@@ -513,7 +513,7 @@ export default function IncomePage() {
           </div>
         </div>
         <span className={`badge ${overAllocated ? 'warn' : 'accent'}`}>{fmtPercent(totalPct, 0)} alocado</span>
-        <button className="btn ghost" onClick={() => { setIncomeInput(income ? fromEur(income) : ''); setIncomeModal(true) }}>
+        <button className="btn ghost" onClick={() => { setIncomeInput(income ? toInput(fromEur(income)) : ''); setIncomeModal(true) }}>
           <IconPencil size={14} /> Editar rendimento
         </button>
       </div>

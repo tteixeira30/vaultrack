@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -49,23 +50,30 @@ public class ExpenseController {
     }
 
     /** currentBalance opcional, em EUR; null = limpar/não definido. */
-    public record AccountRequest(@NotBlank String name, BigDecimal currentBalance) {}
+    public record AccountRequest(@NotBlank(message = "O nome não pode estar vazio.") @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name, BigDecimal currentBalance) {}
     public record AccountDto(Long id, String name, long transactionCount, BigDecimal currentBalance) {}
     /** applyToSimilar: aplica a categoria a todos os movimentos com a mesma descrição e memoriza como regra. */
-    public record TransactionRequest(@NotNull Long accountId, @NotNull LocalDate date, @NotBlank String description,
-                                     @NotNull @Positive BigDecimal amount, boolean inflow, String category,
+    public record TransactionRequest(@NotNull Long accountId, @NotNull LocalDate date, @NotBlank
+                                     @Size(max = 500, message = "A descrição não pode ter mais de 500 caracteres.") String description,
+                                     @NotNull(message = "Indica o montante.") @Positive(message = "O montante tem de ser maior que 0.") BigDecimal amount, boolean inflow,
+                                     @Size(max = 60, message = "Categoria inválida.") String category,
                                      Boolean applyToSimilar) {}
     public record RuleDto(Long id, String matchKey, String category) {}
     /** Categoria personalizada do utilizador (as por omissão não têm entidade). */
     public record CategoryDto(Long id, String key, String label, String color) {}
-    public record CategoryRequest(@NotBlank String label, String color) {}
+    public record CategoryRequest(@NotBlank @Size(max = 60, message = "O nome da categoria não pode ter mais de 60 caracteres.") String label,
+                                  @Size(max = 20, message = "Cor inválida.") String color) {}
     /** source: "IMPORT" quando veio de um extrato, "MANUAL" quando foi escrito à mão. */
     public record TransactionDto(Long id, Long accountId, String accountName, LocalDate date, String description,
                                  BigDecimal amount, boolean inflow, String category, String source) {}
-    public record ImportRow(@NotNull LocalDate date, @NotBlank String description,
-                            @NotNull @Positive BigDecimal amount, boolean inflow, String category) {}
+    /** description: até 1000 (linhas de extrato longas continuam a ser truncadas a 500 ao gravar). */
+    public record ImportRow(@NotNull LocalDate date,
+                            @NotBlank @Size(max = 1000, message = "Descrição demasiado longa no extrato.") String description,
+                            @NotNull(message = "Indica o montante.") @Positive(message = "O montante tem de ser maior que 0.") BigDecimal amount, boolean inflow,
+                            @Size(max = 60, message = "Categoria inválida.") String category) {}
     /** closingBalance: saldo da conta no fim do extrato, em EUR; null quando o extrato não o traz. */
-    public record ImportRequest(@NotNull Long accountId, @NotEmpty List<@Valid ImportRow> rows,
+    public record ImportRequest(@NotNull Long accountId, @NotEmpty
+                                @Size(max = 5000, message = "O extrato tem demasiadas linhas (máximo 5000).") List<@Valid ImportRow> rows,
                                 BigDecimal closingBalance) {}
     public record ImportResult(int imported, int skipped, BigDecimal balance) {}
     /** Quantos movimentos a conta já tem no período de um extrato prestes a ser importado. */

@@ -4,6 +4,7 @@ import com.tracky.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,8 +28,8 @@ public class GoalController {
         this.repo = repo;
     }
 
-    public record GoalRequest(@NotBlank String name, @NotNull @Positive BigDecimal targetAmount,
-                              @NotNull @Positive BigDecimal monthlyAllocation, BigDecimal savedAmount,
+    public record GoalRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name, @NotNull(message = "Indica o valor do objetivo.") @Positive(message = "O valor do objetivo tem de ser maior que 0.") BigDecimal targetAmount,
+                              @NotNull(message = "Indica a contribuição mensal.") @Positive(message = "A contribuição mensal tem de ser maior que 0.") BigDecimal monthlyAllocation, BigDecimal savedAmount,
                               Boolean autoDeposit, Integer contributionDay) {}
     public record ContributionRequest(@NotNull BigDecimal amount) {}
     public record GoalDto(Long id, String name, BigDecimal targetAmount, BigDecimal monthlyAllocation,

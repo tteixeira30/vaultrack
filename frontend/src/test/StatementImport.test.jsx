@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import StatementImport from '../components/StatementImport'
+import { decodeStatementBytes } from '../statementParser'
 
 const toast = { success: vi.fn(), error: vi.fn(), info: vi.fn() }
 vi.mock('../components/Toast', () => ({ useToast: () => toast }))
@@ -54,5 +55,36 @@ describe('StatementImport — chunk do parser de PDF em falta', () => {
 
     await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
     expect(toast.error.mock.calls[0][0]).not.toBe('Versão desatualizada')
+  })
+})
+
+describe('StatementImport — limite de tamanho', () => {
+  it('rejeita ficheiros com mais de 10 MB antes de os ler', async () => {
+    toast.error.mockClear()
+    const user = userEvent.setup()
+    render(<StatementImport open accounts={accounts} defaultAccountId="10" onClose={() => {}} />)
+    const big = new File(['x'], 'grande.csv', { type: 'text/csv' })
+    Object.defineProperty(big, 'size', { value: 10 * 1024 * 1024 + 1 })
+    const text = vi.spyOn(big, 'arrayBuffer')
+    await user.upload(document.querySelector('input[type="file"]'), big)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.any(String), 'O ficheiro tem mais de 10 MB.'))
+    expect(text).not.toHaveBeenCalled()
+  })
+})
+
+describe('decodeStatementBytes', () => {
+  const latin1 = (s) => Uint8Array.from([...s].map((c) => c.charCodeAt(0))).buffer
+
+  it('lê UTF-8 sem alterações', () => {
+    expect(decodeStatementBytes(new TextEncoder().encode('Café São João').buffer)).toBe('Café São João')
+  })
+
+  it('cai para Windows-1252 quando os bytes não são UTF-8 válido', () => {
+    expect(decodeStatementBytes(latin1('Café São João'))).toBe('Café São João')
+  })
+
+  it('retira o BOM de UTF-8', () => {
+    const bytes = new Uint8Array([0xef, 0xbb, 0xbf, ...new TextEncoder().encode('Data;Valor')])
+    expect(decodeStatementBytes(bytes.buffer)).toBe('Data;Valor')
   })
 })

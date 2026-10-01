@@ -37,7 +37,7 @@ describe('AuthPage', () => {
 
     expect(screen.getByPlaceholderText('O teu nome')).toBeInTheDocument()
     expect(screen.getByPlaceholderText('Deixa vazio se não tiveres')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Mínimo 6 caracteres')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Mínimo 8 caracteres')).toBeInTheDocument()
     // o botão de submissão passa a "Criar conta" (tab + submit + link do rodapé)
     expect(screen.getAllByRole('button', { name: 'Criar conta' }).length).toBeGreaterThanOrEqual(2)
   })
@@ -82,7 +82,7 @@ describe('AuthPage', () => {
     await user.click(screen.getByRole('button', { name: 'Criar conta' }))
     await user.type(screen.getByPlaceholderText('O teu nome'), 'Ana Silva')
     await user.type(screen.getByPlaceholderText('exemplo@email.com'), 'ana@ex.com')
-    await user.type(screen.getByPlaceholderText('Mínimo 6 caracteres'), 'segredo1')
+    await user.type(screen.getByPlaceholderText('Mínimo 8 caracteres'), 'segredo1')
     await user.click(screen.getAllByRole('button', { name: 'Criar conta' }).at(-1))
 
     // faz o pedido de registo com o corpo esperado

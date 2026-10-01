@@ -182,7 +182,7 @@ public class DashboardController {
                 .findFirst()
                 .ifPresent(g -> out.add(new Insight("info", "target",
                         "Objetivo quase concluído",
-                        "\"" + g.name() + "\" está a " + g.progressPercent() + "% — quase lá!")));
+                        "\"" + g.name() + "\" está a " + fmtNum(g.progressPercent()) + "% — quase lá!")));
 
         // objetivos concluídos
         long done = goals.stream()
@@ -237,7 +237,12 @@ public class DashboardController {
     }
 
     private String fmtPct(BigDecimal v) {
-        return (v.signum() >= 0 ? "+" : "") + v.stripTrailingZeros().toPlainString() + "%";
+        return (v.signum() >= 0 ? "+" : "") + fmtNum(v) + "%";
+    }
+
+    /** Número em PT-PT: vírgula decimal e "−" (U+2212) nos negativos, como o frontend. */
+    private String fmtNum(BigDecimal v) {
+        return v.stripTrailingZeros().toPlainString().replace('.', ',').replace('-', '\u2212');
     }
 
     /**

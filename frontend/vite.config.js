@@ -14,6 +14,8 @@ export default defineConfig({
       // plugin limitava-se a registar o service worker e deixava a página antiga
       // a pedir chunks que já não existem.
       injectRegister: null,
+      // woff2 no precache: as fontes são self-hosted e a app tem de abrir offline com elas
+      workbox: { globPatterns: ['**/*.{js,css,html,woff2}'] },
       manifest: {
         name: 'Vaultrack',
         short_name: 'Vaultrack',

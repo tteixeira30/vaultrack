@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmtEur, fmtSigned, fromEur, toEur, parseAmount, getCurrencySymbol } from '../api'
+import { api, fmtEur, fmtSigned, fromEur, toEur, parseAmount, getCurrencySymbol, toInput } from '../api'
 import { DEFAULT_CATEGORIES, catLabel, catColor, catCode, catTint, setCustomCategories } from '../categories'
 import { useToast } from '../components/Toast'
 import Modal, { ConfirmDialog } from '../components/Modal'
@@ -115,7 +115,7 @@ export default function ExpensesPage() {
 
   const openAccountAdd = () => { setEditingAccount(null); setAccountModal(true) }
   const openAccountEdit = (a) => {
-    setEditingAccount({ ...a, balanceInput: a.currentBalance != null ? String(fromEur(a.currentBalance)) : '' })
+    setEditingAccount({ ...a, balanceInput: a.currentBalance != null ? toInput(fromEur(a.currentBalance)) : '' })
     setAccountModal(true)
   }
 
@@ -195,7 +195,7 @@ export default function ExpensesPage() {
     setTxApplyAll(true)
     setTxForm({
       accountId: String(t.accountId), date: t.date, description: t.description,
-      amount: String(fromEur(t.amount)), inflow: t.inflow, category: t.category,
+      amount: toInput(fromEur(t.amount)), inflow: t.inflow, category: t.category,
     })
     setTxModal(true)
   }

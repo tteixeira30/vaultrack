@@ -4,6 +4,7 @@ import com.tracky.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -64,9 +65,9 @@ public class IncomeController {
                                  List<String> availableMonths, String copiedFrom) {}
     public record IncomeRequest(@NotNull BigDecimal monthlyIncome) {}
     /** Ou percentage ou fixedAmount — exatamente um dos dois. color é opcional (hex). */
-    public record AllocationRequest(@NotBlank String name, BigDecimal percentage, BigDecimal fixedAmount,
-                                    String color) {}
-    public record AllocationItemRequest(@NotBlank String name, @NotNull BigDecimal amount) {}
+    public record AllocationRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name, BigDecimal percentage, BigDecimal fixedAmount,
+                                    @Size(max = 20, message = "Cor inválida.") String color) {}
+    public record AllocationItemRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name, @NotNull BigDecimal amount) {}
 
     // ---------- helpers ----------
 

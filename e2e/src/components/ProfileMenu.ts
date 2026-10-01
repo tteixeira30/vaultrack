@@ -86,6 +86,6 @@ export class ProfileMenu {
     await this.open()
     await this.privacyToggle.click()
     await this.page.goBack()
-    await expect(this.page.locator('.tb-title h2')).toHaveText('Painel')
+    await expect(this.page.locator('.tb-title h1')).toHaveText('Painel')
   }
 }

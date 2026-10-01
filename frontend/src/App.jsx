@@ -151,6 +151,11 @@ function Shell() {
     return () => { cancelled = true }
   }, [user, screen])
 
+  // título do separador do browser = ecrã atual (o AuthPage trata do seu)
+  useEffect(() => {
+    if (user) document.title = `${SCREENS[screen]?.label ?? 'Vaultrack'} · Vaultrack`
+  }, [user, screen])
+
   const togglePrivacy = useCallback(() => {
     setPrivacy((p) => {
       const next = !p
@@ -248,7 +253,7 @@ function Shell() {
       <aside className="sidebar">
         <div className="brand">
           <IconLogo size={30} />
-          <h1>Vault<span>rack</span></h1>
+          <div className="brand-name">Vault<span>rack</span></div>
         </div>
 
         <nav className="nav" aria-label="Navegação principal">
@@ -311,7 +316,7 @@ function Shell() {
           )}
           <div className="tb-title">
             {eyebrow && <span className="tb-eyebrow">{eyebrow}</span>}
-            <h2>{title}</h2>
+            <h1>{title}</h1>
           </div>
 
           <div className="tb-tools">

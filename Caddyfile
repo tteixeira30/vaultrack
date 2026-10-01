@@ -2,6 +2,11 @@
 {$DOMAIN} {
 	encode gzip
 
+	# HTTPS sempre: o browser deixa de tentar http:// neste domínio durante um ano.
+	# Fica só aqui (e não no nginx) porque em desenvolvimento não há HTTPS.
+	header Strict-Transport-Security "max-age=31536000"
+	header -Server
+
 	# pedidos à API vão para o backend Spring
 	handle /api/* {
 		reverse_proxy backend:8080

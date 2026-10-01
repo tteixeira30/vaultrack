@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, fmtEur, fmtMoneyShort, fmtPercent, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
+import { api, fmtEur, fmtMoneyShort, fmtPercent, toEur, fromEur, getCurrencySymbol, parseAmount, toInput } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import { useToast } from '../components/Toast'
 import { useIntent } from '../components/IntentContext'
@@ -88,9 +88,9 @@ export default function GoalsPage() {
     setEditing(g)
     setEditForm({
       name: g.name,
-      targetAmount: String(fromEur(g.targetAmount)),
-      monthlyAllocation: String(fromEur(g.monthlyAllocation)),
-      savedAmount: String(fromEur(g.savedAmount)),
+      targetAmount: toInput(fromEur(g.targetAmount)),
+      monthlyAllocation: toInput(fromEur(g.monthlyAllocation)),
+      savedAmount: toInput(fromEur(g.savedAmount)),
       autoDeposit: g.autoDeposit,
       contributionDay: String(g.contributionDay ?? 1),
     })

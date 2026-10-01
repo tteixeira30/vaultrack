@@ -276,6 +276,18 @@ export function findHeaderIndex(rows) {
  * mapping: índices { date, description, amount, debit, credit, currency, state, fee, balance }
  * (amount OU debit/credit; -1 = coluna inexistente).
  */
+/**
+ * Descodifica os bytes de um CSV: UTF-8 (o TextDecoder já retira o BOM) e, se
+ * não for UTF-8 válido, Windows-1252 — comum nos extratos dos bancos PT.
+ */
+export function decodeStatementBytes(buffer) {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(buffer)
+  } catch {
+    return new TextDecoder('windows-1252').decode(buffer)
+  }
+}
+
 export function analyzeStatement(text) {
   return analyzeRows(parseCsv(text))
 }

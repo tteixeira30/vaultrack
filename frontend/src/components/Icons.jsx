@@ -8,7 +8,7 @@ const base = {
 
 function Icon({ size = 20, children, ...rest }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" {...base} {...rest}>
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" focusable="false" {...base} {...rest}>
       {children}
     </svg>
   )
@@ -333,7 +333,7 @@ export const IconUser = (p) => (
 )
 
 export const IconLogo = (p) => (
-  <svg width={p?.size ?? 30} height={p?.size ?? 30} viewBox="0 0 64 64">
+  <svg width={p?.size ?? 30} height={p?.size ?? 30} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
     <defs>
       <linearGradient id="logo-grad" x1="0" y1="0" x2="64" y2="64">
         <stop stopColor="#6366f1" />

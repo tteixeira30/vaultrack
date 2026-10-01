@@ -439,7 +439,7 @@ export default function DashboardPage({ onGo }) {
                   <li key={i}>
                     <span className={`code-chip ${tone}`}>{code}</span>
                     <div className="feed-main">
-                      <strong>{ins.title}</strong>
+                      <strong title={ins.title}>{ins.title}</strong>
                       <span>{renderInsight(ins.detail)}</span>
                     </div>
                   </li>
@@ -461,7 +461,7 @@ export default function DashboardPage({ onGo }) {
                   <li key={i}>
                     <span className={`code-chip ${tone}`}>{code}</span>
                     <div className="feed-main">
-                      <strong>{a.title}</strong>
+                      <strong title={a.title}>{a.title}</strong>
                       <span>{a.subtitle}</span>
                     </div>
                     <span className="mono feed-when">{timeAgo(a.at)}</span>

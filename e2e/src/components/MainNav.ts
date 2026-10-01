@@ -109,7 +109,7 @@ export class MainNav {
       if (label === 'Contas') {
         await this.page.getByRole('button', { name: /Contas e importação/ }).click()
       }
-      await expect(this.page.locator('.tb-title h2')).toHaveText(label)
+      await expect(this.page.locator('.tb-title h1')).toHaveText(label)
       return
     }
 
@@ -140,7 +140,7 @@ export class MainNav {
     if (group) await expect(this.mobileTab(group.label)).toHaveClass(/active/)
     // em mobile o cabeçalho diz o separador, não o ecrã: os ecrãs de dentro
     // identificam-se pelos segmentos, e o "Início" chama-se "Início"
-    await expect(this.page.locator('.tb-title h2')).toHaveText(group ? group.label : label)
+    await expect(this.page.locator('.tb-title h1')).toHaveText(group ? group.label : label)
   }
 
   /**

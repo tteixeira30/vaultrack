@@ -3,6 +3,10 @@
 tracky:
   jwt-secret: test-secret-0123456789-0123456789-0123456789
   invite-code: ""
+  # Os testes de integração registam muitos utilizadores do mesmo IP; o
+  # AuthRateLimitIntegrationTest liga-o com os limites estritos.
+  rate-limit:
+    enabled: false
 
 spring:
   jpa:

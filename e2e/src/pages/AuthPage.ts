@@ -20,7 +20,7 @@ export class AuthPage extends BasePage {
 
   /** No registo o placeholder é outro — e o autocomplete tem de ser new-password. */
   get newPasswordField(): Locator {
-    return this.page.getByPlaceholder('Mínimo 6 caracteres')
+    return this.page.getByPlaceholder('Mínimo 8 caracteres')
   }
 
   get nameField(): Locator {
@@ -54,7 +54,7 @@ export class AuthPage extends BasePage {
     await this.switchToRegister()
     await this.page.getByPlaceholder('O teu nome').fill(name)
     await this.emailField.fill(email)
-    await this.page.getByPlaceholder('Mínimo 6 caracteres').fill(password)
+    await this.page.getByPlaceholder('Mínimo 8 caracteres').fill(password)
     // código de convite fica vazio (registo aberto em dev)
     await this.page.getByRole('button', { name: 'Criar conta' }).last().click()
     await this.nav.expectVisible()
