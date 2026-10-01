@@ -10,6 +10,7 @@ import com.tracky.investment.InvestmentRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -56,7 +57,7 @@ public class CalendarController {
     public record ForecastResponse(BigDecimal startingBalance, boolean hasBalance, int days,
                                    List<ForecastPoint> points, BigDecimal endBalance) {}
 
-    public record EventRequest(@NotBlank String name, @NotNull CalendarEvent.Category category, boolean inflow,
+    public record EventRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name, @NotNull CalendarEvent.Category category, boolean inflow,
                                @NotNull @Positive BigDecimal amount, @NotNull CalendarEvent.Frequency frequency,
                                Integer dayOfMonth, LocalDate eventDate, Boolean active) {}
 

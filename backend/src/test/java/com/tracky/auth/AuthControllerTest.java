@@ -8,9 +8,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Clock;
 import java.util.Map;
 import java.util.Optional;
 
@@ -36,8 +38,11 @@ class AuthControllerTest {
     @Mock PasswordEncoder passwordEncoder;
     @Mock JwtService jwtService;
 
+    private static final MockHttpServletRequest HTTP = new MockHttpServletRequest();
+
     private AuthController controller(String inviteCode) {
-        return new AuthController(userRepository, passwordEncoder, jwtService, inviteCode);
+        return new AuthController(userRepository, passwordEncoder, jwtService, inviteCode,
+                new AuthRateLimiter(true, 20, 5, 5, Clock.systemUTC()));
     }
 
     private User savedUser(long id, String email) {
@@ -68,7 +73,7 @@ class AuthControllerTest {
         });
 
         var resp = c.register(new AuthController.RegisterRequest(
-                "  Ana  ", "ANA@ex.com", "segredo1", null));
+                "  Ana  ", "ANA@ex.com", "segredo1", null), HTTP);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
         var body = (AuthController.AuthResponse) resp.getBody();
@@ -83,7 +88,7 @@ class AuthControllerTest {
         when(userRepository.existsByEmail("ana@ex.com")).thenReturn(true);
 
         var resp = c.register(new AuthController.RegisterRequest(
-                "Ana", "ana@ex.com", "segredo1", null));
+                "Ana", "ana@ex.com", "segredo1", null), HTTP);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         verify(userRepository, never()).save(any());
@@ -94,7 +99,7 @@ class AuthControllerTest {
         var c = controller("SEGREDO");
 
         var resp = c.register(new AuthController.RegisterRequest(
-                "Ana", "ana@ex.com", "segredo1", "errado"));
+                "Ana", "ana@ex.com", "segredo1", "errado"), HTTP);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         verify(userRepository, never()).existsByEmail(any());
@@ -113,9 +118,21 @@ class AuthControllerTest {
         });
 
         var resp = c.register(new AuthController.RegisterRequest(
-                "Ana", "ana@ex.com", "segredo1", "  SEGREDO  ")); // trim aplicado
+                "Ana", "ana@ex.com", "segredo1", "  SEGREDO  "), HTTP); // trim aplicado
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void palavraPasseComMaisDe72BytesDevolve400() {
+        var c = controller("");
+        // 40 caracteres, mas 80 bytes em UTF-8
+        assertThatThrownBy(() -> c.register(new AuthController.RegisterRequest(
+                "Ana", "ana@ex.com", "é".repeat(40), null), HTTP))
+                .isInstanceOf(ResponseStatusException.class)
+                .extracting(e -> ((ResponseStatusException) e).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(passwordEncoder, never()).encode(any());
     }
 
     // ---------- login ----------
@@ -127,7 +144,7 @@ class AuthControllerTest {
         when(userRepository.findByEmail("ana@ex.com")).thenReturn(Optional.of(u));
         when(passwordEncoder.matches("segredo1", "hash")).thenReturn(true);
 
-        var resp = c.login(new AuthController.LoginRequest("  ANA@ex.com ", "segredo1"));
+        var resp = c.login(new AuthController.LoginRequest("  ANA@ex.com ", "segredo1"), HTTP);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
         var body = (AuthController.AuthResponse) resp.getBody();
@@ -141,7 +158,7 @@ class AuthControllerTest {
         when(userRepository.findByEmail("ana@ex.com")).thenReturn(Optional.of(u));
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
 
-        var resp = c.login(new AuthController.LoginRequest("ana@ex.com", "errada"));
+        var resp = c.login(new AuthController.LoginRequest("ana@ex.com", "errada"), HTTP);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
@@ -151,7 +168,7 @@ class AuthControllerTest {
         var c = controller("");
         when(userRepository.findByEmail("nao@ex.com")).thenReturn(Optional.empty());
 
-        var resp = c.login(new AuthController.LoginRequest("nao@ex.com", "seja"));
+        var resp = c.login(new AuthController.LoginRequest("nao@ex.com", "seja"), HTTP);
 
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         verify(passwordEncoder, never()).matches(any(), any());

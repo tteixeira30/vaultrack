@@ -19,6 +19,10 @@ spring:
 
 server:
   port: 8080
+  # Atrás do Caddy: o IP real do cliente vem do X-Forwarded-For (só aceite de
+  # proxies em redes internas, regra por omissão do Tomcat). Sem isto, todos os
+  # pedidos pareceriam vir do proxy e o limite por IP seria partilhado.
+  forward-headers-strategy: native
   error:
     include-message: always
 
@@ -29,3 +33,11 @@ tracky:
   # TRACKY_CORS_ORIGINS com o domínio do frontend + origens da app mobile
   # (Capacitor): http://localhost e https://localhost (Android), capacitor://localhost (iOS).
   cors-origins: ${TRACKY_CORS_ORIGINS:*,http://localhost,https://localhost,capacitor://localhost}
+  # Limite de tentativas no login/registo (em memória, por instância). Defaults
+  # estritos = produção; em dev/E2E (muitos registos do mesmo IP) desliga-se
+  # com TRACKY_RATE_LIMIT_ENABLED=false.
+  rate-limit:
+    enabled: ${TRACKY_RATE_LIMIT_ENABLED:true}
+    login-per-ip: ${TRACKY_RATE_LIMIT_LOGIN_PER_IP:20}                         # pedidos / 15 min
+    login-failures-per-email: ${TRACKY_RATE_LIMIT_LOGIN_FAILURES_PER_EMAIL:5}  # falhas / 15 min
+    register-per-ip: ${TRACKY_RATE_LIMIT_REGISTER_PER_IP:5}                    # pedidos / hora

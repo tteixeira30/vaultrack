@@ -64,6 +64,43 @@ class AuthFlowIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void registoExigeOitoCaracteres_seteDevolve400_oitoAceita() throws Exception {
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Teste","email":"%s","password":"1234567"}
+                                """.formatted(uniqueEmail())))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"Teste","email":"%s","password":"12345678"}
+                                """.formatted(uniqueEmail())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void loginNaoValidaOComprimentoDaPalavraPasse() throws Exception {
+        // contas antigas podem ter palavras-passe com menos de 8 caracteres
+        mvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"email":"%s","password":"abc"}
+                                """.formatted(uniqueEmail())))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void camposDeRegistoDemasiadoLongosDevolvem400() throws Exception {
+        mvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"%s","email":"%s","password":"segredo123"}
+                                """.formatted("x".repeat(101), uniqueEmail())))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void loginComCredenciaisCertasEErradas() throws Exception {
         String email = uniqueEmail();
         mvc.perform(post("/api/auth/register")

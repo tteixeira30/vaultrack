@@ -199,4 +199,16 @@ class GoalApiIntegrationTest extends AbstractIntegrationTest {
                                 """))
                 .andExpect(status().isBadRequest());
     }
+
+    @Test
+    void nomeDemasiadoLongoDevolve400() throws Exception {
+        String token = registerAndGetToken();
+        mvc.perform(post("/api/goals")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"%s","targetAmount":1000,"monthlyAllocation":200}
+                                """.formatted("x".repeat(101))))
+                .andExpect(status().isBadRequest());
+    }
 }

@@ -4,6 +4,7 @@ import com.tracky.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -33,10 +34,12 @@ public class InvestmentController {
         this.priceService = priceService;
     }
 
-    public record CreateRequest(@NotBlank String name, String symbol, @NotNull Investment.Type type,
+    public record CreateRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name,
+                                @Size(max = 60, message = "O símbolo não pode ter mais de 60 caracteres.") String symbol, @NotNull Investment.Type type,
                                 @NotNull BigDecimal currentValue, @NotNull BigDecimal gainPercent,
                                 BigDecimal monthlyContribution, Integer contributionDay) {}
-    public record UpdateRequest(@NotBlank String name, String symbol, Investment.Type type,
+    public record UpdateRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name,
+                                @Size(max = 60, message = "O símbolo não pode ter mais de 60 caracteres.") String symbol, Investment.Type type,
                                 BigDecimal currentValue, BigDecimal gainPercent,
                                 BigDecimal monthlyContribution, Integer contributionDay) {}
     public record InvestmentDto(Long id, String name, String symbol, Investment.Type type,

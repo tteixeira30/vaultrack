@@ -4,6 +4,7 @@ import com.tracky.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,7 +28,7 @@ public class GoalController {
         this.repo = repo;
     }
 
-    public record GoalRequest(@NotBlank String name, @NotNull @Positive BigDecimal targetAmount,
+    public record GoalRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name, @NotNull @Positive BigDecimal targetAmount,
                               @NotNull @Positive BigDecimal monthlyAllocation, BigDecimal savedAmount,
                               Boolean autoDeposit, Integer contributionDay) {}
     public record ContributionRequest(@NotNull BigDecimal amount) {}
