@@ -50,6 +50,9 @@ const fmtUnits = (q) => {
 // tipos sem cotação pública — símbolo não aplicável, valor sempre manual
 const isManualType = (t) => t === 'PPR' || t === 'OTHER'
 
+// dia do mês: inteiro entre 1 e 31 (o campo é type=number, sem validação nativa)
+const validDay = (v) => Number.isInteger(Number(v)) && String(v).trim() !== '' && Number(v) >= 1 && Number(v) <= 31
+
 const EMPTY_FORM = { name: '', symbol: '', type: 'ETF', currentValue: '', gainPercent: '', monthlyContribution: '', contributionDay: '1' }
 
 // rampa sequencial (cenários ordenados) validada para o fundo escuro;
@@ -217,6 +220,10 @@ export default function InvestmentsPage() {
       toast.error('Campos em falta', 'Indica pelo menos o nome e o valor atual.')
       return
     }
+    if (parseAmount(form.monthlyContribution) && !validDay(form.contributionDay)) {
+      toast.error('Dia inválido', 'O dia tem de estar entre 1 e 31.')
+      return
+    }
     setBusy(true)
     try {
       const created = await api.addInvestment({
@@ -258,6 +265,10 @@ export default function InvestmentsPage() {
   const saveEdit = async () => {
     if (!editForm.name.trim() || !editForm.currentValue) {
       toast.error('Campos em falta', 'Indica pelo menos o nome e o valor atual.')
+      return
+    }
+    if (parseAmount(editForm.monthlyContribution) && !validDay(editForm.contributionDay)) {
+      toast.error('Dia inválido', 'O dia tem de estar entre 1 e 31.')
       return
     }
     setBusy(true)

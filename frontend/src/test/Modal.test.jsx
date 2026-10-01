@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Modal, { ConfirmDialog } from '../components/Modal'
@@ -102,6 +103,65 @@ describe('Modal', () => {
     await user.type(screen.getByPlaceholderText('valor'), '10{Enter}')
 
     expect(onSubmit).not.toHaveBeenCalled()
+  })
+
+  it('associa cada <label> do campo ao seu input (nome acessível)', () => {
+    render(
+      <Modal open title="X" onClose={() => {}} onSubmit={() => {}}>
+        <div className="field"><label>Nome</label><input /></div>
+        <div className="field"><label>Valor</label><div className="input-affix"><input /><span>€</span></div></div>
+        <div className="field"><label>Tipo</label><button type="button">Mensal</button></div>
+        <div className="field"><label className="check-row"><input type="checkbox" /><span>Ativo</span></label></div>
+      </Modal>,
+    )
+    expect(screen.getByLabelText('Nome')).toBeInstanceOf(HTMLInputElement)
+    expect(screen.getByLabelText('Valor')).toBeInstanceOf(HTMLInputElement)
+    expect(screen.getByLabelText('Nome')).not.toBe(screen.getByLabelText('Valor'))
+    expect(screen.getByLabelText('Ativo')).toBeInTheDocument()
+  })
+
+  it('o formulário não usa a validação nativa do browser', () => {
+    render(<Modal open title="X" onClose={() => {}} onSubmit={() => {}}><input type="number" min="1" /></Modal>)
+    expect(document.querySelector('.modal-body form')).toHaveAttribute('novalidate')
+  })
+
+  it('ao fechar devolve o foco ao elemento que abriu o modal', () => {
+    const Host = () => {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>abrir</button>
+          <Modal open={open} title="X" onClose={() => setOpen(false)}><input aria-label="campo" autoFocus /></Modal>
+        </>
+      )
+    }
+    render(<Host />)
+    const opener = screen.getByRole('button', { name: 'abrir' })
+    opener.focus()
+    fireEvent.click(opener)
+    expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(true)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(document.activeElement).toBe(opener)
+  })
+
+  it('uma confirmação por cima do modal não rouba o foco de retorno', () => {
+    const Host = () => {
+      const [open, setOpen] = useState(false)
+      return (
+        <>
+          <button onClick={() => setOpen(true)}>abrir</button>
+          <Modal open={open} title="X" dirty onClose={() => setOpen(false)}><input aria-label="campo" autoFocus /></Modal>
+        </>
+      )
+    }
+    render(<Host />)
+    const opener = screen.getByRole('button', { name: 'abrir' })
+    opener.focus()
+    fireEvent.click(opener)
+    fireEvent.keyDown(document, { key: 'Escape' }) // abre a confirmação
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }))
+    expect(document.activeElement).toBe(opener)
   })
 
   it('com alterações por guardar, fechar pede confirmação em vez de descartar', () => {

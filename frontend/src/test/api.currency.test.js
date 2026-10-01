@@ -67,6 +67,13 @@ describe('formatação', () => {
     expect(fmtEur(100)).toContain('US$')
   })
 
+  it('negativos usam o menos tipográfico (U+2212), não o hífen', () => {
+    setDisplayCurrency('EUR', 1)
+    expect(normalize(fmtEur(-3.2))).toBe('−3,20 €')
+    expect(fmtMoneyShort(-1234)).toMatch(/^−/)
+    expect(fmtEur(-3.2)).not.toContain('-')
+  })
+
   it('fmtEur devolve travessão para null/undefined', () => {
     expect(fmtEur(null)).toBe('—')
     expect(fmtEur(undefined)).toBe('—')

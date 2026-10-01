@@ -12,6 +12,11 @@ describe('parseAmount', () => {
     expect(parseAmount('-8,25')).toBe(-8.25)
   })
 
+  it('aceita o menos tipográfico (U+2212) copiado da interface', () => {
+    expect(parseAmount('−3,20')).toBe(-3.2)
+    expect(parseAmount('−1.500')).toBe(-1500)
+  })
+
   it('lê a convenção inglesa', () => {
     expect(parseAmount('1234.56')).toBe(1234.56)
     expect(parseAmount('.5')).toBe(0.5)
