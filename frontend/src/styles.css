@@ -261,8 +261,8 @@ button, .nav-item, .cal-cell {
 }
 
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 12px; }
-.brand h1 { font-size: 17px; font-weight: 800; letter-spacing: -0.4px; }
-.brand h1 span { color: var(--accent-text); }
+.brand-name { font-size: 17px; font-weight: 800; letter-spacing: -0.4px; }
+.brand-name span { color: var(--accent-text); }
 
 .nav { display: flex; flex-direction: column; overflow-y: auto; }
 .nav-group + .nav-group { margin-top: 4px; }
@@ -369,7 +369,7 @@ button, .nav-item, .cal-cell {
   z-index: var(--z-sidebar);
 }
 .tb-title { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
-.tb-title h2 { font-size: 16.5px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
+.tb-title h1 { font-size: 16.5px; font-weight: 800; letter-spacing: -0.3px; white-space: nowrap; }
 .tb-eyebrow { display: none; }
 .tb-tools { display: flex; align-items: center; gap: 7px; margin-left: auto; }
 .tb-avatar { display: none; }
@@ -575,7 +575,7 @@ td.actions-cell .icon-btn:hover { background: var(--surface-2); border-color: tr
     font-size: 11px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
     color: var(--text-faint); white-space: nowrap;
   }
-  .tb-title h2 { font-size: 19px; font-weight: 800; letter-spacing: -0.4px; }
+  .tb-title h1 { font-size: 19px; font-weight: 800; letter-spacing: -0.4px; }
   .topbar { align-items: center; padding-bottom: 11px; }
   /* os controlos da barra de topo desktop (mês, moeda, privacidade, ⌘K,
      Adicionar) vivem no Perfil e nos cabeçalhos de cada página em mobile */
@@ -1901,6 +1901,10 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   padding: 0;
 }
 .auth-switch button:hover { text-decoration: underline; }
+.auth-legal { margin-top: 8px; font-size: 12px; }
+.auth-legal a { color: var(--text-dim); text-decoration: underline; }
+.quote-credit { margin-top: 12px; font-size: 11px; color: var(--text-dim); }
+.quote-credit a { color: inherit; text-decoration: underline; }
 
 /* ---------- Dashboard ---------- */
 

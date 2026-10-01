@@ -7,6 +7,7 @@
 //   pwa-512x512.png            — ícone standard 512x512
 //   pwa-maskable-512x512.png   — maskable: fundo índigo full-bleed com o glifo na
 //                                zona segura (Android recorta em círculo/squircle)
+//   favicon.ico                — 32x32 (PNG dentro de ICO)
 //   apple-touch-icon.png       — 180x180 FULL-BLEED para iOS: sem cantos
 //                                transparentes (o iOS pinta-os de preto) — o
 //                                próprio iOS arredonda os cantos
@@ -20,7 +21,7 @@
 // Requer o devDependency `sharp` (npm install -D sharp).
 
 import sharp from 'sharp'
-import { readFile, mkdir } from 'node:fs/promises'
+import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
@@ -65,7 +66,21 @@ await render(bgSvg, 512)
   .composite([{ input: glyph512, left: 0, top: 0 }])
   .toFile(path.join(publicDir, 'pwa-maskable-512x512.png'))
 
-console.log('✓ PWA: pwa-192x192, pwa-512x512, pwa-maskable-512x512, apple-touch-icon')
+// favicon.ico: um ICO com uma única imagem PNG 32x32 (formato válido desde o Vista).
+const png32 = await render(Buffer.from(svg), 32).toBuffer()
+const icoHeader = Buffer.alloc(22)
+icoHeader.writeUInt16LE(0, 0) // reservado
+icoHeader.writeUInt16LE(1, 2) // tipo: ícone
+icoHeader.writeUInt16LE(1, 4) // nº de imagens
+icoHeader.writeUInt8(32, 6) // largura
+icoHeader.writeUInt8(32, 7) // altura
+icoHeader.writeUInt16LE(1, 10) // planos
+icoHeader.writeUInt16LE(32, 12) // bits por pixel
+icoHeader.writeUInt32LE(png32.length, 14) // tamanho dos dados
+icoHeader.writeUInt32LE(22, 18) // deslocamento dos dados
+await writeFile(path.join(publicDir, 'favicon.ico'), Buffer.concat([icoHeader, png32]))
+
+console.log('✓ PWA: pwa-192x192, pwa-512x512, pwa-maskable-512x512, apple-touch-icon, favicon.ico')
 
 // --- Android (assets/, consumido pelo @capacitor/assets) ---
 await mkdir(assetsDir, { recursive: true })

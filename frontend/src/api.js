@@ -1,6 +1,16 @@
 // Em web usa o proxy relativo ('/api'); em builds mobile (Capacitor/PWA instalada
 // noutro host) define-se VITE_API_URL com o URL absoluto do backend.
 const BASE = import.meta.env.VITE_API_URL || '/api'
+
+// A política de privacidade é uma página estática servida pelo mesmo host da API.
+// Na web o URL relativo chega; na app Capacitor (origem local) usa-se a origem de
+// VITE_API_URL, que é um URL absoluto nas builds mobile.
+export const PRIVACY_URL = (() => {
+  try {
+    const api = import.meta.env.VITE_API_URL
+    return api ? `${new URL(api).origin}/privacy.html` : '/privacy.html'
+  } catch { return '/privacy.html' }
+})()
 const TOKEN_KEY = 'tracky_token'
 
 let onUnauthorized = null

@@ -23,6 +23,9 @@ const FORMAT_LABEL = {
 const isStaleChunkError = (e) =>
   /dynamically imported module|module script failed|Importing a module/i.test(String(e?.message || ''))
 
+// Limite do ficheiro lido no dispositivo antes de o processar.
+const MAX_FILE_BYTES = 10 * 1024 * 1024
+
 /**
  * Importação de extrato bancário (CSV ou PDF), em modal.
  *
@@ -56,6 +59,10 @@ export default function StatementImport({ open, onClose, accounts, defaultAccoun
     const f = e.target.files?.[0]
     e.target.value = ''
     if (!f) return
+    if (f.size > MAX_FILE_BYTES) {
+      toast.error('Ficheiro demasiado grande', 'O ficheiro tem mais de 10 MB.')
+      return
+    }
     try {
       let analysis
       if (/\.pdf$/i.test(f.name) || f.type === 'application/pdf') {

@@ -56,3 +56,17 @@ describe('StatementImport — chunk do parser de PDF em falta', () => {
     expect(toast.error.mock.calls[0][0]).not.toBe('Versão desatualizada')
   })
 })
+
+describe('StatementImport — limite de tamanho', () => {
+  it('rejeita ficheiros com mais de 10 MB antes de os ler', async () => {
+    toast.error.mockClear()
+    const user = userEvent.setup()
+    render(<StatementImport open accounts={accounts} defaultAccountId="10" onClose={() => {}} />)
+    const big = new File(['x'], 'grande.csv', { type: 'text/csv' })
+    Object.defineProperty(big, 'size', { value: 10 * 1024 * 1024 + 1 })
+    const text = vi.spyOn(big, 'text')
+    await user.upload(document.querySelector('input[type="file"]'), big)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.any(String), 'O ficheiro tem mais de 10 MB.'))
+    expect(text).not.toHaveBeenCalled()
+  })
+})

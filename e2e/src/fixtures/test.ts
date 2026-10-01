@@ -48,6 +48,12 @@ export const test = base.extend<Fixtures>({
   consoleGuard: [
     async ({ page, allowConsoleErrors }, use) => {
       const errors: string[] = []
+      // As violações da CSP são registadas pelo próprio browser e não passam pelo
+      // evento `console` do Playwright — o evento DOM é que as traz para aqui.
+      await page.addInitScript(() => {
+        document.addEventListener('securitypolicyviolation', (e) =>
+          console.error(`CSP: ${e.violatedDirective} bloqueou ${e.blockedURI || 'inline'}`))
+      })
       page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`))
       page.on('console', (msg) => {
         if (msg.type() !== 'error') return

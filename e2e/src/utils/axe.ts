@@ -44,11 +44,15 @@ export async function scanA11y(page: Page, testInfo: TestInfo, label: string): P
  * final — que é o que o utilizador lê.
  */
 async function freezeAnimations(page: Page): Promise<void> {
-  await page.addStyleTag({
-    content: `*, *::before, *::after {
+  // Folha construída via CSSOM e não um <style> (addStyleTag): a CSP da app
+  // não deixa estilos inline e a violação faria falhar a guarda de consola.
+  await page.evaluate(() => {
+    const sheet = new CSSStyleSheet()
+    sheet.replaceSync(`*, *::before, *::after {
       transition: none !important;
       animation: none !important;
-    }`,
+    }`)
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]
   })
 }
 

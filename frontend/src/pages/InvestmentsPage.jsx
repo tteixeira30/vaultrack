@@ -859,6 +859,11 @@ export default function InvestmentsPage() {
             })}
           </div>
         )}
+        {investments.some((i) => i.type === 'CRYPTO') && (
+          <p className="quote-credit">
+            Cotações de cripto: <a href="https://www.coingecko.com" target="_blank" rel="noopener">Powered by CoinGecko</a>
+          </p>
+        )}
       </section>
 
       {modals}

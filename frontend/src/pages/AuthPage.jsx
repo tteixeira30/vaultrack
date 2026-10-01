@@ -1,7 +1,8 @@
-import { useId, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useAuth } from '../components/AuthContext'
 import { useToast } from '../components/Toast'
 import { useIsMobile } from '../components/useMediaQuery'
+import { PRIVACY_URL } from '../api'
 import { IconLogo } from '../components/Icons'
 
 export default function AuthPage() {
@@ -13,6 +14,8 @@ export default function AuthPage() {
   const [mode, setMode] = useState('login')
   const [form, setForm] = useState({ name: '', email: '', password: '', inviteCode: '' })
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => { document.title = 'Entrar · Vaultrack' }, [])
 
   const isLogin = mode === 'login'
 
@@ -77,7 +80,7 @@ export default function AuthPage() {
           <div className="field">
             <label htmlFor={ids.password}>Palavra-passe</label>
             <input id={ids.password} type="password"
-                   placeholder={isLogin ? 'A tua palavra-passe' : 'Mínimo 6 caracteres'}
+                   placeholder={isLogin ? 'A tua palavra-passe' : 'Mínimo 8 caracteres'}
                    autoComplete={isLogin ? 'current-password' : 'new-password'}
                    enterKeyHint={isLogin ? 'go' : 'next'}
                    value={form.password}
@@ -102,6 +105,9 @@ export default function AuthPage() {
           <button type="button" onClick={() => setMode(isLogin ? 'register' : 'login')}>
             {isLogin ? 'Regista-te' : 'Inicia sessão'}
           </button>
+        </p>
+        <p className="auth-switch auth-legal">
+          <a href={PRIVACY_URL} target="_blank" rel="noopener">Política de privacidade</a>
         </p>
       </div>
     </div>
