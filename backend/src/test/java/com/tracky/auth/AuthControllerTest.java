@@ -132,7 +132,7 @@ class AuthControllerTest {
                 .isInstanceOf(ResponseStatusException.class)
                 .extracting(e -> ((ResponseStatusException) e).getStatusCode())
                 .isEqualTo(HttpStatus.BAD_REQUEST);
-        verify(passwordEncoder, never()).encode(any());
+        verify(passwordEncoder, never()).encode("é".repeat(40));
     }
 
     // ---------- login ----------
@@ -164,14 +164,40 @@ class AuthControllerTest {
     }
 
     @Test
-    void loginComEmailInexistenteDevolve401() {
+    void loginComEmailInexistenteCorreOBcryptNaMesmaEDevolveOMesmo401() {
+        // o hash fictício é gerado no arranque pelo mesmo encoder (mesmo custo dos hashes reais)
+        when(passwordEncoder.encode(any())).thenReturn("dummy-hash");
         var c = controller("");
         when(userRepository.findByEmail("nao@ex.com")).thenReturn(Optional.empty());
+        when(passwordEncoder.matches("seja", "dummy-hash")).thenReturn(true); // nem assim entra
 
         var resp = c.login(new AuthController.LoginRequest("nao@ex.com", "seja"), HTTP);
 
+        verify(passwordEncoder).matches("seja", "dummy-hash");
         assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        verify(passwordEncoder, never()).matches(any(), any());
+
+        // resposta indistinguível da de palavra-passe errada (estado + corpo)
+        User u = savedUser(5L, "ana@ex.com");
+        when(userRepository.findByEmail("ana@ex.com")).thenReturn(Optional.of(u));
+        when(passwordEncoder.matches("errada", "hash")).thenReturn(false);
+        var wrong = c.login(new AuthController.LoginRequest("ana@ex.com", "errada"), HTTP);
+
+        assertThat(resp.getStatusCode()).isEqualTo(wrong.getStatusCode());
+        assertThat(resp.getBody()).isEqualTo(wrong.getBody());
+        assertThat(resp.getHeaders()).isEqualTo(wrong.getHeaders());
+    }
+
+    @Test
+    void loginComEmailInexistenteContaFalhaNoRateLimiterComoPasswordErrada() {
+        // 5 falhas por email bloqueiam, exista a conta ou não
+        var c = controller("");
+        when(userRepository.findByEmail(any())).thenReturn(Optional.empty());
+        for (int i = 0; i < 5; i++) {
+            assertThat(c.login(new AuthController.LoginRequest("nao@ex.com", "x"), HTTP).getStatusCode())
+                    .isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+        assertThat(c.login(new AuthController.LoginRequest("nao@ex.com", "x"), HTTP).getStatusCode())
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
     }
 
     // ---------- me / currency ----------
