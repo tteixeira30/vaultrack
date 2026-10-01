@@ -184,6 +184,8 @@ export const getCurrencySymbol = () => CURRENCY_SYMBOLS[displayCurrency] || disp
  * numérico do telemóvel oferece vírgula, e um `type="number"` descartava
  * "1,5" em silêncio. Aceita as duas convenções:
  *   "1234,56" → 1234.56    "1.234,56" → 1234.56    "1234.56" → 1234.56
+ * Um ponto sem vírgula em grupos de três dígitos ("1.000", "12.345.678") é o
+ * separador de milhares: "1.000" → 1000, não 1. "1.5" e "1234.56" ficam decimais.
  * Devolve NaN quando não dá para ler — quem chama decide o que fazer.
  */
 export const parseAmount = (v) => {
@@ -198,6 +200,7 @@ export const parseAmount = (v) => {
   // com ambos, o ponto é separador de milhares e a vírgula é a decimal
   if (hasComma && hasDot) s = s.replace(/\./g, '').replace(',', '.')
   else if (hasComma) s = s.replace(',', '.')
+  else if (/^[+-]?[1-9]\d{0,2}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '')
 
   const n = Number(s)
   return Number.isFinite(n) ? n : NaN
@@ -215,6 +218,16 @@ export const fromEur = (eurValue) => {
   const n = Number(eurValue)
   if (!Number.isFinite(n)) return eurValue
   return displayRate === 1 ? n : Math.round(n * displayRate * 100) / 100
+}
+
+/**
+ * Número → texto para pré-preencher um campo, com vírgula decimal como o
+ * utilizador a escreve. Com ponto, um valor com três decimais ("1.125")
+ * voltaria pelo parseAmount como milhares (1125).
+ */
+export const toInput = (v) => {
+  const n = Number(v)
+  return v == null || v === '' || !Number.isFinite(n) ? '' : String(n).replace('.', ',')
 }
 
 /** Formata um valor em EUR, convertido e apresentado na moeda base. */

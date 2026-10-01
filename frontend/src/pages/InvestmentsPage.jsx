@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import {
   api, fmtEur, fmtSigned, fmtPct, fmtPercent, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount,
-  getPrivacyMode,
-} from '../api'
+  getPrivacyMode, toInput } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import Dropdown from '../components/Dropdown'
 import { useChartColors } from '../components/ThemeContext'
@@ -249,9 +248,9 @@ export default function InvestmentsPage() {
       name: inv.name,
       symbol: inv.symbol || '',
       type: inv.type,
-      currentValue: inv.currentValue != null ? String(fromEur(inv.currentValue)) : '',
-      gainPercent: String(inv.gainPercent ?? 0),
-      monthlyContribution: inv.monthlyContribution != null ? String(fromEur(inv.monthlyContribution)) : '',
+      currentValue: inv.currentValue != null ? toInput(fromEur(inv.currentValue)) : '',
+      gainPercent: toInput(inv.gainPercent ?? 0),
+      monthlyContribution: inv.monthlyContribution != null ? toInput(fromEur(inv.monthlyContribution)) : '',
       contributionDay: String(inv.contributionDay ?? 1),
     })
   }

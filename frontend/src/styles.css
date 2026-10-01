@@ -2056,6 +2056,8 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
 .feed li:last-child { border-bottom: none; }
 .feed-main { flex: 1; min-width: 0; }
 .feed-main strong { display: block; font-size: 12.5px; font-weight: 700; }
+.feed-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed-main span { overflow-wrap: anywhere; }
 .feed-main span { display: block; font-size: 11.5px; font-weight: 600; color: var(--text-dim); margin-top: 2px; }
 .feed-when { font-size: 11px; font-weight: 700; color: var(--text-faint); flex: none; white-space: nowrap; }
 

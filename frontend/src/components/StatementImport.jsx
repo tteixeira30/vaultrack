@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, fmtEur, parseAmount } from '../api'
-import { analyzeStatement, analyzeRows, buildTransactions, categoryKey } from '../statementParser'
+import { analyzeStatement, analyzeRows, decodeStatementBytes, buildTransactions, categoryKey } from '../statementParser'
 import { catLabel } from '../categories'
 import Modal from './Modal'
 import Dropdown from './Dropdown'
@@ -74,7 +74,7 @@ export default function StatementImport({ open, onClose, accounts, defaultAccoun
         }
         analysis = analyzeRows(rows)
       } else {
-        analysis = analyzeStatement(await f.text())
+        analysis = analyzeStatement(decodeStatementBytes(await f.arrayBuffer()))
       }
       if (!analysis || analysis.dataRows.length === 0) {
         toast.error('Ficheiro vazio', 'Não foram encontradas linhas de movimentos no ficheiro.')

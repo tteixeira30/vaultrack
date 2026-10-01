@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { api, fmtEur, fmtSigned, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount } from '../api'
+import { api, fmtEur, fmtSigned, fmtMoneyShort, toEur, fromEur, getCurrencySymbol, parseAmount, toInput } from '../api'
 import Modal, { ConfirmDialog } from '../components/Modal'
 import DatePicker from '../components/DatePicker'
 import Dropdown from '../components/Dropdown'
@@ -77,7 +77,7 @@ export default function CalendarPage() {
     setDayModal(null)
     setEditing(e)
     setForm({
-      name: e.name, category: e.category, inflow: e.inflow, amount: String(fromEur(e.amount)),
+      name: e.name, category: e.category, inflow: e.inflow, amount: toInput(fromEur(e.amount)),
       frequency: e.frequency, dayOfMonth: String(e.dayOfMonth || 1), eventDate: e.eventDate || '',
       active: e.active !== false,
     })
