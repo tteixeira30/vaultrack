@@ -1089,6 +1089,8 @@ tr:last-child td { border-bottom: none; }
 .sheet-head {
   flex-shrink: 0;
   touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
   cursor: grab;
 }
 .sheet-head:active { cursor: grabbing; }
@@ -1592,7 +1594,7 @@ tr.subrow:focus-within .subrow-actions .icon-btn { opacity: 1; }
   .modal { transition: transform var(--dur-2) var(--ease-spring); }
   .modal:focus { outline: none; }
   /* .modal-top é a zona de arrasto e envolve a pega + o cabeçalho */
-  .modal-top { touch-action: none; }
+  .modal-top { touch-action: none; user-select: none; -webkit-user-select: none; }
   .modal-top .sheet-grabber { margin: var(--sp-2) auto 0; }
   .modal-head { padding-top: var(--sp-3); }
 
