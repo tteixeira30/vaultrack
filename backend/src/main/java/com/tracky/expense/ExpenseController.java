@@ -50,12 +50,12 @@ public class ExpenseController {
     }
 
     /** currentBalance opcional, em EUR; null = limpar/não definido. */
-    public record AccountRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name, BigDecimal currentBalance) {}
+    public record AccountRequest(@NotBlank(message = "O nome não pode estar vazio.") @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name, BigDecimal currentBalance) {}
     public record AccountDto(Long id, String name, long transactionCount, BigDecimal currentBalance) {}
     /** applyToSimilar: aplica a categoria a todos os movimentos com a mesma descrição e memoriza como regra. */
     public record TransactionRequest(@NotNull Long accountId, @NotNull LocalDate date, @NotBlank
                                      @Size(max = 500, message = "A descrição não pode ter mais de 500 caracteres.") String description,
-                                     @NotNull @Positive BigDecimal amount, boolean inflow,
+                                     @NotNull(message = "Indica o montante.") @Positive(message = "O montante tem de ser maior que 0.") BigDecimal amount, boolean inflow,
                                      @Size(max = 60, message = "Categoria inválida.") String category,
                                      Boolean applyToSimilar) {}
     public record RuleDto(Long id, String matchKey, String category) {}
@@ -69,7 +69,7 @@ public class ExpenseController {
     /** description: até 1000 (linhas de extrato longas continuam a ser truncadas a 500 ao gravar). */
     public record ImportRow(@NotNull LocalDate date,
                             @NotBlank @Size(max = 1000, message = "Descrição demasiado longa no extrato.") String description,
-                            @NotNull @Positive BigDecimal amount, boolean inflow,
+                            @NotNull(message = "Indica o montante.") @Positive(message = "O montante tem de ser maior que 0.") BigDecimal amount, boolean inflow,
                             @Size(max = 60, message = "Categoria inválida.") String category) {}
     /** closingBalance: saldo da conta no fim do extrato, em EUR; null quando o extrato não o traz. */
     public record ImportRequest(@NotNull Long accountId, @NotEmpty

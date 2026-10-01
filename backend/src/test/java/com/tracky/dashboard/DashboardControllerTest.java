@@ -161,6 +161,31 @@ class DashboardControllerTest {
     }
 
     @Test
+    void percentagensDosInsightsUsamVirgulaDecimalPtPt() {
+        stubBase(
+                income(YearMonth.now().toString(), new BigDecimal("2000"), BigDecimal.ZERO, List.of()),
+                portfolio("1000", "885.70", "-114.30", "-11.43"),
+                List.of(goal("Férias", "1000", "855", "85.5")));
+
+        var resp = controller.get(user);
+
+        assertThat(resp.insights()).anySatisfy(i -> assertThat(i.detail()).contains("\u221211,43%"));
+        assertThat(resp.insights()).anySatisfy(i -> assertThat(i.detail()).contains("85,5%"));
+        assertThat(resp.insights()).noneSatisfy(i -> assertThat(i.detail()).containsPattern("\\d\\.\\d+%"));
+    }
+
+    @Test
+    void percentagemPositivaLevaSinalMais() {
+        stubBase(
+                income(YearMonth.now().toString(), new BigDecimal("2000"), BigDecimal.ZERO, List.of()),
+                portfolio("1000", "1120.5", "120.5", "12.05"),
+                List.of());
+
+        assertThat(controller.get(user).insights())
+                .anySatisfy(i -> assertThat(i.detail()).contains("+12,05%"));
+    }
+
+    @Test
     void insightDeObjetivoQuaseConcluidoEntre80E100() {
         stubBase(
                 income(YearMonth.now().toString(), new BigDecimal("2000"), BigDecimal.ZERO, List.of()),

@@ -58,7 +58,7 @@ public class CalendarController {
                                    List<ForecastPoint> points, BigDecimal endBalance) {}
 
     public record EventRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name, @NotNull CalendarEvent.Category category, boolean inflow,
-                               @NotNull @Positive BigDecimal amount, @NotNull CalendarEvent.Frequency frequency,
+                               @NotNull(message = "Indica o montante.") @Positive(message = "O montante tem de ser maior que 0.") BigDecimal amount, @NotNull CalendarEvent.Frequency frequency,
                                Integer dayOfMonth, LocalDate eventDate, Boolean active) {}
 
     // ---------- endpoints ----------
