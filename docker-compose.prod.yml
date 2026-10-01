@@ -24,9 +24,9 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?define DB_PASSWORD no ficheiro .env}
       JWT_SECRET: ${JWT_SECRET:?define JWT_SECRET no ficheiro .env}
       TRACKY_INVITE_CODE: ${INVITE_CODE:-}
-      # Origens CORS (app mobile). Sem valor no .env aplica-se o default
-      # permissivo; para restringir, define TRACKY_CORS_ORIGINS no .env.
-      TRACKY_CORS_ORIGINS: ${TRACKY_CORS_ORIGINS:-*,http://localhost,https://localhost,capacitor://localhost}
+      # Origens CORS: o próprio domínio + as da WebView do Capacitor (app mobile).
+      # Sem valor no .env usa estas; o "*" de desenvolvimento não vale em produção.
+      TRACKY_CORS_ORIGINS: ${TRACKY_CORS_ORIGINS:-https://${DOMAIN},http://localhost,https://localhost,capacitor://localhost}
     depends_on:
       db:
         condition: service_healthy
