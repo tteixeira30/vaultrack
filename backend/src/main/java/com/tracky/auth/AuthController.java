@@ -20,6 +20,7 @@ import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -33,6 +34,13 @@ public class AuthController {
     /** Se definido, o registo exige este código de convite. Vazio = registo aberto (uso local). */
     private final String inviteCode;
 
+    /**
+     * Hash de uma palavra-passe aleatória, gerado no arranque com o mesmo encoder (e o mesmo custo)
+     * dos hashes reais. O login com um email inexistente verifica contra ele, para o tempo de
+     * resposta não revelar se a conta existe.
+     */
+    private final String dummyHash;
+
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService,
                           @Value("${tracky.invite-code:}") String inviteCode, AuthRateLimiter rateLimiter) {
         this.userRepository = userRepository;
@@ -40,6 +48,7 @@ public class AuthController {
         this.jwtService = jwtService;
         this.inviteCode = inviteCode == null ? "" : inviteCode.trim();
         this.rateLimiter = rateLimiter;
+        this.dummyHash = passwordEncoder.encode(UUID.randomUUID().toString());
     }
 
     // max 72 na palavra-passe: o BCrypt só usa os primeiros 72 bytes e recusa mais ao gerar o hash
@@ -88,7 +97,10 @@ public class AuthController {
         long wait = rateLimiter.tryLogin(http.getRemoteAddr(), email);
         if (wait > 0) return tooManyRequests(wait);
         Optional<User> user = userRepository.findByEmail(email);
-        if (user.isEmpty() || !passwordEncoder.matches(req.password(), user.get().getPasswordHash())) {
+        // sem conta, verifica na mesma contra o hash fictício: o custo do BCrypt é igual nos dois casos
+        String hash = user.map(User::getPasswordHash).orElse(dummyHash);
+        boolean matches = passwordEncoder.matches(req.password(), hash);
+        if (user.isEmpty() || !matches) {
             rateLimiter.loginFailed(email);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("message", "Email ou palavra-passe incorretos."));

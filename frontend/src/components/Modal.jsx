@@ -1,7 +1,7 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { IconAlert, IconX } from './Icons'
-import { useFocusTrap } from './useFocusTrap'
+import { useFocusTrap, useRestoreFocus } from './useFocusTrap'
 import { useIsMobile } from './useMediaQuery'
 import { useScrollLock } from './useScrollLock'
 import { useSheetDrag } from './useSheetDrag'
@@ -13,6 +13,7 @@ export default function Modal({
   // quando o form tem alterações por guardar, pedir confirmação antes de descartar
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const titleId = useId()
+  const baseId = useId()
   const panelRef = useRef(null)
   const isMobile = useIsMobile()
 
@@ -28,8 +29,25 @@ export default function Modal({
   const drag = useSheetDrag(requestClose, { enabled: open && isMobile && !confirmDiscard })
 
   useScrollLock(open)
-  // com a confirmação aberta é ela que prende o foco
-  useFocusTrap(panelRef, open && !confirmDiscard)
+  // com a confirmação aberta é ela que prende o foco; o foco só regressa a quem
+  // abriu o modal quando o modal fecha, não quando a confirmação aparece
+  useRestoreFocus(open)
+  useFocusTrap(panelRef, open && !confirmDiscard, { restore: false })
+
+  // Os <label> dos formulários não envolvem o controlo nem trazem htmlFor:
+  // liga-se cada um ao input do seu .field, para o campo ter nome acessível.
+  // Corre a cada render porque há campos que só aparecem a meio.
+  useLayoutEffect(() => {
+    const panel = panelRef.current
+    if (!open || !panel) return
+    panel.querySelectorAll('.field > label:not(.check-row):not([for])').forEach((label) => {
+      if (label.querySelector('input')) return
+      const control = label.parentElement.querySelector('input:not([type=checkbox]):not([type=color]), textarea, select')
+      if (!control) return
+      if (!control.id) control.id = `${baseId}-${control.name || [...panel.querySelectorAll('input,textarea,select')].indexOf(control)}`
+      label.htmlFor = control.id
+    })
+  })
 
   useEffect(() => {
     if (!open) return
@@ -69,7 +87,7 @@ export default function Modal({
         </div>
         <div className="modal-body">
           {onSubmit ? (
-            <form onSubmit={(e) => { e.preventDefault(); onSubmit() }}>
+            <form noValidate onSubmit={(e) => { e.preventDefault(); onSubmit() }}>
               {children}
               {/* O botão real vive no rodapé, que é irmão do corpo e por isso
                   nunca pode ser o submit deste form. Este botão-fantasma é o
