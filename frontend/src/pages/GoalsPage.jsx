@@ -7,6 +7,9 @@ import { codeOf } from '../components/code'
 import { useIsMobile } from '../components/useMediaQuery'
 import { IconCalendar, IconCheck, IconPencil, IconPlus, IconRefresh, IconTarget, IconTrash } from '../components/Icons'
 
+// dia do mês: inteiro entre 1 e 31 (o campo é type=number, sem validação nativa)
+const validDay = (v) => Number.isInteger(Number(v)) && String(v).trim() !== '' && Number(v) >= 1 && Number(v) <= 31
+
 const EMPTY_FORM = { name: '', targetAmount: '', monthlyAllocation: '', savedAmount: '', autoDeposit: false, contributionDay: '1' }
 
 /**
@@ -66,6 +69,10 @@ export default function GoalsPage() {
       toast.error('Campos em falta', 'Indica o nome, o valor do objetivo e a alocação mensal.')
       return
     }
+    if (form.autoDeposit && !validDay(form.contributionDay)) {
+      toast.error('Dia inválido', 'O dia tem de estar entre 1 e 31.')
+      return
+    }
     setBusy(true)
     try {
       await api.addGoal({
@@ -99,6 +106,10 @@ export default function GoalsPage() {
   const saveEdit = async () => {
     if (!editForm.name.trim() || !editForm.targetAmount || !editForm.monthlyAllocation) {
       toast.error('Campos em falta', 'Indica o nome, o valor do objetivo e a alocação mensal.')
+      return
+    }
+    if (editForm.autoDeposit && !validDay(editForm.contributionDay)) {
+      toast.error('Dia inválido', 'O dia tem de estar entre 1 e 31.')
       return
     }
     setBusy(true)

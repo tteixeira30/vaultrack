@@ -192,7 +192,8 @@ export const parseAmount = (v) => {
   if (typeof v === 'number') return Number.isFinite(v) ? v : NaN
   if (v == null) return NaN
 
-  let s = String(v).trim().replace(/\s/g, '')
+  // o menos tipográfico (U+2212) vem de copiar valores da interface
+  let s = String(v).trim().replace(/\s/g, '').replace(/\u2212/g, '-')
   if (s === '') return NaN
 
   const hasComma = s.includes(',')
@@ -234,7 +235,9 @@ export const toInput = (v) => {
 export const fmtEur = (v) => {
   if (v == null) return '—'
   if (privacyMode) return PRIVACY_MASK
+  // o Intl escreve o hífen; as variações da app usam o menos tipográfico (como o fmtSigned)
   return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: displayCurrency }).format(v * displayRate)
+    .replace('-', '\u2212')
 }
 
 /**
@@ -259,7 +262,7 @@ export const fmtMoneyShort = (v) => {
   const parts = new Intl.NumberFormat('pt-PT', {
     style: 'currency', currency: displayCurrency, maximumFractionDigits: 0,
   }).formatToParts(v * displayRate)
-  return parts.map((p) => p.value).join('')
+  return parts.map((p) => (p.type === 'minusSign' ? '\u2212' : p.value)).join('')
 }
 
 /**

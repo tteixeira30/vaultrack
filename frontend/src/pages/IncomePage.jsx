@@ -110,10 +110,14 @@ export default function IncomePage() {
 
   const saveAlloc = async () => {
     const value = parseAmount(allocForm.value)
-    if (!allocForm.name.trim() || !value || value <= 0) {
+    if (!allocForm.name.trim() || allocForm.value.trim() === '') {
       toast.error('Campos em falta', allocForm.mode === 'percentage'
         ? 'Indica o nome da categoria e a percentagem.'
         : 'Indica o nome da categoria e o valor mensal.')
+      return
+    }
+    if (!(value > 0)) {
+      toast.error('Valor inválido', 'O valor tem de ser maior que 0.')
       return
     }
     setBusy(true)
@@ -464,7 +468,7 @@ export default function IncomePage() {
             <div className="empty-state">
               <div className="empty-icon"><IconPie size={22} /></div>
               <h4>Sem categorias</h4>
-              <p>Divide o rendimento por percentagem (ex: 30% poupança) ou por valor fixo (ex: 400€ renda).</p>
+              <p>Divide o rendimento por percentagem (ex: 30% poupança) ou por valor fixo (ex: 400{cur} renda).</p>
             </div>
           </div>
         ) : (
@@ -536,7 +540,7 @@ export default function IncomePage() {
             <div className="empty-state">
               <div className="empty-icon"><IconPie size={24} /></div>
               <h4>Sem categorias</h4>
-              <p>Cria a primeira categoria para distribuir o rendimento deste mês — por percentagem (ex: 30% poupança) ou por valor fixo (ex: 400€ renda).</p>
+              <p>Cria a primeira categoria para distribuir o rendimento deste mês — por percentagem (ex: 30% poupança) ou por valor fixo (ex: 400{cur} renda).</p>
               <button className="btn" onClick={openAddAlloc}><IconPlus size={15} /> Criar categoria</button>
             </div>
           ) : (
