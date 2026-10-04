@@ -4,7 +4,7 @@
 // das linhas de dados às colunas do cabeçalho. Só funciona com PDFs com texto
 // embebido — extratos digitalizados (imagem) precisariam de OCR.
 
-import { findHeaderIndex } from './statementParser.js'
+import { findHeaderIndex, parseAmount } from './statementParser.js'
 
 /**
  * Converte itens de texto do pdf.js para o formato interno, descartando texto
@@ -109,6 +109,60 @@ export function mergeWrappedLines(lines) {
   return out
 }
 
+/** Índice da coluna {x, end} mais próxima da célula. */
+function nearestColumn(cols, cell) {
+  const center = (cell.x + cell.end) / 2
+  let best = 0, bestDist = Infinity
+  for (let k = 0; k < cols.length; k++) {
+    // números costumam estar alinhados à direita e o cabeçalho à esquerda —
+    // usa a menor das distâncias entre inícios, fins e centros
+    const d = Math.min(
+      Math.abs(center - (cols[k].x + cols[k].end) / 2),
+      Math.abs(cell.x - cols[k].x),
+      Math.abs(cell.end - cols[k].end),
+    )
+    if (d < bestDist) { bestDist = d; best = k }
+  }
+  return best
+}
+
+// Palavras com que começa o rótulo de uma coluna de valores
+const VALUE_LABEL = /^(saldo|balance|montante|valor|amount|d[ée]bito|cr[ée]dito|entrada|sa[íi]da)/i
+
+/**
+ * Divide em duas a coluna do cabeçalho que, nos dados, traz dois valores lado a
+ * lado. Há PDFs em que o cabeçalho de duas colunas é um só item de texto (na
+ * descarga de movimentos do Santander, "Montante Saldo Contabilístico"), enquanto
+ * o montante e o saldo de cada linha são itens separados. Sem a divisão os dois
+ * caíam na mesma coluna ("-23,45 EUR 1.303,57 EUR"), nenhum se lia como número e
+ * o extrato ficava sem movimentos.
+ *
+ * Quem decide são os dados: a coluna só se parte se pelo menos metade das linhas
+ * com valores nessa coluna trouxer dois. O texto do cabeçalho parte-se na palavra
+ * onde começa o segundo rótulo ("Saldo").
+ */
+function splitMergedColumns(cols, dataLines) {
+  return cols.flatMap((col, k) => {
+    const pairs = []
+    let withValues = 0
+    for (const line of dataLines) {
+      const values = line.filter((c) => parseAmount(c.text) != null && nearestColumn(cols, c) === k)
+      if (values.length > 0) withValues++
+      if (values.length === 2) pairs.push(values)
+    }
+    if (pairs.length < 2 || pairs.length * 2 < withValues) return [col]
+
+    const words = col.text.split(/\s+/)
+    const at = words.findIndex((w, i) => i > 0 && VALUE_LABEL.test(w))
+    const cut = at > 0 ? at : Math.ceil(words.length / 2)
+    const span = (cells) => ({ x: Math.min(...cells.map((c) => c.x)), end: Math.max(...cells.map((c) => c.end)) })
+    return [
+      { text: words.slice(0, cut).join(' '), ...span(pairs.map(([a]) => a)) },
+      { text: words.slice(cut).join(' '), ...span(pairs.map(([, b]) => b)) },
+    ]
+  })
+}
+
 /**
  * Converte linhas de células {text, x, end} em linhas de strings alinhadas às
  * colunas do cabeçalho da tabela (numa tabela PDF as células vazias não existem,
@@ -118,22 +172,11 @@ export function linesToTable(lines) {
   const headerIdx = findHeaderIndex(lines.map((l) => l.map((c) => c.text)))
   if (headerIdx === -1) return lines.map((l) => l.map((c) => c.text))
 
-  const cols = lines[headerIdx].map((c) => ({ x: c.x, end: c.end, center: (c.x + c.end) / 2 }))
-  const nearestCol = (cell) => {
-    const center = (cell.x + cell.end) / 2
-    let best = 0, bestDist = Infinity
-    for (let k = 0; k < cols.length; k++) {
-      // números costumam estar alinhados à direita e o cabeçalho à esquerda —
-      // usa a menor das distâncias entre inícios, fins e centros
-      const d = Math.min(
-        Math.abs(center - cols[k].center),
-        Math.abs(cell.x - cols[k].x),
-        Math.abs(cell.end - cols[k].end),
-      )
-      if (d < bestDist) { bestDist = d; best = k }
-    }
-    return best
-  }
+  const cols = splitMergedColumns(
+    lines[headerIdx].map((c) => ({ text: c.text, x: c.x, end: c.end })),
+    lines.slice(headerIdx + 1),
+  )
+  const nearestCol = (cell) => nearestColumn(cols, cell)
 
   // coluna que mais se sobrepõe ao segmento, ou -1 se ele não tocar nenhuma
   const coveringCol = (seg) => {
@@ -173,7 +216,7 @@ export function linesToTable(lines) {
 
   const leftEdge = Math.min(...cols.map((c) => c.x))
   return lines.map((line, i) => {
-    if (i === headerIdx) return cols.map((_, k) => lines[headerIdx][k].text)
+    if (i === headerIdx) return cols.map((c) => c.text)
     const row = new Array(cols.length).fill('')
     for (const cell of line) {
       // ignora texto fora da tabela, à esquerda da primeira coluna (rodapés verticais, símbolos soltos)

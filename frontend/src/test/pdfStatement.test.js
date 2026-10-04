@@ -311,3 +311,46 @@ describe('extrato Revolut PT — do PDF aos movimentos', () => {
     expect(analyzeRows(rows).openingBalance).not.toBe(166.34)
   })
 })
+
+describe('descarga de movimentos do Santander — duas colunas debaixo de um só cabeçalho', () => {
+  // Coordenadas reais da descarga de movimentos do homebanking (não o extrato
+  // mensal), com descrições e valores fictícios. O cabeçalho "Montante Saldo
+  // Contabilístico" é um só item de texto por cima das duas colunas, mas o
+  // montante e o saldo de cada linha são itens separados. Os valores trazem o
+  // código "EUR" e as linhas vêm da mais recente para a mais antiga.
+  const it8 = (str, x, y, width) => item(str, x, y, width, 8)
+  const movement = (y, date, description, amount, balance) => [
+    it8(date, 36.9, y, 40.9), it8(date, 119.1, y, 40.9), it8(description, 204.1, y, 80),
+    it8(amount, 388.3 - amount.length * 4.2, y, amount.length * 4.2), it8(balance, 437.3, y, 50.3),
+  ]
+  const items = [
+    item('Data Operação', 36.9, 669.6, 70.5), item('Data valor', 119.1, 669.6, 48.3),
+    item('Descrição', 204.1, 669.6, 47.8), item('Montante Saldo Contabilístico', 343.9, 669.6, 143.7),
+    ...movement(654.4, '30-09-2026', 'Supermercado Exemplo', '-23,45 EUR', '1.303,57 EUR'),
+    ...movement(632.9, '30-09-2026', 'Levantamento Porto', '-10,00 EUR', '1.327,02 EUR'),
+    ...movement(611.4, '29-09-2026', 'Trf. MB WAY de Fulano', '2,50 EUR', '1.337,02 EUR'),
+    // 2.ª linha da descrição (nome do ordenante), sem data nem valor
+    it8('Beltrano De Tal', 204.1, 600, 60),
+  ]
+  const rows = linesToTable(mergeWrappedLines(itemsToLines(items)))
+
+  it('divide o cabeçalho em "Montante" e "Saldo Contabilístico"', () => {
+    const analysis = analyzeRows(rows)
+    expect(analysis.headers).toEqual(['Data Operação', 'Data valor', 'Descrição', 'Montante', 'Saldo Contabilístico'])
+    expect(analysis.mapping).toMatchObject({ date: 0, description: 2, amount: 3, balance: 4 })
+  })
+
+  it('importa os movimentos com o sinal do extrato e o saldo da linha mais recente', () => {
+    const analysis = analyzeRows(rows)
+    const { rows: txs, ignored, closingBalance } = buildTransactions(
+      analysis.dataRows, analysis.mapping, analysis.dateHint, analysis.openingBalance, analysis.statedClosingBalance,
+    )
+    expect(txs.map((t) => [t.date, t.description, t.amount, t.inflow])).toEqual([
+      ['2026-09-30', 'Supermercado Exemplo', 23.45, false],
+      ['2026-09-30', 'Levantamento Porto', 10, false],
+      ['2026-09-29', 'Trf. MB WAY de Fulano', 2.5, true],
+    ])
+    expect(ignored).toBe(0)
+    expect(closingBalance).toBe(1303.57)
+  })
+})
