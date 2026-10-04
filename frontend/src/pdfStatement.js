@@ -211,20 +211,28 @@ export async function extractPdfRows(data) {
   pdfjs.GlobalWorkerOptions.workerPort = worker
 
   const task = pdfjs.getDocument({ data })
-  const lines = []
-  let hasText = false
   try {
-    const doc = await task.promise
-    for (let p = 1; p <= doc.numPages; p++) {
-      const page = await doc.getPage(p)
-      const content = await page.getTextContent()
-      const items = mapTextItems(content.items)
-      if (content.items.some((it) => it.str && it.str.trim() !== '')) hasText = true
-      lines.push(...itemsToLines(items))
-    }
+    return await readPdfRows(await task.promise)
   } finally {
     await task.destroy()
     worker.terminate()
+  }
+}
+
+/**
+ * Lê as páginas de um documento já aberto pelo pdf.js. Separado do
+ * extractPdfRows para o teste com extratos reais (statementCorpus.test.js)
+ * percorrer o mesmo caminho em Node, onde o worker do Vite não existe.
+ */
+export async function readPdfRows(doc) {
+  const lines = []
+  let hasText = false
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p)
+    const content = await page.getTextContent()
+    const items = mapTextItems(content.items)
+    if (content.items.some((it) => it.str && it.str.trim() !== '')) hasText = true
+    lines.push(...itemsToLines(items))
   }
   return { rows: linesToTable(mergeWrappedLines(lines)), hasText }
 }

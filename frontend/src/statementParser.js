@@ -363,17 +363,53 @@ export function analyzeRows(rows) {
       mapping.debit = -1; mapping.credit = -1
       mapping.amount = find(/montante|^amount$|^valor\b|import[aâ]ncia|^value/)
     }
-    const brand = (re) => find(re) !== -1 || rows.slice(0, 40).some((r) => r.some((c) => re.test(c)))
-    if (brand(/santander/i)) format = 'santander'
-    else if (brand(/trade\s*republic/i)) format = 'traderepublic'
   }
 
   refineMappingWithData(mapping, headers, dataRows, dateHint)
+  if (format === 'generic') format = detectBank(rows, lower, mapping, dateHint)
 
   if (mapping.date === -1 || mapping.description === -1 || (mapping.amount === -1 && mapping.debit === -1)) {
     format = 'unknown'
   }
   return { format, headers, dataRows, mapping, dateHint, openingBalance, statedClosingBalance: closing ? closing.value : null }
+}
+
+// Bancos com extrato reconhecido. `header`: coluna que só o extrato desse banco
+// tem. `name`: nome do banco tal como aparece no texto institucional do extrato.
+// Na Revolut e na Trade Republic exige-se o nome legal ("Revolut Bank UAB",
+// "Trade Republic Bank GmbH"): o nome curto aparece nos extratos de outros
+// bancos, em carregamentos e transferências ("COMPRA REVOLUT**1234").
+const BANKS = [
+  { format: 'santander', header: /descritivo do movimento/, name: /santander/i },
+  { format: 'traderepublic', name: /trade\s*republic\s+bank/i },
+  { format: 'revolut', name: /revolut\s+bank/i },
+]
+
+/**
+ * Identifica o banco de um extrato com colunas genéricas. Primeiro pelo
+ * cabeçalho da tabela, que não depende do texto à volta. Depois pelo nome do
+ * banco no texto que não é movimento (títulos, rodapés, avisos legais), em
+ * qualquer ponto do documento. As linhas de movimento ficam de fora porque as
+ * descrições nomeiam outros bancos.
+ *
+ * Antes procurava-se o nome só nas primeiras 40 linhas. A partir de julho de
+ * 2026, o extrato do Santander passou a trazer o nome só no rodapé, depois da
+ * tabela: a importação continuava certa, mas o ecrã anunciava um extrato
+ * "genérico".
+ */
+function detectBank(rows, headers, mapping, dateHint) {
+  const bySignature = BANKS.find((b) => b.header && headers.some((h) => b.header.test(h)))
+  if (bySignature) return bySignature.format
+
+  const isMovement = (r) => parseDate(r[mapping.date], dateHint) != null
+    && [mapping.amount, mapping.debit, mapping.credit].some((k) => k !== -1 && parseAmount(r[k]) != null)
+  for (const r of rows) {
+    if (isMovement(r)) continue
+    const text = r.join(' ')
+    const bank = BANKS.find((b) => b.name.test(text))
+    if (bank) return bank.format
+  }
+  return 'generic'
 }
 
 /**

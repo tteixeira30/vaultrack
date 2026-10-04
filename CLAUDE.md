@@ -125,6 +125,10 @@ cd frontend && npx vite build     # apanha erros de JS/JSX/imports
 
 - **Backend**: JUnit via Maven (`backend/src/test`).
 - **Frontend**: Vitest + Testing Library (`cd frontend && npm run test:run`).
+- **Extratos reais** (`src/test/statementCorpus.test.js`): o parser corre sobre os extratos de
+  `frontend/statements-corpus/<formato>/` (git-ignored, são dados pessoais) e verifica invariantes:
+  banco detetado, nenhuma linha com valor descartada, saldos a bater ao cêntimo. No CI fica
+  *skipped*. Extrato de um banco com layout novo → junta-o à pasta antes de mexer no parser.
 - **E2E**: Playwright em TypeScript, contra a stack Docker completa (`e2e/`). Requer a stack a
   correr e registo aberto (`TRACKY_INVITE_CODE` vazio).
 

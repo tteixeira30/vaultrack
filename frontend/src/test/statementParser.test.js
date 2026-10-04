@@ -397,3 +397,51 @@ describe('CSV da Revolut — data alinhada com a do extrato PDF', () => {
     ])
   })
 })
+
+describe('analyzeRows — identifica o banco do extrato', () => {
+  // n movimentos de um extrato genérico (Data · Descrição · Montante · Saldo)
+  const movements = (n, description = (i) => `COMPRA ${i}`) => Array.from({ length: n }, (_, i) => [
+    `2026-08-${String((i % 28) + 1).padStart(2, '0')}`, description(i), '-1,00', `${1000 - i - 1},00`,
+  ])
+  const genericHeader = ['Data', 'Descrição', 'Montante', 'Saldo']
+
+  it('reconhece o Santander pelo cabeçalho da tabela, mesmo sem o nome do banco', () => {
+    const a = analyzeRows([
+      ['PERÍODO DE 2026-08-01 A 2026-08-31'],   // dá o ano às datas "03-08"
+      ['Detalhe de Movimentos da Conta à Ordem'],
+      ['Mov', 'Valor', 'Descritivo do Movimento', 'Moeda', 'Valor', 'Saldo'],
+      ['03-08', '03-08', 'COMPRA 1234 CONTINENTE', '', '-10,00', '990,00'],
+    ])
+    expect(a.format).toBe('santander')
+  })
+
+  it('encontra o nome do banco no rodapé, depois de dezenas de linhas', () => {
+    // o layout do Santander de julho de 2026: o nome só aparece no fim do documento
+    const a = analyzeRows([
+      genericHeader,
+      ...movements(50),
+      ['Pode consultar o preçário em qualquer balcão do Banco e em', 'www.santandertotta.pt .'],
+    ])
+    expect(a.format).toBe('santander')
+  })
+
+  it('reconhece a Revolut e a Trade Republic pelo nome legal no texto do extrato', () => {
+    expect(analyzeRows([['Extrato de EUR Revolut Bank UAB Sucursal em Portugal'], genericHeader, ...movements(3)]).format)
+      .toBe('revolut')
+    expect(analyzeRows([genericHeader, ...movements(3), ['Trade Republic Bank GmbH', 'www.traderepublic.com']]).format)
+      .toBe('traderepublic')
+  })
+
+  it('não confunde um banco nomeado num movimento com o banco do extrato', () => {
+    // carregamentos e transferências nomeiam outros bancos — os extratos do
+    // Santander trazem compras com "REVOLUT" na descrição
+    const a = analyzeRows([
+      genericHeader,
+      ...movements(3, (i) => ['COMPRA REVOLUT**1234', 'TRF P/ SANTANDER', 'TRADE REPUBLIC DEPOSIT'][i]),
+      // linhas de detalhe (sem data nem valor) com o nome curto, não o legal
+      ['', 'Referência: Enviado pela Revolut', '', ''],
+      ['', 'Para: Trade Republic', '', ''],
+    ])
+    expect(a.format).toBe('generic')
+  })
+})

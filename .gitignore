@@ -27,6 +27,8 @@ target/
 coverage/
 playwright-report/
 test-results/
+# extratos bancários reais para o statementCorpus.test.js — dados pessoais
+frontend/statements-corpus/
 
 # extra safety
 *.key
