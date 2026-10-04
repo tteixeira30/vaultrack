@@ -102,10 +102,14 @@ function valid(y, mo, d) {
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
-/** Converte texto monetário ("1.234,56", "-1,234.56", "(12,34)") para número; null se inválido. */
+/**
+ * Converte texto monetário ("1.234,56", "-1,234.56", "(12,34)", "-23,45 EUR") para
+ * número; null se inválido. Só aceita o código EUR: um "12,00 USD" dá null e a linha
+ * é ignorada, como as de outra moeda numa coluna própria.
+ */
 export function parseAmount(raw) {
   if (raw == null) return null
-  let s = String(raw).trim().replace(/[€$£\s]/g, '')
+  let s = String(raw).trim().replace(/[€$£\s]|eur/gi, '')
   if (!s) return null
   let negative = false
   if (/^\(.*\)$/.test(s)) { negative = true; s = s.slice(1, -1) }

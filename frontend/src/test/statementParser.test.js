@@ -20,6 +20,14 @@ describe('parseAmount — formatos monetários', () => {
   it('com símbolo de moeda e espaços', () => {
     expect(parseAmount(' 1 234,50 €')).toBe(1234.5)
   })
+  it('com o código EUR (descarga de movimentos do Santander)', () => {
+    expect(parseAmount('-23,45 EUR')).toBe(-23.45)
+    expect(parseAmount('1.234,56 EUR')).toBe(1234.56)
+    expect(parseAmount('EUR 12,00')).toBe(12)
+  })
+  it('noutra moeda devolve null — a linha é ignorada, não lida como euros', () => {
+    expect(parseAmount('12,00 USD')).toBeNull()
+  })
   it('vazio ou inválido devolve null', () => {
     expect(parseAmount('')).toBeNull()
     expect(parseAmount('abc')).toBeNull()
