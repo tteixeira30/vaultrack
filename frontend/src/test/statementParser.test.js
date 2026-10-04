@@ -253,7 +253,7 @@ describe('findClosingBalance — onde a tabela de movimentos fecha', () => {
   it('devolve o índice e o valor do "Saldo Contabilístico Final"', () => {
     expect(findClosingBalance([
       ['Mov', 'Descritivo do Movimento', 'Valor', 'Saldo'],
-      ['03-08', 'COMPRA *6222 UCI CINEMAS', '-25,40', '856,99'],
+      ['03-08', 'COMPRA *9876 UCI CINEMAS', '-25,40', '856,99'],
       ['', 'Saldo Contabilístico Final EUR', '', '1.684,21'],
     ], 1)).toEqual({ index: 2, value: 1684.21 })
   })
@@ -278,19 +278,19 @@ describe('extrato consolidado — a tabela acaba no saldo de fecho', () => {
   // escolhida (como rendimento) e os saldos deixavam de encadear, pelo que o saldo
   // de fecho era descartado e a conta ficava por atualizar.
   const rows = [
-    ['EXTRATO Nº', '84', 'CONTA Nº 0003.51145134020', 'PERÍODO DE 2026-08-01 A 2026-08-31'],
+    ['EXTRATO Nº', '84', 'CONTA Nº 0000.12345678901', 'PERÍODO DE 2026-08-01 A 2026-08-31'],
     ['Detalhe de Movimentos da Conta à Ordem'],
     ['Mov', 'Valor', 'Descritivo do Movimento', 'Moeda', 'Valor', 'Saldo'],
     ['', '', '', 'Saldo Inicial EUR', '', '1.302,79'],
-    ['03-08', '03-08', 'TRF.IMED. DE BARBARA FILIPA MARQUES CAM-97433692', '', '15,00', '1.317,79'],
-    ['03-08', '03-08', 'FUNDO DE EMERGÊNCIA-71373694', '', '-250,00', '1.067,79'],
+    ['03-08', '03-08', 'TRF.IMED. DE MARTA SOFIA EXEMPLO TES-58210374', '', '15,00', '1.317,79'],
+    ['03-08', '03-08', 'FUNDO DE EMERGÊNCIA-46829135', '', '-250,00', '1.067,79'],
     ['', '', '', 'Saldo Contabilístico Final EUR', '', '1.067,79'],
     ['', '', '', 'Saldo Disponível Final EUR', '', '1.020,23'],
     ['Detalhes de Movimentos da Conta Rendimento e Poupança'],
     ['Mov', 'Valor', 'Descritivo do Movimento', 'Moeda', 'Valor', 'Saldo'],
     ['', '', '', 'Saldo Inicial EUR', '', '660,00'],
-    ['03-08', '03-08', 'Fundo de emergência-71373694', '', '250,00', '910,00'],
-    ['27-08', '27-08', 'REFORCO CRP-02097499', '', '5,00', '915,00'],
+    ['03-08', '03-08', 'Fundo de emergência-46829135', '', '250,00', '910,00'],
+    ['27-08', '27-08', 'REFORCO CRP-31582460', '', '5,00', '915,00'],
     ['', '', '', 'Saldo Final EUR', '', '915,00'],
   ]
 
@@ -300,8 +300,8 @@ describe('extrato consolidado — a tabela acaba no saldo de fecho', () => {
 
     const { rows: txs } = buildTransactions(a.dataRows, a.mapping, a.dateHint, a.openingBalance, a.statedClosingBalance)
     expect(txs.map((r) => r.description)).toEqual([
-      'TRF.IMED. DE BARBARA FILIPA MARQUES CAM-97433692',
-      'FUNDO DE EMERGÊNCIA-71373694',
+      'TRF.IMED. DE MARTA SOFIA EXEMPLO TES-58210374',
+      'FUNDO DE EMERGÊNCIA-46829135',
     ])
   })
 

@@ -161,24 +161,24 @@ test.describe('despesas — importação de extrato', () => {
       current: {
         opening: 1000,
         movements: [
-          { day: 5, description: 'COMPRA 6222 CONTINENTE', amount: -45.3 },
+          { day: 5, description: 'COMPRA 9876 CONTINENTE', amount: -45.3 },
           { day: 6, description: 'TRF CRED SEPA ORDENADO', amount: 1500 },
-          { day: 7, description: 'COMPRA 6222 NETFLIX', amount: -12.99 },
+          { day: 7, description: 'COMPRA 9876 NETFLIX', amount: -12.99 },
         ],
       },
       savings: {
         opening: 500,
-        movements: [{ day: 8, description: 'REFORCO CRP-02097499', amount: 5 }],
+        movements: [{ day: 8, description: 'REFORCO CRP-31582460', amount: 5 }],
       },
     }
 
     await expensesPage.importStatementPdf(buildConsolidatedStatementPdf(statement), 3)
 
-    await expect(expensesPage.movement('COMPRA 6222 CONTINENTE')).toBeVisible()
+    await expect(expensesPage.movement('COMPRA 9876 CONTINENTE')).toBeVisible()
     await expect(expensesPage.movement('TRF CRED SEPA ORDENADO')).toBeVisible()
-    await expect(expensesPage.movement('COMPRA 6222 NETFLIX')).toBeVisible()
+    await expect(expensesPage.movement('COMPRA 9876 NETFLIX')).toBeVisible()
     // a poupança é outra conta: os seus movimentos não entram na conta escolhida
-    await expect(expensesPage.movement('REFORCO CRP-02097499')).toHaveCount(0)
+    await expect(expensesPage.movement('REFORCO CRP-31582460')).toHaveCount(0)
     // e o saldo passa a ser o que o banco declara no fim da conta à ordem
     await expect(expensesPage.toast).toContainText(eur(closingBalanceOf(statement)))
   })

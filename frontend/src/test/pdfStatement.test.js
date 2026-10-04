@@ -178,12 +178,12 @@ describe('extrato Trade Republic — do PDF aos movimentos', () => {
     item('OUT', 462, 488.9, 11.1, 5.25),
     item('BALANCE', 494.6, 491.9, 24.7, 5.25),
     item('17 Jul', 74.4, 472.6, 18.9, 6.75),
-    item('Incoming transfer from TIAGO ANDRE TORGO TEIXEIRA', 162.9, 472.6, 180.7, 6.75),
+    item('Incoming transfer from JOANA MARTA EXEMPLO TESTE', 162.9, 472.6, 180.7, 6.75),
     item('Transfer', 110.2, 468.9, 27.4, 6.75),
     item('€250.00', 432.6, 468.9, 27.8, 6.75),
     item('€250.00', 491.5, 468.9, 27.8, 6.75),
     item('2026', 74.4, 465.1, 17.2, 6.75),
-    item('(PT50001800035114513402081)', 162.9, 465.1, 112.1, 6.75),
+    item('(PT50000000001234567890135)', 162.9, 465.1, 112.1, 6.75),
     item('22 Jul', 74.4, 441, 18.9, 6.75),
     item('Card', 110.2, 441, 15.8, 6.75),
     item('EUREST ISEP', 162.9, 437.2, 41.4, 6.75),
@@ -216,7 +216,7 @@ describe('extrato Trade Republic — do PDF aos movimentos', () => {
     expect(txs).toEqual([
       {
         date: '2026-07-17',
-        description: 'Incoming transfer from TIAGO ANDRE TORGO TEIXEIRA (PT50001800035114513402081)',
+        description: 'Incoming transfer from JOANA MARTA EXEMPLO TESTE (PT50000000001234567890135)',
         amount: 250, inflow: true, category: 'TRANSFER',
       },
       { date: '2026-07-22', description: 'EUREST ISEP', amount: 1.8, inflow: false, category: 'RESTAURANT' },
@@ -263,9 +263,9 @@ describe('extrato Revolut PT — do PDF aos movimentos', () => {
     it9('02/07/2026', 42.7, 352.8, 47.8), it9('02/07/2026', 104.3, 352.8, 47.8),
     it9('Carregamento com Apple Pay através de', 165.8, 352.8, 163.1),
     it9('200,00€', 417.1, 352.8, 32.1), it9('218,84€', 523.5, 352.8, 32.1),
-    it9('*3181', 165.8, 339.8, 24.1),
+    it9('*4321', 165.8, 339.8, 24.1),
     // linha de detalhe do movimento (sem data nem valor) — não é um movimento
-    it9('De: *3181', 165.8, 328.5, 39.1),
+    it9('De: *4321', 165.8, 328.5, 39.1),
     // saída: valor na coluna "Dinheiro retirado"
     it9('03/07/2026', 42.7, 310.9, 47.8), it9('04/07/2026', 104.3, 310.9, 47.8),
     it9('Cafetaria Centro Hos', 165.8, 310.9, 83.8),
@@ -292,7 +292,7 @@ describe('extrato Revolut PT — do PDF aos movimentos', () => {
       analysis.dataRows, analysis.mapping, analysis.dateHint, analysis.openingBalance,
     )
     expect(txs).toEqual([
-      // a descrição fica pela 1.ª linha: o resto ("*3181") vem numa linha de
+      // a descrição fica pela 1.ª linha: o resto ("*4321") vem numa linha de
       // continuação igual às de detalhe ("De:", "Para:", "Cartão:"), que não
       // pertencem à descrição — juntá-las estragaria a chave de categorização
       {
@@ -301,7 +301,7 @@ describe('extrato Revolut PT — do PDF aos movimentos', () => {
       },
       { date: '2026-07-03', description: 'Cafetaria Centro Hos', amount: 2.85, inflow: false, category: 'OTHER' },
     ])
-    // as linhas de detalhe ("De: *3181") não contam como movimento falhado
+    // as linhas de detalhe ("De: *4321") não contam como movimento falhado
     expect(ignored).toBe(0)
   })
 
