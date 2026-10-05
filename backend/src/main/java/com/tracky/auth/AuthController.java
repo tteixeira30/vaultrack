@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -46,6 +47,14 @@ public class AuthController {
     private final String dummyHash;
 
     private AuditService audit = AuditService.NOOP;
+
+    /**
+     * Último RATE_LIMITED auditado por chave (endpoint, IP e email). Um cliente bloqueado que
+     * insista grava um evento por minuto, não um por pedido — senão enchia a tabela.
+     */
+    private final Map<String, Long> rateLimitedAudited = new ConcurrentHashMap<>();
+    private static final long RATE_LIMITED_AUDIT_MS = 60_000;
+    private static final int RATE_LIMITED_AUDIT_KEYS = 10_000;
 
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService,
                           @Value("${tracky.invite-code:}") String inviteCode, AuthRateLimiter rateLimiter) {
@@ -81,7 +90,9 @@ public class AuthController {
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req, HttpServletRequest http) {
         long wait = rateLimiter.tryRegister(http.getRemoteAddr());
         if (wait > 0) {
-            audit.security(AuditAction.RATE_LIMITED, null, AuditService.fields("endpoint", "register"));
+            if (firstRateLimitedInWindow("register|" + http.getRemoteAddr())) {
+                audit.security(AuditAction.RATE_LIMITED, null, AuditService.fields("endpoint", "register"));
+            }
             return tooManyRequests(wait);
         }
         if (req.password().getBytes(StandardCharsets.UTF_8).length > 72) {
@@ -112,8 +123,10 @@ public class AuthController {
         String email = req.email().trim().toLowerCase(Locale.ROOT);
         long wait = rateLimiter.tryLogin(http.getRemoteAddr(), email);
         if (wait > 0) {
-            Long userId = userRepository.findByEmail(email).map(User::getId).orElse(null);
-            audit.security(AuditAction.RATE_LIMITED, userId, AuditService.fields("endpoint", "login"));
+            if (firstRateLimitedInWindow("login|" + http.getRemoteAddr() + "|" + email)) {
+                Long userId = userRepository.findByEmail(email).map(User::getId).orElse(null);
+                audit.security(AuditAction.RATE_LIMITED, userId, AuditService.fields("endpoint", "login"));
+            }
             return tooManyRequests(wait);
         }
         Optional<User> user = userRepository.findByEmail(email);
@@ -150,6 +163,19 @@ public class AuthController {
         audit.updated(user.getId(), AuditEntity.USER, user.getId(), null,
                 AuditService.fields("baseCurrency", before), AuditService.fields("baseCurrency", c));
         return toDto(user);
+    }
+
+    private boolean firstRateLimitedInWindow(String key) {
+        long now = System.currentTimeMillis();
+        // teto de memória: limpar tudo só faz com que se volte a auditar um bloqueio já registado
+        if (rateLimitedAudited.size() > RATE_LIMITED_AUDIT_KEYS) rateLimitedAudited.clear();
+        boolean[] first = {false};
+        rateLimitedAudited.compute(key, (k, last) -> {
+            if (last != null && now - last < RATE_LIMITED_AUDIT_MS) return last;
+            first[0] = true;
+            return now;
+        });
+        return first[0];
     }
 
     /** Comparação em tempo constante, para o tempo de resposta não revelar o código. */

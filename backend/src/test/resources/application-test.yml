@@ -7,6 +7,9 @@ tracky:
   # AuthRateLimitIntegrationTest liga-o com os limites estritos.
   rate-limit:
     enabled: false
+  # grava a auditoria na thread do pedido, para os testes verem o evento logo a seguir
+  audit:
+    async: false
 
 spring:
   jpa:

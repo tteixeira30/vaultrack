@@ -25,7 +25,30 @@ class AuditWriterTest {
         PlatformTransactionManager tx = mock(PlatformTransactionManager.class);
         when(tx.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
 
-        assertThatCode(() -> new AuditWriter(repo, tx).on(record())).doesNotThrowAnyException();
+        assertThatCode(() -> new AuditWriter(repo, tx, Runnable::run).on(record())).doesNotThrowAnyException();
+    }
+
+    @Test
+    void emModoAssincronoGravaNumaThreadPropria() throws Exception {
+        AuditEventRepository repo = mock(AuditEventRepository.class);
+        PlatformTransactionManager tx = mock(PlatformTransactionManager.class);
+        when(tx.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        AuditWriter writer = new AuditWriter(repo, tx, true);
+
+        writer.on(record());
+
+        org.mockito.Mockito.verify(repo, org.mockito.Mockito.timeout(2000)).save(any());
+        writer.shutdown();
+    }
+
+    @Test
+    void filaCheiaNaoLanca() {
+        AuditEventRepository repo = mock(AuditEventRepository.class);
+        PlatformTransactionManager tx = mock(PlatformTransactionManager.class);
+        AuditWriter writer = new AuditWriter(repo, tx,
+                r -> { throw new java.util.concurrent.RejectedExecutionException("cheia"); });
+
+        assertThatCode(() -> writer.on(record())).doesNotThrowAnyException();
     }
 
     @Test
@@ -35,6 +58,6 @@ class AuditWriterTest {
         when(tx.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         org.mockito.Mockito.doThrow(new IllegalStateException("commit")).when(tx).commit(any());
 
-        assertThatCode(() -> new AuditWriter(repo, tx).on(record())).doesNotThrowAnyException();
+        assertThatCode(() -> new AuditWriter(repo, tx, Runnable::run).on(record())).doesNotThrowAnyException();
     }
 }
