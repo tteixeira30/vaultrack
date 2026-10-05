@@ -25,6 +25,7 @@ import {
   IconUpload, IconRefresh,
 } from './components/Icons'
 import { api, setPrivacyMode, CURRENCY_SYMBOLS } from './api'
+import ErrorBoundary from './components/ErrorBoundary'
 
 /** Ecrã inicial a partir do URL, para o refresh e as ligações diretas. */
 const screenFromHash = () => {
@@ -367,23 +368,25 @@ function Shell() {
 
         {/* key: reinicia a animação de entrada a cada troca de ecrã */}
         <div className="page-swap" key={`${screen}-${baseCurrency}-${privacy ? 'p1' : 'p0'}`}>
-          {screen === 'dashboard' && <DashboardPage onGo={go} />}
-          {screen === 'income' && <IncomePage />}
-          {screen === 'expenses' && <ExpensesPage />}
-          {screen === 'investments' && <InvestmentsPage />}
-          {screen === 'goals' && <GoalsPage />}
-          {screen === 'calendar' && <CalendarPage />}
-          {screen === 'achievements' && <AchievementsPage />}
-          {screen === 'accounts' && <AccountsPage />}
-          {screen === 'profile' && (
-            <ProfilePage
-              user={user} initials={initials}
-              baseCurrency={baseCurrency} changeCurrency={changeCurrency} rateLive={rateLive}
-              currencies={currencies}
-              privacy={privacy} togglePrivacy={togglePrivacy}
-              onGo={go} onLogout={logout}
-            />
-          )}
+          <ErrorBoundary>
+            {screen === 'dashboard' && <DashboardPage onGo={go} />}
+            {screen === 'income' && <IncomePage />}
+            {screen === 'expenses' && <ExpensesPage />}
+            {screen === 'investments' && <InvestmentsPage />}
+            {screen === 'goals' && <GoalsPage />}
+            {screen === 'calendar' && <CalendarPage />}
+            {screen === 'achievements' && <AchievementsPage />}
+            {screen === 'accounts' && <AccountsPage />}
+            {screen === 'profile' && (
+              <ProfilePage
+                user={user} initials={initials}
+                baseCurrency={baseCurrency} changeCurrency={changeCurrency} rateLive={rateLive}
+                currencies={currencies}
+                privacy={privacy} togglePrivacy={togglePrivacy}
+                onGo={go} onLogout={logout}
+              />
+            )}
+          </ErrorBoundary>
         </div>
       </main>
 
@@ -399,16 +402,18 @@ function Shell() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <MonthProvider>
-            <IntentProvider>
-              <Shell />
-            </IntentProvider>
-          </MonthProvider>
-        </AuthProvider>
-      </ToastProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <MonthProvider>
+              <IntentProvider>
+                <Shell />
+              </IntentProvider>
+            </MonthProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }

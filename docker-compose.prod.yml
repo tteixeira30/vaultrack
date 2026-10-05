@@ -1,7 +1,15 @@
+# Logs no stdout do Docker, com rotação: no máximo 5 × 10 MB por serviço.
+x-logging: &logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "5"
+
 services:
   db:
     image: postgres:16-alpine
     container_name: tracky-db
+    logging: *logging
     environment:
       POSTGRES_DB: tracky
       POSTGRES_USER: tracky
@@ -18,6 +26,7 @@ services:
   backend:
     build: ./backend
     container_name: tracky-backend
+    logging: *logging
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/tracky
       SPRING_DATASOURCE_USERNAME: tracky
@@ -27,6 +36,10 @@ services:
       # Origens CORS: o próprio domínio + as da WebView do Capacitor (app mobile).
       # Sem valor no .env usa estas; o "*" de desenvolvimento não vale em produção.
       TRACKY_CORS_ORIGINS: ${TRACKY_CORS_ORIGINS:-https://${DOMAIN},http://localhost,https://localhost,capacitor://localhost}
+      # Logs em JSON (uma linha por evento, com requestId/userId em campos próprios).
+      LOGGING_STRUCTURED_FORMAT_CONSOLE: ecs
+      # Dias que os eventos de auditoria ficam guardados (0 = não apagar).
+      TRACKY_AUDIT_RETENTION_DAYS: ${TRACKY_AUDIT_RETENTION_DAYS:-365}
     depends_on:
       db:
         condition: service_healthy
@@ -35,6 +48,7 @@ services:
   frontend:
     build: ./frontend
     container_name: tracky-frontend
+    logging: *logging
     depends_on:
       - backend
     restart: unless-stopped
@@ -44,6 +58,7 @@ services:
   caddy:
     image: caddy:2-alpine
     container_name: tracky-caddy
+    logging: *logging
     ports:
       - "80:80"
       - "443:443"

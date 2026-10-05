@@ -28,9 +28,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
                         // o dispatch interno de erros tem de passar, senão respostas 4xx viram 401
                         .requestMatchers("/error").permitAll()
+                        // vista de admin (auditoria de todos); o controller volta a verificar
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
-                .exceptionHandling(e -> e.authenticationEntryPoint(
-                        (req, res, ex) -> res.sendError(HttpStatus.UNAUTHORIZED.value())))
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint((req, res, ex) -> res.sendError(HttpStatus.UNAUTHORIZED.value()))
+                        .accessDeniedHandler((req, res, ex) -> res.sendError(HttpStatus.FORBIDDEN.value(), "Sem permissão.")))
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

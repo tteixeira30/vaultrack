@@ -2,6 +2,7 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import App from './App'
+import { installGlobalHandlers } from './clientErrors'
 // Fontes self-hosted (só o subconjunto latin, que cobre o português).
 import '@fontsource/manrope/latin-400.css'
 import '@fontsource/manrope/latin-500.css'
@@ -25,6 +26,9 @@ registerSW({
     if (registration) setInterval(() => registration.update(), 60 * 60 * 1000)
   },
 })
+
+// exceções não apanhadas e promessas rejeitadas vão para o log do servidor
+installGlobalHandlers()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

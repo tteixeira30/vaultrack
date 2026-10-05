@@ -31,6 +31,12 @@ public class User {
 
     private Instant createdAt = Instant.now();
 
+    /**
+     * Vê a auditoria de todos os utilizadores. Só se promove por SQL
+     * ({@code UPDATE users SET admin = true WHERE id = ...}); nulo nas linhas antigas = false.
+     */
+    private Boolean admin;
+
     public Long getId() { return id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -41,4 +47,5 @@ public class User {
     public String getBaseCurrency() { return baseCurrency == null ? "EUR" : baseCurrency; }
     public void setBaseCurrency(String baseCurrency) { this.baseCurrency = baseCurrency; }
     public Instant getCreatedAt() { return createdAt; }
+    public boolean isAdmin() { return Boolean.TRUE.equals(admin); }
 }

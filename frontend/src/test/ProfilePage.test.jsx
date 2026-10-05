@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import ProfilePage from '../pages/ProfilePage'
 import { ThemeProvider } from '../components/ThemeContext'
+import { api } from '../api'
 
 const props = {
   user: { name: 'Ana Silva', email: 'ana@ex.com' },
@@ -22,6 +23,8 @@ const renderProfile = (over = {}) => render(
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // o cartão "Atividade recente" faz o pedido ao montar
+    vi.spyOn(api, 'getActivity').mockResolvedValue({ events: [], nextBefore: null })
     localStorage.clear()
     window.matchMedia = vi.fn().mockReturnValue({
       matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(),
@@ -66,6 +69,17 @@ describe('ProfilePage', () => {
     expect(screen.getByRole('button', { name: /EUR/ })).toHaveAttribute('aria-pressed', 'true')
     await user.click(screen.getByRole('button', { name: /GBP/ }))
     expect(props.changeCurrency).toHaveBeenCalledWith('GBP')
+  })
+
+  it('mostra a atividade recente e o interruptor de admin só a admins', async () => {
+    renderProfile()
+    expect(await screen.findByRole('heading', { name: 'Atividade recente' })).toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'De quem' })).not.toBeInTheDocument()
+  })
+
+  it('um admin vê o interruptor "Só eu · Todos os utilizadores"', async () => {
+    renderProfile({ user: { ...props.user, admin: true } })
+    expect(await screen.findByRole('group', { name: 'De quem' })).toBeInTheDocument()
   })
 
   it('as ligações para contas e terminar sessão funcionam', async () => {

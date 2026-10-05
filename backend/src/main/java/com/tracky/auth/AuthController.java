@@ -1,11 +1,15 @@
 package com.tracky.auth;
 
+import com.tracky.audit.AuditAction;
+import com.tracky.audit.AuditEntity;
+import com.tracky.audit.AuditService;
 import com.tracky.currency.CurrencyService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -21,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -41,6 +46,16 @@ public class AuthController {
      */
     private final String dummyHash;
 
+    private AuditService audit = AuditService.NOOP;
+
+    /**
+     * Último RATE_LIMITED auditado por chave (endpoint, IP e email). Um cliente bloqueado que
+     * insista grava um evento por minuto, não um por pedido — senão enchia a tabela.
+     */
+    private final Map<String, Long> rateLimitedAudited = new ConcurrentHashMap<>();
+    private static final long RATE_LIMITED_AUDIT_MS = 60_000;
+    private static final int RATE_LIMITED_AUDIT_KEYS = 10_000;
+
     public AuthController(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService,
                           @Value("${tracky.invite-code:}") String inviteCode, AuthRateLimiter rateLimiter) {
         this.userRepository = userRepository;
@@ -49,6 +64,11 @@ public class AuthController {
         this.inviteCode = inviteCode == null ? "" : inviteCode.trim();
         this.rateLimiter = rateLimiter;
         this.dummyHash = passwordEncoder.encode(UUID.randomUUID().toString());
+    }
+
+    @Autowired
+    void setAudit(AuditService audit) {
+        this.audit = audit;
     }
 
     // max 72 na palavra-passe: o BCrypt só usa os primeiros 72 bytes e recusa mais ao gerar o hash
@@ -60,7 +80,7 @@ public class AuthController {
     /** Sem mínimo na palavra-passe: contas antigas foram criadas quando o mínimo era 6. */
     public record LoginRequest(@NotBlank @Size(max = 254, message = "Email ou palavra-passe incorretos.") String email,
                                @NotBlank String password) {}
-    public record UserDto(Long id, String name, String email, String baseCurrency) {}
+    public record UserDto(Long id, String name, String email, String baseCurrency, boolean admin) {}
     public record AuthResponse(String token, UserDto user) {}
     public record CurrencyRequest(@NotBlank @Size(max = 10, message = "Moeda não suportada.") String baseCurrency) {}
 
@@ -69,12 +89,18 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest req, HttpServletRequest http) {
         long wait = rateLimiter.tryRegister(http.getRemoteAddr());
-        if (wait > 0) return tooManyRequests(wait);
+        if (wait > 0) {
+            if (firstRateLimitedInWindow("register|" + http.getRemoteAddr())) {
+                audit.security(AuditAction.RATE_LIMITED, null, AuditService.fields("endpoint", "register"));
+            }
+            return tooManyRequests(wait);
+        }
         if (req.password().getBytes(StandardCharsets.UTF_8).length > 72) {
             // caracteres acentuados ocupam mais de um byte; o @Size só conta caracteres
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A palavra-passe é demasiado longa.");
         }
         if (!inviteCode.isEmpty() && !inviteMatches(req.inviteCode())) {
+            audit.security(AuditAction.INVITE_REJECTED, null, null);
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(Map.of("message", "Código de convite inválido."));
         }
@@ -88,6 +114,7 @@ public class AuthController {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(req.password()));
         user = userRepository.save(user);
+        audit.security(AuditAction.REGISTERED, user.getId(), null);
         return ResponseEntity.ok(new AuthResponse(jwtService.generate(user.getId()), toDto(user)));
     }
 
@@ -95,17 +122,27 @@ public class AuthController {
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest req, HttpServletRequest http) {
         String email = req.email().trim().toLowerCase(Locale.ROOT);
         long wait = rateLimiter.tryLogin(http.getRemoteAddr(), email);
-        if (wait > 0) return tooManyRequests(wait);
+        if (wait > 0) {
+            if (firstRateLimitedInWindow("login|" + http.getRemoteAddr() + "|" + email)) {
+                Long userId = userRepository.findByEmail(email).map(User::getId).orElse(null);
+                audit.security(AuditAction.RATE_LIMITED, userId, AuditService.fields("endpoint", "login"));
+            }
+            return tooManyRequests(wait);
+        }
         Optional<User> user = userRepository.findByEmail(email);
         // sem conta, verifica na mesma contra o hash fictício: o custo do BCrypt é igual nos dois casos
         String hash = user.map(User::getPasswordHash).orElse(dummyHash);
         boolean matches = passwordEncoder.matches(req.password(), hash);
+        // exatamente um evento em cada caso (com ou sem conta): gravar só quando a conta
+        // existe voltava a revelar, pelo tempo de resposta, que emails estão registados
         if (user.isEmpty() || !matches) {
+            audit.security(AuditAction.LOGIN_FAILED, user.map(User::getId).orElse(null), null);
             rateLimiter.loginFailed(email);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(Map.of("message", "Email ou palavra-passe incorretos."));
         }
         rateLimiter.loginSucceeded(email);
+        audit.security(AuditAction.LOGIN_SUCCEEDED, user.get().getId(), null);
         return ResponseEntity.ok(new AuthResponse(jwtService.generate(user.get().getId()), toDto(user.get())));
     }
 
@@ -120,9 +157,25 @@ public class AuthController {
         if (!CurrencyService.SUPPORTED.contains(c)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Moeda não suportada: " + req.baseCurrency());
         }
+        String before = user.getBaseCurrency();
         user.setBaseCurrency(c);
         userRepository.save(user);
+        audit.updated(user.getId(), AuditEntity.USER, user.getId(), null,
+                AuditService.fields("baseCurrency", before), AuditService.fields("baseCurrency", c));
         return toDto(user);
+    }
+
+    private boolean firstRateLimitedInWindow(String key) {
+        long now = System.currentTimeMillis();
+        // teto de memória: limpar tudo só faz com que se volte a auditar um bloqueio já registado
+        if (rateLimitedAudited.size() > RATE_LIMITED_AUDIT_KEYS) rateLimitedAudited.clear();
+        boolean[] first = {false};
+        rateLimitedAudited.compute(key, (k, last) -> {
+            if (last != null && now - last < RATE_LIMITED_AUDIT_MS) return last;
+            first[0] = true;
+            return now;
+        });
+        return first[0];
     }
 
     /** Comparação em tempo constante, para o tempo de resposta não revelar o código. */
@@ -139,6 +192,6 @@ public class AuthController {
     }
 
     private UserDto toDto(User u) {
-        return new UserDto(u.getId(), u.getName(), u.getEmail(), u.getBaseCurrency());
+        return new UserDto(u.getId(), u.getName(), u.getEmail(), u.getBaseCurrency(), u.isAdmin());
     }
 }

@@ -1,5 +1,8 @@
 package com.tracky.calendar;
 
+import com.tracky.audit.AuditEntity;
+import com.tracky.audit.AuditService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.tracky.auth.User;
 import com.tracky.expense.Account;
 import com.tracky.expense.AccountRepository;
@@ -23,6 +26,7 @@ import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/calendar")
@@ -39,6 +43,13 @@ public class CalendarController {
         this.investmentRepo = investmentRepo;
         this.goalRepo = goalRepo;
         this.accountRepo = accountRepo;
+    }
+
+    private AuditService audit = AuditService.NOOP;
+
+    @Autowired
+    void setAudit(AuditService audit) {
+        this.audit = audit;
     }
 
     // ---------- DTOs ----------
@@ -118,20 +129,35 @@ public class CalendarController {
         CalendarEvent e = new CalendarEvent();
         e.setUserId(user.getId());
         apply(e, req);
-        return toDto(repo.save(e));
+        e = repo.save(e);
+        audit.created(user.getId(), AuditEntity.CALENDAR_EVENT, e.getId(), e.getName(), auditFields(e));
+        return toDto(e);
     }
 
     @PutMapping("/events/{id}")
     public EventDto update(@AuthenticationPrincipal User user, @PathVariable Long id,
                            @Valid @RequestBody EventRequest req) {
         CalendarEvent e = repo.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Evento não encontrado."));
+        var before = auditFields(e);
         apply(e, req);
-        return toDto(repo.save(e));
+        e = repo.save(e);
+        audit.updated(user.getId(), AuditEntity.CALENDAR_EVENT, e.getId(), e.getName(), before, auditFields(e));
+        return toDto(e);
     }
 
     @DeleteMapping("/events/{id}")
     public void delete(@AuthenticationPrincipal User user, @PathVariable Long id) {
-        repo.findByIdAndUserId(id, user.getId()).ifPresent(repo::delete);
+        repo.findByIdAndUserId(id, user.getId()).ifPresent(e -> {
+            repo.delete(e);
+            audit.deleted(user.getId(), AuditEntity.CALENDAR_EVENT, e.getId(), e.getName(), auditFields(e));
+        });
+    }
+
+    /** Os campos que a auditoria regista (antes/depois). Montantes em EUR. */
+    private static Map<String, Object> auditFields(CalendarEvent e) {
+        return AuditService.fields("name", e.getName(), "category", e.getCategory(), "inflow", e.isInflow(),
+                "amount", e.getAmount(), "frequency", e.getFrequency(), "dayOfMonth", e.getDayOfMonth(),
+                "eventDate", e.getEventDate(), "active", e.isActive());
     }
 
     // ---------- internals ----------

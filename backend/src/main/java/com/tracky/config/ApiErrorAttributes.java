@@ -21,6 +21,10 @@ import java.util.Map;
  * - Erros de validação (@Valid): a mensagem do primeiro campo inválido, em vez do
  *   resumo técnico do Spring, para o utilizador ver o texto PT-PT da anotação.
  * - Restantes 4xx: inalterados (motivo do ResponseStatusException).
+ *
+ * Os 5xx levam também {@code ref} (o requestId do RequestLogFilter): é o que o utilizador
+ * cita para se encontrar a linha do log. Vai no corpo e não só no header, porque a APK
+ * faz pedidos cross-origin e o JS não lê headers que não estejam expostos.
  */
 @Component
 public class ApiErrorAttributes extends DefaultErrorAttributes {
@@ -37,9 +41,11 @@ public class ApiErrorAttributes extends DefaultErrorAttributes {
         int status = code instanceof Integer s ? s : 500;
 
         if (status >= 500) {
-            log.error("Erro {} em {}", status,
-                    request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI, RequestAttributes.SCOPE_REQUEST), error);
+            Object ref = request.getAttribute(RequestLogFilter.REQUEST_ID_ATTR, RequestAttributes.SCOPE_REQUEST);
+            log.error("Erro {} em {} (ref {})", status,
+                    request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI, RequestAttributes.SCOPE_REQUEST), ref, error);
             attrs.put("message", GENERIC_500);
+            if (ref != null) attrs.put("ref", ref.toString());
             attrs.remove("exception");
             attrs.remove("trace");
             attrs.remove("errors");

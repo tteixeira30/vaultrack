@@ -45,10 +45,25 @@ async function request(path, options = {}) {
   const text = await res.text()
   if (!res.ok) {
     let message = `Erro ${res.status}`
-    try { message = JSON.parse(text).message || message } catch { if (text) message = text }
+    try {
+      const body = JSON.parse(text)
+      message = body.message || message
+      // os 5xx trazem a ref do pedido: é o que permite encontrar a linha no log do servidor
+      if (body.ref) message = `${message} (ref. ${body.ref})`
+    } catch { if (text) message = text }
     throw httpError(message, res.status)
   }
   return text ? JSON.parse(text) : null
+}
+
+/** kind (security|data), before (cursor) e userId (só admin) → query string; vazios ficam de fora. */
+const activityQuery = ({ kind, before, userId } = {}) => {
+  const q = new URLSearchParams()
+  if (kind) q.set('kind', kind)
+  if (before) q.set('before', before)
+  if (userId) q.set('userId', userId)
+  const s = q.toString()
+  return s ? `?${s}` : ''
 }
 
 export const api = {
@@ -60,6 +75,13 @@ export const api = {
 
   // Contagens dos indicadores da navegação (os números da sidebar)
   getNavCounts: () => request('/nav'),
+
+  // Atividade (auditoria): a do próprio e, para admins, a de todos
+  getActivity: (opts = {}) => request(`/audit${activityQuery(opts)}`),
+  getAdminActivity: (opts = {}) => request(`/admin/audit${activityQuery(opts)}`),
+
+  // Erros do frontend para o log do servidor (ver clientErrors.js)
+  reportClientError: (data) => request('/client-errors', { method: 'POST', body: JSON.stringify(data) }),
 
   // Calendário financeiro
   getCalendar: (month) => request(`/calendar${month ? `?month=${month}` : ''}`),

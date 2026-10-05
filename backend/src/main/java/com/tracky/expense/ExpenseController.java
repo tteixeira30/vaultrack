@@ -1,5 +1,9 @@
 package com.tracky.expense;
 
+import com.tracky.audit.AuditAction;
+import com.tracky.audit.AuditEntity;
+import com.tracky.audit.AuditService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.tracky.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -47,6 +51,13 @@ public class ExpenseController {
         this.transactions = transactions;
         this.rules = rules;
         this.categories = categories;
+    }
+
+    private AuditService audit = AuditService.NOOP;
+
+    @Autowired
+    void setAudit(AuditService audit) {
+        this.audit = audit;
     }
 
     /** currentBalance opcional, em EUR; null = limpar/não definido. */
@@ -102,16 +113,21 @@ public class ExpenseController {
         a.setUserId(user.getId());
         a.setName(req.name().trim());
         a.setCurrentBalance(roundBalance(req.currentBalance()));
-        return toDto(user, accounts.save(a));
+        a = accounts.save(a);
+        audit.created(user.getId(), AuditEntity.ACCOUNT, a.getId(), a.getName(), auditFields(a));
+        return toDto(user, a);
     }
 
     @PutMapping("/accounts/{id}")
     public AccountDto updateAccount(@AuthenticationPrincipal User user, @PathVariable Long id,
                                     @Valid @RequestBody AccountRequest req) {
         Account a = accounts.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Conta não encontrada."));
+        var before = auditFields(a);
         a.setName(req.name().trim());
         a.setCurrentBalance(roundBalance(req.currentBalance()));
-        return toDto(user, accounts.save(a));
+        a = accounts.save(a);
+        audit.updated(user.getId(), AuditEntity.ACCOUNT, a.getId(), a.getName(), before, auditFields(a));
+        return toDto(user, a);
     }
 
     /** Elimina a conta e todos os movimentos associados. */
@@ -119,8 +135,12 @@ public class ExpenseController {
     @Transactional
     public void deleteAccount(@AuthenticationPrincipal User user, @PathVariable Long id) {
         accounts.findByIdAndUserId(id, user.getId()).ifPresent(a -> {
+            long count = transactions.countByUserIdAndAccountId(user.getId(), a.getId());
             transactions.deleteByUserIdAndAccountId(user.getId(), a.getId());
             accounts.delete(a);
+            var values = auditFields(a);
+            values.put("transactions", count);
+            audit.deleted(user.getId(), AuditEntity.ACCOUNT, a.getId(), a.getName(), values);
         });
     }
 
@@ -221,6 +241,9 @@ public class ExpenseController {
         TransactionDto dto = toDto(transactions.save(t), Map.of(a.getId(), a.getName()));
         shiftBalance(a, effect(t.getAmount(), t.isInflow()));
         if (Boolean.TRUE.equals(req.applyToSimilar())) applyCategoryRule(user, t.getDescription(), t.getCategory());
+        var values = auditFields(t);
+        if (Boolean.TRUE.equals(req.applyToSimilar())) values.put("applyToSimilar", true);
+        audit.created(user.getId(), AuditEntity.TRANSACTION, t.getId(), t.getDescription(), values);
         return dto;
     }
 
@@ -231,6 +254,7 @@ public class ExpenseController {
         Transaction t = transactions.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Movimento não encontrado."));
         Long fromAccountId = t.getAccountId();
         BigDecimal before = effect(t.getAmount(), t.isInflow());
+        var auditBefore = auditFields(t);
 
         Account a = requireAccount(user, req.accountId());
         t.setAccountId(a.getId());
@@ -249,6 +273,10 @@ public class ExpenseController {
         }
 
         if (Boolean.TRUE.equals(req.applyToSimilar())) applyCategoryRule(user, t.getDescription(), t.getCategory());
+        var auditAfter = auditFields(t);
+        // aplicar a categoria aos semelhantes muda outros movimentos: fica registado mesmo sem outra mudança
+        if (Boolean.TRUE.equals(req.applyToSimilar())) auditAfter.put("applyToSimilar", true);
+        audit.updated(user.getId(), AuditEntity.TRANSACTION, t.getId(), t.getDescription(), auditBefore, auditAfter);
         return dto;
     }
 
@@ -262,7 +290,11 @@ public class ExpenseController {
 
     @DeleteMapping("/rules/{id}")
     public void deleteRule(@AuthenticationPrincipal User user, @PathVariable Long id) {
-        rules.findByIdAndUserId(id, user.getId()).ifPresent(rules::delete);
+        rules.findByIdAndUserId(id, user.getId()).ifPresent(r -> {
+            rules.delete(r);
+            audit.deleted(user.getId(), AuditEntity.CATEGORY_RULE, r.getId(), r.getMatchKey(),
+                    AuditService.fields("matchKey", r.getMatchKey(), "category", r.getCategory()));
+        });
     }
 
     /**
@@ -294,6 +326,7 @@ public class ExpenseController {
     public void delete(@AuthenticationPrincipal User user, @PathVariable Long id) {
         transactions.findByIdAndUserId(id, user.getId()).ifPresent(t -> {
             transactions.delete(t);
+            audit.deleted(user.getId(), AuditEntity.TRANSACTION, t.getId(), t.getDescription(), auditFields(t));
             accounts.findByIdAndUserId(t.getAccountId(), user.getId())
                     .ifPresent(a -> shiftBalance(a, effect(t.getAmount(), t.isInflow()).negate()));
         });
@@ -315,7 +348,9 @@ public class ExpenseController {
         c.setCatKey(makeKey(user, label));
         c.setLabel(truncateLabel(label));
         c.setColor(normalizeColor(req.color()));
-        return toDto(categories.save(c));
+        c = categories.save(c);
+        audit.created(user.getId(), AuditEntity.CATEGORY, c.getId(), c.getLabel(), auditFields(c));
+        return toDto(c);
     }
 
     @PutMapping("/categories/{id}")
@@ -324,9 +359,12 @@ public class ExpenseController {
         ExpenseCategory c = categories.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Categoria não encontrada."));
         String label = req.label() == null ? "" : req.label().trim();
         if (label.isEmpty()) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Indica o nome da categoria.");
+        var before = auditFields(c);
         c.setLabel(truncateLabel(label));
         c.setColor(normalizeColor(req.color()));
-        return toDto(categories.save(c));
+        c = categories.save(c);
+        audit.updated(user.getId(), AuditEntity.CATEGORY, c.getId(), c.getLabel(), before, auditFields(c));
+        return toDto(c);
     }
 
     /**
@@ -348,6 +386,9 @@ public class ExpenseController {
                     .toList();
             rules.deleteAll(ruleHits);
             categories.delete(c);
+            var values = auditFields(c);
+            values.put("transactionsMovedToOther", affected.size());
+            audit.deleted(user.getId(), AuditEntity.CATEGORY, c.getId(), c.getLabel(), values);
         });
     }
 
@@ -430,10 +471,28 @@ public class ExpenseController {
             a.setCurrentBalance(roundBalance(req.closingBalance()));
             accounts.save(a);
         }
+        audit.record(user.getId(), AuditAction.IMPORTED, AuditEntity.ACCOUNT, a.getId(),
+                AuditService.fields("label", a.getName(), "rows", req.rows().size(), "imported", imported,
+                        "skipped", skipped, "from", min, "to", max, "closingBalance", req.closingBalance()));
         return new ImportResult(imported, skipped, a.getCurrentBalance());
     }
 
     // ---------- Helpers ----------
+
+    /** Os campos que a auditoria regista (antes/depois). Montantes em EUR. */
+    private static Map<String, Object> auditFields(Account a) {
+        return AuditService.fields("name", a.getName(), "currentBalance", a.getCurrentBalance());
+    }
+
+    private static Map<String, Object> auditFields(Transaction t) {
+        return AuditService.fields("accountId", t.getAccountId(), "date", t.getTxDate(),
+                "description", t.getDescription(), "amount", t.getAmount(), "inflow", t.isInflow(),
+                "category", t.getCategory());
+    }
+
+    private static Map<String, Object> auditFields(ExpenseCategory c) {
+        return AuditService.fields("key", c.getCatKey(), "label", c.getLabel(), "color", c.getColor());
+    }
 
     /** Categorias ordenadas por total decrescente; null/vazio → lista vazia. */
     private static List<CategoryTotal> sortedCategories(Map<String, BigDecimal> byCategory) {

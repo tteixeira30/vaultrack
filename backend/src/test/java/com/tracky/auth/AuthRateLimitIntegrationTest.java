@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -74,6 +75,25 @@ class AuthRateLimitIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(header().string("Retry-After", "900"))
                 .andExpect(jsonPath("$.message")
                         .value("Demasiadas tentativas. Tenta novamente daqui a alguns minutos."));
+    }
+
+    @Autowired com.tracky.audit.AuditEventRepository auditRepo;
+
+    /** Um cliente bloqueado que insista grava um RATE_LIMITED por minuto, não um por pedido. */
+    @Test
+    void pedidosBloqueadosGravamUmSoEventoNaAuditoria() throws Exception {
+        String ip = newIp();
+        String email = email();
+        String body = register(ip, email).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long userId = ((Number) com.jayway.jsonpath.JsonPath.read(body, "$.user.id")).longValue();
+
+        for (int i = 0; i < 5; i++) login(ip, email, "errada999").andExpect(status().isUnauthorized());
+        for (int i = 0; i < 4; i++) login(ip, email, "errada999").andExpect(status().isTooManyRequests());
+
+        var events = auditRepo.findForUser(userId, "SECURITY", null, org.springframework.data.domain.Pageable.ofSize(50));
+        assertThat(events).filteredOn(e -> e.getAction().equals("RATE_LIMITED")).hasSize(1);
+        assertThat(events).filteredOn(e -> e.getAction().equals("LOGIN_FAILED")).hasSize(5);
     }
 
     @Test
