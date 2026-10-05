@@ -80,6 +80,9 @@ export const api = {
   getActivity: (opts = {}) => request(`/audit${activityQuery(opts)}`),
   getAdminActivity: (opts = {}) => request(`/admin/audit${activityQuery(opts)}`),
 
+  // Erros do frontend para o log do servidor (ver clientErrors.js)
+  reportClientError: (data) => request('/client-errors', { method: 'POST', body: JSON.stringify(data) }),
+
   // Calendário financeiro
   getCalendar: (month) => request(`/calendar${month ? `?month=${month}` : ''}`),
   getUpcoming: (days = 60) => request(`/calendar/upcoming?days=${days}`),

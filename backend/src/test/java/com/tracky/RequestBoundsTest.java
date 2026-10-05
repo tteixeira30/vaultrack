@@ -1,5 +1,6 @@
 package com.tracky;
 
+import com.tracky.config.ClientErrorController;
 import com.tracky.auth.AuthController;
 import com.tracky.calendar.CalendarController;
 import com.tracky.calendar.CalendarEvent;
@@ -96,6 +97,13 @@ class RequestBoundsTest {
         assertThat(invalid(new IncomeController.AllocationRequest(s(101), BigDecimal.TEN, null, null))).containsExactly("name");
         assertThat(invalid(new IncomeController.AllocationRequest("Casa", BigDecimal.TEN, null, s(21)))).containsExactly("color");
         assertThat(invalid(new IncomeController.AllocationItemRequest(s(101), BigDecimal.ONE))).containsExactly("name");
+    }
+
+    @Test
+    void errosDoCliente() {
+        assertThat(invalid(new ClientErrorController.ClientErrorRequest(s(2000), s(10000), s(64), s(20), s(40)))).isEmpty();
+        assertThat(invalid(new ClientErrorController.ClientErrorRequest(s(2001), s(10001), s(65), s(21), s(41))))
+                .containsExactlyInAnyOrder("message", "stack", "version", "platform", "screen");
     }
 
     @Test

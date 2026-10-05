@@ -57,7 +57,9 @@ class AuditCoverageTest {
 
     static final Set<String> EXCLUIDOS = Set.of(
             // só limpa a cache de cotações; não altera dados do utilizador
-            "POST /api/investments/refresh");
+            "POST /api/investments/refresh",
+            // só escreve no log técnico (erros do frontend)
+            "POST /api/client-errors");
 
     private static final Set<RequestMethod> WRITES =
             Set.of(RequestMethod.POST, RequestMethod.PUT, RequestMethod.PATCH, RequestMethod.DELETE);

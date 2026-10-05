@@ -3,6 +3,8 @@ import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  // identifica a build nos erros enviados pelo cliente (clientErrors.js)
+  define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify(new Date().toISOString()) },
   plugins: [
     react(),
     // PWA instalável: service worker com atualização automática + manifest.
