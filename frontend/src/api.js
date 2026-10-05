@@ -56,6 +56,16 @@ async function request(path, options = {}) {
   return text ? JSON.parse(text) : null
 }
 
+/** kind (security|data), before (cursor) e userId (só admin) → query string; vazios ficam de fora. */
+const activityQuery = ({ kind, before, userId } = {}) => {
+  const q = new URLSearchParams()
+  if (kind) q.set('kind', kind)
+  if (before) q.set('before', before)
+  if (userId) q.set('userId', userId)
+  const s = q.toString()
+  return s ? `?${s}` : ''
+}
+
 export const api = {
   // Painel geral
   getDashboard: () => request('/dashboard'),
@@ -65,6 +75,10 @@ export const api = {
 
   // Contagens dos indicadores da navegação (os números da sidebar)
   getNavCounts: () => request('/nav'),
+
+  // Atividade (auditoria): a do próprio e, para admins, a de todos
+  getActivity: (opts = {}) => request(`/audit${activityQuery(opts)}`),
+  getAdminActivity: (opts = {}) => request(`/admin/audit${activityQuery(opts)}`),
 
   // Calendário financeiro
   getCalendar: (month) => request(`/calendar${month ? `?month=${month}` : ''}`),

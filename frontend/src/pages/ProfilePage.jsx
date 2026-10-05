@@ -1,6 +1,7 @@
 import { useTheme } from '../components/ThemeContext'
 import { CURRENCIES, PRIVACY_URL } from '../api'
 import { IconChevronRight, IconEyeOff, IconBank, IconLogout } from '../components/Icons'
+import ActivityCard from '../components/ActivityCard'
 
 /**
  * Miniaturas de tema — claro, escuro e "sistema" (metade/metade), como no
@@ -112,6 +113,8 @@ export default function ProfilePage({ user, initials, baseCurrency, changeCurren
           </button>
         </section>
       </div>
+
+      <ActivityCard isAdmin={Boolean(user.admin)} />
     </div>
   )
 }

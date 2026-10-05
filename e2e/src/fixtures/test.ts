@@ -7,6 +7,7 @@ import { ExpensesPage } from '../pages/ExpensesPage'
 import { GoalsPage } from '../pages/GoalsPage'
 import { IncomePage } from '../pages/IncomePage'
 import { InvestmentsPage } from '../pages/InvestmentsPage'
+import { ProfilePage } from '../pages/ProfilePage'
 import { registerViaApi, TOKEN_KEY, type TestUser } from './api'
 
 /**
@@ -34,6 +35,7 @@ export interface Fixtures {
   goalsPage: GoalsPage
   incomePage: IncomePage
   investmentsPage: InvestmentsPage
+  profilePage: ProfilePage
 }
 
 export const test = base.extend<Fixtures>({
@@ -93,6 +95,7 @@ export const test = base.extend<Fixtures>({
   goalsPage: async ({ page }, use) => use(new GoalsPage(page)),
   incomePage: async ({ page }, use) => use(new IncomePage(page)),
   investmentsPage: async ({ page }, use) => use(new InvestmentsPage(page)),
+  profilePage: async ({ page }, use) => use(new ProfilePage(page)),
 })
 
 export { expect } from '@playwright/test'
