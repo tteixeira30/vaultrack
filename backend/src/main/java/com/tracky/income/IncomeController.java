@@ -1,5 +1,8 @@
 package com.tracky.income;
 
+import com.tracky.audit.AuditEntity;
+import com.tracky.audit.AuditService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.tracky.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -15,6 +18,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -53,6 +57,13 @@ public class IncomeController {
         this.incomeRepo = incomeRepo;
         this.allocationRepo = allocationRepo;
         this.itemRepo = itemRepo;
+    }
+
+    private AuditService audit = AuditService.NOOP;
+
+    @Autowired
+    void setAudit(AuditService audit) {
+        this.audit = audit;
     }
 
     public record AllocationItemDto(Long id, String name, BigDecimal amount) {}
@@ -183,8 +194,11 @@ public class IncomeController {
         migrateLegacyRows(user);
         String m = normalizeMonth(month);
         IncomeSettings s = getOrCreate(user, m);
+        BigDecimal before = s.getMonthlyIncome();
         s.setMonthlyIncome(req.monthlyIncome());
         incomeRepo.save(s);
+        audit.updated(user.getId(), AuditEntity.INCOME, s.getId(), m,
+                AuditService.fields("monthlyIncome", before), AuditService.fields("monthlyIncome", s.getMonthlyIncome()));
         return get(user, m);
     }
 
@@ -201,6 +215,7 @@ public class IncomeController {
         a.setMonth(m);
         apply(a, req);
         allocationRepo.save(a);
+        audit.created(user.getId(), AuditEntity.ALLOCATION, a.getId(), a.getName(), auditFields(a));
         return get(user, m);
     }
 
@@ -209,8 +224,10 @@ public class IncomeController {
                                            @Valid @RequestBody AllocationRequest req) {
         validate(req);
         Allocation a = allocationRepo.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Categoria não encontrada."));
+        var before = auditFields(a);
         apply(a, req);
         allocationRepo.save(a);
+        audit.updated(user.getId(), AuditEntity.ALLOCATION, a.getId(), a.getName(), before, auditFields(a));
         return get(user, a.getMonth());
     }
 
@@ -221,8 +238,12 @@ public class IncomeController {
         a.ifPresent(alloc -> {
             // deleteAll(Iterable) é transacional por omissão — ao contrário de um
             // deleteBy... derivado, que exigiria transação própria (não há service layer)
-            itemRepo.deleteAll(itemRepo.findByAllocationIdOrderByIdAsc(alloc.getId()));
+            List<AllocationItem> items = itemRepo.findByAllocationIdOrderByIdAsc(alloc.getId());
+            itemRepo.deleteAll(items);
             allocationRepo.delete(alloc);
+            var values = auditFields(alloc);
+            values.put("items", items.size());
+            audit.deleted(user.getId(), AuditEntity.ALLOCATION, alloc.getId(), alloc.getName(), values);
         });
         return get(user, m);
     }
@@ -240,6 +261,7 @@ public class IncomeController {
         it.setName(req.name().trim());
         it.setAmount(req.amount());
         itemRepo.save(it);
+        audit.created(user.getId(), AuditEntity.ALLOCATION_ITEM, it.getId(), it.getName(), auditFields(it));
         return get(user, alloc.getMonth());
     }
 
@@ -248,9 +270,11 @@ public class IncomeController {
                                      @Valid @RequestBody AllocationItemRequest req) {
         validateItem(req);
         AllocationItem it = itemRepo.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Item não encontrado."));
+        var before = auditFields(it);
         it.setName(req.name().trim());
         it.setAmount(req.amount());
         itemRepo.save(it);
+        audit.updated(user.getId(), AuditEntity.ALLOCATION_ITEM, it.getId(), it.getName(), before, auditFields(it));
         return get(user, monthOfItem(user, it));
     }
 
@@ -258,8 +282,21 @@ public class IncomeController {
     public IncomeResponse deleteItem(@AuthenticationPrincipal User user, @PathVariable Long id) {
         Optional<AllocationItem> it = itemRepo.findByIdAndUserId(id, user.getId());
         String m = it.map(i -> monthOfItem(user, i)).orElse(null);
-        it.ifPresent(itemRepo::delete);
+        it.ifPresent(i -> {
+            itemRepo.delete(i);
+            audit.deleted(user.getId(), AuditEntity.ALLOCATION_ITEM, i.getId(), i.getName(), auditFields(i));
+        });
         return get(user, m);
+    }
+
+    /** Os campos que a auditoria regista (antes/depois). Montantes em EUR. */
+    private static Map<String, Object> auditFields(Allocation a) {
+        return AuditService.fields("name", a.getName(), "month", a.getMonth(), "percentage", a.getPercentage(),
+                "fixedAmount", a.getFixedAmount(), "color", a.getColor());
+    }
+
+    private static Map<String, Object> auditFields(AllocationItem it) {
+        return AuditService.fields("name", it.getName(), "amount", it.getAmount(), "allocationId", it.getAllocationId());
     }
 
     private String monthOfItem(User user, AllocationItem it) {

@@ -30,6 +30,7 @@ const CHILD_TABLES = [
   'allocation_items',
   'transactions',
   'allocations',
+  'audit_events',
   'accounts',
   'calendar_events',
   'category_rules',

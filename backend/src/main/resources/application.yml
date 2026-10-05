@@ -32,6 +32,9 @@ tracky:
   # Origens CORS permitidas (lista separada por vírgulas). Em produção definir
   # TRACKY_CORS_ORIGINS com o domínio do frontend + origens da app mobile
   # (Capacitor): http://localhost e https://localhost (Android), capacitor://localhost (iOS).
+  # Dias que os eventos de auditoria ficam guardados (0 = não apagar). Os IPs são dados pessoais.
+  audit:
+    retention-days: ${TRACKY_AUDIT_RETENTION_DAYS:365}
   cors-origins: ${TRACKY_CORS_ORIGINS:*,http://localhost,https://localhost,capacitor://localhost}
   # Limite de tentativas no login/registo (em memória, por instância). Defaults
   # estritos = produção; em dev/E2E (muitos registos do mesmo IP) desliga-se

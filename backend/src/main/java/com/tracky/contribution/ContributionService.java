@@ -1,5 +1,7 @@
 package com.tracky.contribution;
 
+import com.tracky.audit.AuditAction;
+import com.tracky.audit.AuditService;
 import com.tracky.goal.Goal;
 import com.tracky.goal.GoalRepository;
 import com.tracky.investment.Investment;
@@ -55,6 +57,13 @@ public class ContributionService {
         this.investmentRepository = investmentRepository;
         this.priceService = priceService;
         this.clock = clock;
+    }
+
+    private AuditService audit = AuditService.NOOP;
+
+    @Autowired
+    void setAudit(AuditService audit) {
+        this.audit = audit;
     }
 
     public record AppliedItem(String type, String name, int months, BigDecimal amount) {}
@@ -116,8 +125,16 @@ public class ContributionService {
             }
         }
 
-        BigDecimal total = applied.stream().map(AppliedItem::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new ApplyResult(applied, total.setScale(2, RoundingMode.HALF_UP));
+        BigDecimal total = applied.stream().map(AppliedItem::amount).reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(2, RoundingMode.HALF_UP);
+        if (!applied.isEmpty()) {
+            // ator SYSTEM no scheduler, USER no "Simular" (o AuditService vê se há pedido HTTP)
+            audit.record(userId, AuditAction.CONTRIBUTIONS_APPLIED, null, null, AuditService.fields(
+                    "total", total, "forced", force,
+                    "items", applied.stream().map(i -> AuditService.fields(
+                            "type", i.type(), "name", i.name(), "months", i.months(), "amount", i.amount())).toList()));
+        }
+        return new ApplyResult(applied, total);
     }
 
     private int monthsToApply(String lastAppliedMonth, boolean force, int contributionDay) {

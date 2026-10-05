@@ -1,5 +1,8 @@
 package com.tracky.investment;
 
+import com.tracky.audit.AuditEntity;
+import com.tracky.audit.AuditService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.tracky.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -32,6 +35,13 @@ public class InvestmentController {
     public InvestmentController(InvestmentRepository repo, PriceService priceService) {
         this.repo = repo;
         this.priceService = priceService;
+    }
+
+    private AuditService audit = AuditService.NOOP;
+
+    @Autowired
+    void setAudit(AuditService audit) {
+        this.audit = audit;
     }
 
     public record CreateRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name,
@@ -82,13 +92,16 @@ public class InvestmentController {
         inv.setSymbol(normalizeSymbol(req.symbol(), req.type()));
         applyValue(inv, req.currentValue(), req.gainPercent());
         applyMonthlyContribution(inv, req.monthlyContribution(), req.contributionDay());
-        return enrich(repo.save(inv));
+        inv = repo.save(inv);
+        audit.created(user.getId(), AuditEntity.INVESTMENT, inv.getId(), inv.getName(), auditFields(inv));
+        return enrich(inv);
     }
 
     @PutMapping("/{id}")
     public InvestmentDto update(@AuthenticationPrincipal User user, @PathVariable Long id,
                                 @Valid @RequestBody UpdateRequest req) {
         Investment inv = repo.findByIdAndUserId(id, user.getId()).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Investimento não encontrado."));
+        var before = auditFields(inv);
         inv.setName(req.name());
         if (req.type() != null) inv.setType(req.type());
         inv.setSymbol(normalizeSymbol(req.symbol(), inv.getType()));
@@ -96,7 +109,16 @@ public class InvestmentController {
             applyValue(inv, req.currentValue(), req.gainPercent() != null ? req.gainPercent() : BigDecimal.ZERO);
         }
         applyMonthlyContribution(inv, req.monthlyContribution(), req.contributionDay());
-        return enrich(repo.save(inv));
+        inv = repo.save(inv);
+        audit.updated(user.getId(), AuditEntity.INVESTMENT, inv.getId(), inv.getName(), before, auditFields(inv));
+        return enrich(inv);
+    }
+
+    /** Os campos que a auditoria regista (antes/depois). Montantes em EUR. */
+    private static Map<String, Object> auditFields(Investment inv) {
+        return AuditService.fields("name", inv.getName(), "symbol", inv.getSymbol(), "type", inv.getType(),
+                "initialValue", inv.getInitialValue(), "fallbackValue", inv.getFallbackValue(),
+                "monthlyContribution", inv.getMonthlyContribution(), "contributionDay", inv.getContributionDay());
     }
 
     private String normalizeSymbol(String symbol, Investment.Type type) {
@@ -144,7 +166,10 @@ public class InvestmentController {
 
     @DeleteMapping("/{id}")
     public void delete(@AuthenticationPrincipal User user, @PathVariable Long id) {
-        repo.findByIdAndUserId(id, user.getId()).ifPresent(repo::delete);
+        repo.findByIdAndUserId(id, user.getId()).ifPresent(inv -> {
+            repo.delete(inv);
+            audit.deleted(user.getId(), AuditEntity.INVESTMENT, inv.getId(), inv.getName(), auditFields(inv));
+        });
     }
 
     /**

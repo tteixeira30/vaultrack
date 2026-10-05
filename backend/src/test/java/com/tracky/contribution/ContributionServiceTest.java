@@ -1,5 +1,7 @@
 package com.tracky.contribution;
 
+import com.tracky.audit.AuditAction;
+import com.tracky.audit.AuditService;
 import com.tracky.goal.Goal;
 import com.tracky.goal.GoalRepository;
 import com.tracky.investment.Investment;
@@ -22,6 +24,9 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -77,6 +82,34 @@ class ContributionServiceTest {
 
         assertThat(result.applied()).isEmpty();
         verify(goalRepo, never()).applyAutoDeposit(any(), any(), any(), any());
+    }
+
+    @Test
+    void depositosAplicadosFicamNaAuditoria() {
+        AuditService audit = org.mockito.Mockito.mock(AuditService.class);
+        service.setAudit(audit);
+        Goal g = autoGoal("100", "500", YearMonth.now().minusMonths(1).toString());
+        when(goalRepo.findByUserIdOrderByIdAsc(1L)).thenReturn(List.of(g));
+        goalDepositApplies();
+
+        service.apply(1L, "all", false);
+
+        ArgumentCaptor<java.util.Map<String, Object>> details = ArgumentCaptor.captor();
+        verify(audit).record(eq(1L), eq(AuditAction.CONTRIBUTIONS_APPLIED), isNull(), isNull(), details.capture());
+        assertThat((BigDecimal) details.getValue().get("total")).isEqualByComparingTo("100");
+        assertThat(details.getValue().get("forced")).isEqualTo(false);
+    }
+
+    @Test
+    void semDepositosNaoHaEventoDeAuditoria() {
+        AuditService audit = org.mockito.Mockito.mock(AuditService.class);
+        service.setAudit(audit);
+        Goal g = autoGoal("100", "500", YearMonth.now().toString());
+        when(goalRepo.findByUserIdOrderByIdAsc(1L)).thenReturn(List.of(g));
+
+        service.apply(1L, "all", false);
+
+        verify(audit, never()).record(any(), any(), any(), any(), anyMap());
     }
 
     @Test

@@ -1,5 +1,9 @@
 package com.tracky.goal;
 
+import com.tracky.audit.AuditAction;
+import com.tracky.audit.AuditEntity;
+import com.tracky.audit.AuditService;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.tracky.auth.User;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -17,6 +21,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/goals")
@@ -26,6 +31,13 @@ public class GoalController {
 
     public GoalController(GoalRepository repo) {
         this.repo = repo;
+    }
+
+    private AuditService audit = AuditService.NOOP;
+
+    @Autowired
+    void setAudit(AuditService audit) {
+        this.audit = audit;
     }
 
     public record GoalRequest(@NotBlank @Size(max = 100, message = "O nome não pode ter mais de 100 caracteres.") String name, @NotNull(message = "Indica o valor do objetivo.") @Positive(message = "O valor do objetivo tem de ser maior que 0.") BigDecimal targetAmount,
@@ -46,15 +58,20 @@ public class GoalController {
         Goal g = new Goal();
         g.setUserId(user.getId());
         apply(g, req);
-        return toDto(repo.save(g));
+        g = repo.save(g);
+        audit.created(user.getId(), AuditEntity.GOAL, g.getId(), g.getName(), auditFields(g));
+        return toDto(g);
     }
 
     @PutMapping("/{id}")
     public GoalDto update(@AuthenticationPrincipal User user, @PathVariable Long id,
                           @Valid @RequestBody GoalRequest req) {
         Goal g = require(user, id);
+        var before = auditFields(g);
         apply(g, req);
-        return toDto(repo.save(g));
+        g = repo.save(g);
+        audit.updated(user.getId(), AuditEntity.GOAL, g.getId(), g.getName(), before, auditFields(g));
+        return toDto(g);
     }
 
     @PostMapping("/{id}/contribute")
@@ -65,12 +82,25 @@ public class GoalController {
         // read-modify-write — dois depósitos concorrentes ao mesmo objetivo não se perdem
         require(user, id);
         repo.addToSavedAmount(id, user.getId(), req.amount());
-        return toDto(require(user, id));
+        Goal g = require(user, id);
+        audit.record(user.getId(), AuditAction.CONTRIBUTED, AuditEntity.GOAL, id,
+                AuditService.fields("label", g.getName(), "amount", req.amount(), "savedAmount", g.getSavedAmount()));
+        return toDto(g);
     }
 
     @DeleteMapping("/{id}")
     public void delete(@AuthenticationPrincipal User user, @PathVariable Long id) {
-        repo.findByIdAndUserId(id, user.getId()).ifPresent(repo::delete);
+        repo.findByIdAndUserId(id, user.getId()).ifPresent(g -> {
+            repo.delete(g);
+            audit.deleted(user.getId(), AuditEntity.GOAL, g.getId(), g.getName(), auditFields(g));
+        });
+    }
+
+    /** Os campos que a auditoria regista (antes/depois). Montantes em EUR. */
+    private static Map<String, Object> auditFields(Goal g) {
+        return AuditService.fields("name", g.getName(), "targetAmount", g.getTargetAmount(),
+                "monthlyAllocation", g.getMonthlyAllocation(), "savedAmount", g.getSavedAmount(),
+                "autoDeposit", g.isAutoDeposit(), "contributionDay", g.getContributionDay());
     }
 
     /** O objetivo do utilizador, ou 404 — também quando existe mas é de outro utilizador. */
