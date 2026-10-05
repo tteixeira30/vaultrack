@@ -45,7 +45,12 @@ async function request(path, options = {}) {
   const text = await res.text()
   if (!res.ok) {
     let message = `Erro ${res.status}`
-    try { message = JSON.parse(text).message || message } catch { if (text) message = text }
+    try {
+      const body = JSON.parse(text)
+      message = body.message || message
+      // os 5xx trazem a ref do pedido: é o que permite encontrar a linha no log do servidor
+      if (body.ref) message = `${message} (ref. ${body.ref})`
+    } catch { if (text) message = text }
     throw httpError(message, res.status)
   }
   return text ? JSON.parse(text) : null

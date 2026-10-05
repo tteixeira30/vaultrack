@@ -7,6 +7,14 @@
 	header Strict-Transport-Security "max-age=31536000"
 	header -Server
 
+	# Access log em JSON no stdout (o Caddy já esconde o Authorization).
+	# Os ficheiros estáticos com hash não interessam e só fazem ruído.
+	log {
+		output stdout
+		format json
+	}
+	log_skip /assets/*
+
 	# pedidos à API vão para o backend Spring
 	handle /api/* {
 		reverse_proxy backend:8080

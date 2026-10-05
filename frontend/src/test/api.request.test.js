@@ -60,6 +60,12 @@ describe('cliente HTTP central', () => {
     await expect(api.getIncome('2020-13')).rejects.toThrow('Mês inválido')
   })
 
+  it('um 5xx com ref acrescenta-a à mensagem, para o utilizador a poder citar', async () => {
+    fetch.mockReturnValue(jsonResponse(500, { message: 'Erro interno. Tenta novamente.', ref: '1a2b3c4d' }))
+
+    await expect(api.getDashboard()).rejects.toThrow('Erro interno. Tenta novamente. (ref. 1a2b3c4d)')
+  })
+
   it('erros não-OK sem corpo JSON caem para "Erro <status>"', async () => {
     fetch.mockReturnValue(Promise.resolve(new Response('', { status: 500 })))
 

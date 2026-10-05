@@ -27,6 +27,7 @@ class ApiErrorAttributesTest {
 
     private Map<String, Object> errorBody(int status, Throwable error, String message) {
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/goals");
+        req.setAttribute(RequestLogFilter.REQUEST_ID_ATTR, "1a2b3c4d");
         req.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, status);
         req.setAttribute(RequestDispatcher.ERROR_REQUEST_URI, "/api/goals");
         if (error != null) req.setAttribute(RequestDispatcher.ERROR_EXCEPTION, error);
@@ -43,6 +44,18 @@ class ApiErrorAttributesTest {
         assertThat(body.get("message")).isEqualTo("Erro interno. Tenta novamente.");
         assertThat(body.toString()).doesNotContain("SQL").doesNotContain("IllegalStateException");
         assertThat(body).doesNotContainKeys("trace", "exception");
+    }
+
+    @Test
+    void erro500LevaARefDoPedido() {
+        Map<String, Object> body = errorBody(500, new IllegalStateException("x"), "x");
+        assertThat(body.get("ref")).isEqualTo("1a2b3c4d");
+    }
+
+    @Test
+    void erro4xxNaoLevaRef() {
+        var ex = new ResponseStatusException(HttpStatus.BAD_REQUEST, "Inválido.");
+        assertThat(errorBody(400, ex, "Inválido.")).doesNotContainKey("ref");
     }
 
     @Test
