@@ -54,6 +54,8 @@ desta tabela estiver errada, corrige-a na mesma alteração.
 | Vista agregada nova | `backend/.../dashboard/DashboardController.java` | padrão de injeção dos controllers de funcionalidade |
 | Estilos / tokens / breakpoints | `frontend/src/styles.css` | `:root`, bloco dos alvos táteis no fim |
 | Page Object E2E | `e2e/src/pages/<Ecrã>Page.ts`, `e2e/README.md` | `BasePage` |
+| Auditoria / endpoint novo que altera dados | `backend/.../audit/AuditService.java`, `AuditCoverageTest.java` | `AUDITADOS`, `audit.created`, `auditFields` |
+| Logs técnicos / erros do cliente | `backend/.../config/RequestLogFilter.java`, `frontend/src/clientErrors.js` | `REQUEST_ID_ATTR`, `reportError` |
 
 (`backend/...` = `backend/src/main/java/com/tracky`.)
 
@@ -88,7 +90,8 @@ backend/                 Spring Boot (código em src/main/java/com/tracky)
   ├─ currency/           Moeda base: CurrencyService (câmbio EUR→X), CurrencyController
   ├─ calendar/           Calendário financeiro: CalendarEvent, CalendarController, CalendarEventRepository
   ├─ achievements/       Conquistas/gamificação: AchievementsController (agrega dados; sem entidade)
-  └─ config/             WebConfig (CORS)
+  ├─ audit/              Trilho de auditoria: AuditEvent, AuditService, AuditWriter, AuditController, retenção
+  └─ config/             WebConfig (CORS), RequestLogFilter (requestId), ApiErrorAttributes, ClientErrorController
 frontend/                React + Vite (código em src)
   ├─ pages/              DashboardPage, IncomePage, InvestmentsPage, GoalsPage, CalendarPage, AchievementsPage, AuthPage
   ├─ components/         AuthContext, Toast, Modal, Icons (SVG inline)
@@ -146,11 +149,29 @@ testes e os leitores de ecrã ao mesmo tempo.
 
 ## Convenções do backend
 
-- **Um pacote por funcionalidade.** A lógica vive nos `@RestController` (não há camada de serviço genérica). Exceções que são serviços: `PriceService`, `CurrencyService`, `ContributionService`.
+- **Um pacote por funcionalidade.** A lógica vive nos `@RestController` (não há camada de serviço genérica). Exceções que são serviços: `PriceService`, `CurrencyService`, `ContributionService`, `AuditService`.
 - **Controllers agregadores** (`DashboardController`, `AchievementsController`) **reutilizam** os controllers de funcionalidade (injetam `IncomeController`/`InvestmentController`/`GoalController` e chamam os seus métodos), em vez de duplicar cálculos. Segue este padrão para novas vistas agregadas.
 - **Tudo é scoped ao utilizador.** Os repositórios usam `findByUserId...` / `findByIdAndUserId`. O utilizador chega aos endpoints via `@AuthenticationPrincipal User user`.
 - **Auth**: JWT Bearer. `SecurityConfig` só permite `/api/auth/register`, `/api/auth/login` e `/error` sem autenticação (o `/error` tem de passar, senão respostas 4xx viram 401). Erros de validação → `ResponseStatusException(HttpStatus.BAD_REQUEST, ...)`.
 - **Schema**: Hibernate `ddl-auto: update` — **não há migrations**. Adicionar um campo a uma entidade cria a coluna automaticamente, mas as linhas existentes ficam a `NULL`. Trata o null no getter (ex.: `User.getBaseCurrency()` devolve `"EUR"` se null). Nunca contes com defaults de Java para linhas já existentes.
+- **Auditoria**: endpoint novo que altera dados (POST/PUT/PATCH/DELETE) grava um evento —
+  `audit.created/updated/deleted/record(...)`, com os campos de um `auditFields(entidade)` privado
+  do controller — ou entra nos `EXCLUIDOS` do `AuditCoverageTest` com o motivo. O teste-guarda
+  falha enquanto não estiver numa das listas. O `AuditService` chega por setter, com
+  `AuditService.NOOP` por omissão, para os testes unitários não precisarem dele. Grava depois
+  do commit (um rollback não deixa evento) e nunca faz falhar o pedido. Nas colunas da
+  auditoria nada de `@Enumerated`: o CHECK que o Hibernate gera nunca é atualizado pelo
+  `ddl-auto`. No login, os três casos (sucesso, falha com conta, falha sem conta) gravam
+  exatamente um evento cada — menos que isso volta a revelar, pelo tempo de resposta, que
+  emails existem.
+- **Logs levam IDs, nunca conteúdo.** O `RequestLogFilter` põe o `requestId` (e o
+  `JwtAuthFilter` o `userId`) no MDC e escreve uma linha por pedido com a rota-padrão. Nunca
+  registes palavras-passe, tokens, o código de convite, corpos de pedido, query strings nem
+  emails. Os 5xx devolvem `ref` (o `requestId`), que o `api.js` acrescenta à mensagem: é com
+  ela que se encontra a linha no log.
+- **Admin**: `User.admin` dá `ROLE_ADMIN` e abre `/api/admin/**` (hoje só a auditoria de
+  todos). Só se promove por SQL: `UPDATE users SET admin = true WHERE id = …`. Não há endpoint
+  para isso e não deve haver.
 - **Dados legados**: `IncomeController.migrateLegacyRows` atribui linhas antigas sem `month` ao mês atual. Padrões defensivos semelhantes são bem-vindos.
 
 ### Moeda (importante)
@@ -285,6 +306,7 @@ não a outro sítio.
 - `Account` — userId, name, currentBalance. `Transaction` — userId, accountId, txDate, description, amount, inflow, category, `source` (IMPORT/MANUAL; null nas linhas antigas → o getter devolve MANUAL).
 - `Goal` — userId, name, targetAmount, monthlyAllocation, savedAmount, autoDeposit, lastAppliedMonth.
 - `CalendarEvent` — userId, name, category, inflow, amount, frequency (MONTHLY/YEARLY/ONCE), dayOfMonth/eventDate, active.
+- `AuditEvent` (`audit_events`, só inserção) — occurredAt, userId (nulo num login com email desconhecido), actor (USER/SYSTEM), kind (SECURITY/DATA), action, entityType, entityId, details (jsonb), ip, userAgent, requestId. `User.admin` (null = false).
 - Conquistas **não têm entidade** — são calculadas a partir dos dados existentes.
 
 ## Configuração (variáveis de ambiente)
@@ -294,6 +316,8 @@ Definidas em `application.yml` com defaults de dev; sobrepostas por ambiente em 
 - `SPRING_DATASOURCE_URL` / `_USERNAME` / `_PASSWORD` — Postgres.
 - `JWT_SECRET` — segredo de assinatura JWT (**trocar em produção**).
 - `TRACKY_INVITE_CODE` — se definido, o registo exige este código; vazio = registo aberto (uso local).
+- `TRACKY_AUDIT_RETENTION_DAYS` — dias que os eventos de auditoria ficam guardados (365; `0` = não apagar). Os IPs são dados pessoais.
+- `LOGGING_STRUCTURED_FORMAT_CONSOLE` — `ecs` em produção (logs do backend em JSON, com `requestId`/`userId` em campos próprios).
 - `TRACKY_CORS_ORIGINS` — origens CORS permitidas (lista separada por vírgulas); default de dev permite tudo. Em produção: domínio do frontend + origens Capacitor (`http://localhost`, `https://localhost`, `capacitor://localhost`).
 
 Nunca comitar segredos. `.env`, `*.key`, `backup-*.sql` estão no `.gitignore`.
@@ -330,6 +354,10 @@ O script **não contém segredos**: lê o IP, a chave SSH e o domínio de `.env.
 (ignorado pelo git — o template versionado é `.env.deploy.example`). Ficheiros `.ps1` têm de ficar
 com **CRLF** (regra no `.gitattributes`): o Windows PowerShell 5.1 não fecha here-strings em
 ficheiros só com LF.
+
+Os logs ficam só na VM, no stdout do Docker com rotação (`x-logging` no `docker-compose.prod.yml`:
+5 × 10 MB por serviço); o Caddy escreve o access log em JSON. O `-Status` mostra também os erros
+do backend e os eventos de segurança das últimas 24 h.
 
 Os detalhes concretos (endereços, SSH, domínio) estão no `CHEATSHEET.md` local (não versionado). **Implementar e testar sempre localmente primeiro**; só fazer deploy quando validado.
 

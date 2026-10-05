@@ -18,11 +18,6 @@ Organização: uma branch (`feature/auditoria-e-logs`), um commit por fase e **u
 O repo só aceita squash e as fases dependem umas das outras: com PRs empilhados seria preciso
 fazer rebase depois de cada merge.
 
-## Estado (handoff — tirar esta secção antes de abrir o PR)
-
-- [x] `config/RequestLogFilter.java` escrito (ainda **não compilado nem testado**).
-- [ ] Resto da Fase 1, Fases 2–5, testes, CLAUDE.md, gates, PR.
-
 ## Princípios
 
 - **Logs técnicos**: stdout, duram dias, levam IDs e nunca conteúdo. **Auditoria**: Postgres,
@@ -35,7 +30,7 @@ fazer rebase depois de cada merge.
 
 ## Fase 1 — Logs técnicos
 
-- **`RequestLogFilter`** (feito): `@Order(HIGHEST_PRECEDENCE)`. Gera um `requestId` de 8 hex
+- **`RequestLogFilter`**: `@Order(HIGHEST_PRECEDENCE)`. Gera um `requestId` de 8 hex
   (ignora o `X-Request-Id` do cliente), põe-no no MDC, no header `X-Request-Id` e no atributo
   `REQUEST_ID_ATTR`, e escreve uma linha por pedido (logger `tracky.http`: método, rota-padrão,
   status, ms). Corre também no dispatch de `/error` (`shouldNotFilterErrorDispatch() = false`),
@@ -101,6 +96,10 @@ fazer rebase depois de cada merge.
   Grava com `TransactionTemplate` em `REQUIRES_NEW`, e a chamada **inteira** fica dentro de um
   try/catch, para apanhar também os erros no commit. Escreve uma linha no logger `tracky.audit`
   só com a ação, a entidade e os ids. Um rollback não deixa evento.
+  - Grava numa thread própria, com fila limitada (1000; cheia, descarta com ERROR). Na thread
+    do pedido, o AFTER_COMMIT pedia uma segunda ligação ao pool com a da transação original
+    ainda presa, e escritas concorrentes podiam esgotá-lo (revisão de segurança). Nos testes,
+    `tracky.audit.async=false` mantém-no síncrono.
 - **`AuditEventRepository`**:
   - `findForUser`: `userId` obrigatório, sem `is null` — um nulo nunca pode listar toda a gente;
   - `findForAdmin`: `userId` opcional;
@@ -115,6 +114,8 @@ fazer rebase depois de cada merge.
   seria preciso mexer em todos. Vale o mesmo para o `AuthController` e o `ContributionService`.
 - **Eventos de autenticação** (`AuthController`):
   - registo: `RATE_LIMITED {endpoint: register}`, `INVITE_REJECTED`, `REGISTERED`;
+  - `RATE_LIMITED`: no máximo um por chave (endpoint, IP e email) e por minuto — um cliente
+    bloqueado que insista não enche a tabela (revisão de segurança);
   - login: `RATE_LIMITED {endpoint: login}` (userId por `findByEmail`, se a conta existir),
     `LOGIN_FAILED` (userId ou nulo), `LOGIN_SUCCEEDED`;
   - moeda base: `UPDATED USER {baseCurrency}`.

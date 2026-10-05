@@ -231,6 +231,15 @@ if [ "$STATUS_ONLY" = "1" ]; then
     step "Recursos"
     df -h / | awk 'NR==2{printf "    disco: %s livres de %s (%s usado)\n", $4, $2, $5}'
     free -h | awk 'NR==2{printf "    RAM:   %s usada de %s\n", $3, $2}'
+    step "Últimas 24 h"
+    # erros do backend (logs em JSON/ECS) e eventos de segurança que não são entradas normais
+    errors=$(dc logs --no-log-prefix --since 24h backend 2>/dev/null | grep -c '"log.level":"ERROR"')
+    if [ "${errors:-0}" = "0" ]; then ok "0 erros no log do backend"; else warn "$errors erros no log do backend (dc logs backend | grep ERROR)"; fi
+    security=$(dc exec -T db psql -U tracky -d tracky -t -A -c \
+        "SELECT count(*) FROM audit_events WHERE kind = 'SECURITY' AND action <> 'LOGIN_SUCCEEDED' AND occurred_at > now() - interval '24 hours'" 2>/dev/null)
+    if [ -z "$security" ]; then warn "auditoria indisponível (a tabela audit_events ainda não existe?)"
+    elif [ "$security" = "0" ]; then ok "0 eventos de segurança (falhas de entrada, bloqueios, convites recusados)"
+    else warn "$security eventos de segurança (falhas de entrada, bloqueios, convites recusados)"; fi
     step "Health check"
     wait_app
     exit $?
