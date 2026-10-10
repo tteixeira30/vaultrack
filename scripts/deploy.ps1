@@ -25,6 +25,11 @@
 .PARAMETER Status
     Só diagnostica: versão atual, containers, disco, memória e health check. Não altera nada.
 
+.PARAMETER Upgrade
+    Manutenção da VM em vez de deploy: backup da BD, apt-get upgrade (não interativo, mantém
+    as configs atuais) e, se o sistema o pedir, reboot. Espera que a app volte a responder.
+    Não mexe no código nem nas imagens.
+
 .PARAMETER Force
     Reconstrói mesmo que a VM já esteja no commit mais recente (útil depois de mexer no .env).
 
@@ -42,6 +47,10 @@
 .EXAMPLE
     .\scripts\deploy.ps1 -Status
     Ver como está a produção, sem deploy.
+
+.EXAMPLE
+    .\scripts\deploy.ps1 -Upgrade
+    Atualizar os pacotes da VM (e reiniciá-la, se for preciso).
 #>
 [CmdletBinding()]
 param(
@@ -50,11 +59,17 @@ param(
     [switch] $Backup,
     [switch] $Logs,
     [switch] $Status,
+    [switch] $Upgrade,
     [switch] $Force,
     [string] $ConfigFile
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($Upgrade -and ($Status -or $Service -or $Force)) {
+    Write-Host '     x -Upgrade não se combina com -Status, -Service nem -Force.' -ForegroundColor Red
+    exit 1
+}
 
 # ---------------------------------------------------------------- apresentação
 
@@ -138,7 +153,7 @@ Write-Info "destino:  $vmUser@$vmHost : $remoteDir  (branch $branch)"
 if ($domain) { Write-Info "app:      https://$domain" }
 if ($Service) { Write-Info "serviço:  só $Service" }
 
-if (-not $Status) {
+if (-not $Status -and -not $Upgrade) {
     try {
         Push-Location $repoRoot
         git fetch --quiet origin $branch 2>$null
@@ -161,9 +176,10 @@ COMPOSE_FILE='$composeFile'
 BRANCH='$branch'
 DOMAIN='$domain'
 SERVICE='$Service'
-DO_BACKUP='$([int]$Backup.IsPresent)'
+DO_BACKUP='$([int]($Backup.IsPresent -or $Upgrade.IsPresent))'
 SHOW_LOGS='$([int]$Logs.IsPresent)'
 STATUS_ONLY='$([int]$Status.IsPresent)'
+UPGRADE='$([int]$Upgrade.IsPresent)'
 FORCE='$([int]$Force.IsPresent)'
 "@
 
@@ -258,6 +274,44 @@ if [ "$DO_BACKUP" = "1" ]; then
         fail "o backup falhou — deploy abortado: $(tail -1 /tmp/tracky-pgdump.err)"
         exit 1
     fi
+fi
+
+# ------------------------------------------------------- manutenção (-Upgrade)
+# Sai com 10 quando agenda o reboot: o PowerShell espera então que a app volte.
+if [ "$UPGRADE" = "1" ]; then
+    step "Pacotes do sistema"
+    sudo apt-get update -qq || { fail "apt-get update falhou"; exit 1; }
+    pending=$(apt list --upgradable 2>/dev/null | tail -n +2)
+    if [ -n "$pending" ]; then
+        printf '%s\n' "$pending" | sed 's/^/    /'
+        # Lock::Timeout: o unattended-upgrades pode estar a correr; espera em vez de falhar.
+        if ! sudo DEBIAN_FRONTEND=noninteractive apt-get -y -q -o DPkg::Lock::Timeout=600 \
+                -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold \
+                upgrade > /tmp/tracky-apt.log 2>&1; then
+            fail "apt-get upgrade falhou: $(tail -3 /tmp/tracky-apt.log)"
+            exit 1
+        fi
+        ok "$(printf '%s\n' "$pending" | wc -l) pacote(s) atualizado(s)"
+    else
+        ok "nada para atualizar"
+    fi
+    if [ ! -f /var/run/reboot-required ]; then
+        ok "o sistema não pede reboot"
+        step "Health check"
+        wait_app
+        exit $?
+    fi
+    step "Reiniciar a VM"
+    if [ "$(systemctl is-enabled docker 2>/dev/null)" != "enabled" ]; then
+        fail "o Docker não arranca com o sistema — reboot cancelado (sudo systemctl enable docker)"
+        exit 1
+    fi
+    warn "pedido por: $(sort -u /var/run/reboot-required.pkgs 2>/dev/null | tr '\n' ' ')"
+    # Agendado para daqui a 5 s, para a sessão SSH fechar limpa antes de a VM ir abaixo.
+    sudo systemd-run --quiet --on-active=5 systemctl reboot \
+        || { fail "não foi possível agendar o reboot"; exit 1; }
+    ok "reboot em 5 s — os containers voltam sozinhos (restart: unless-stopped)"
+    exit 10
 fi
 
 # ---------------------------------------------------------------- git na VM
@@ -355,6 +409,29 @@ $sshArgs = @(
 $started = Get-Date
 & ssh @sshArgs "echo $encoded | base64 -d | bash -s"
 $code = $LASTEXITCODE
+
+# -Upgrade com reboot: a sessão já fechou, o health check passa a ser feito daqui.
+if ($code -eq 10) {
+    if (-not $domain) {
+        Write-Warn 'DOMAIN não definido — não consigo confirmar que a app voltou.'
+        $code = 0
+    } else {
+        Write-Host ''
+        Write-Info 'à espera que a VM volte (até 5 min)...'
+        $code = 1
+        for ($i = 0; $i -lt 60; $i++) {
+            Start-Sleep -Seconds 5
+            $front = & curl.exe -s -o NUL -w '%{http_code}' --max-time 10 "https://$domain/"
+            $api   = & curl.exe -s -o NUL -w '%{http_code}' --max-time 10 "https://$domain/api/dashboard"
+            if ($front -eq '200' -and $api -notmatch '^(000|5)') {
+                Write-Info "app a responder — frontend HTTP $front · API HTTP $api"
+                $code = 0
+                break
+            }
+        }
+        if ($code -ne 0) { Write-Err "a app não voltou a responder (frontend=$front api=$api)." }
+    }
+}
 $elapsed = (Get-Date) - $started
 
 Write-Host ''
@@ -362,6 +439,8 @@ $took = '{0:mm\:ss}' -f $elapsed
 if ($code -eq 0) {
     if ($Status) {
         Write-Host "  Diagnóstico concluído ($took)" -ForegroundColor Green
+    } elseif ($Upgrade) {
+        Write-Host "  VM atualizada em $took" -ForegroundColor Green
     } else {
         Write-Host "  Produção atualizada em $took" -ForegroundColor Green
         if ($domain) { Write-Info "https://$domain" }
@@ -370,6 +449,9 @@ if ($code -eq 0) {
     Write-Err "Falha de SSH (não cheguei a $vmHost)."
     Write-Info 'Verifica se a VM está ligada e se o IP em .env.deploy está certo (o IP da Oracle é ephemeral).'
     Write-Info 'Se a queixa for das permissões da chave, vê a secção SSH do CHEATSHEET.md.'
+} elseif ($Upgrade) {
+    Write-Err "A manutenção falhou (código $code)."
+    Write-Info 'A saída acima diz em que passo parou; o backup da BD ficou em ~/backups na VM.'
 } else {
     Write-Err "O deploy falhou (código $code) — nada foi confirmado como no ar."
     Write-Info 'A saída acima diz em que passo parou; o comando de rollback aparece lá se for o caso.'
