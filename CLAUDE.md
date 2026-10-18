@@ -347,7 +347,8 @@ Produção corre em VM (Docker) com `docker-compose.prod.yml` + **Caddy** (HTTPS
 1. Merge no `main` (via PR) a partir do PC de desenvolvimento.
 2. Correr `scripts/deploy.ps1` no PC — faz por SSH o `git pull` (fast-forward) + `up -d --build`
    na VM, com health check HTTPS no fim e comando de rollback em caso de falha. Opções úteis:
-   `-Status` (só diagnóstico), `-Backup` (pg_dump antes), `-Service <nome>`, `-Logs`, `-Force`.
+   `-Status` (só diagnóstico), `-Backup` (pg_dump antes), `-Service <nome>`, `-Logs`, `-Force`,
+   `-Upgrade` (manutenção da VM: backup + `apt-get upgrade` + reboot se o sistema o pedir).
    O equivalente manual continua a ser `git pull` + `up -d --build` dentro da VM.
 
 O script **não contém segredos**: lê o IP, a chave SSH e o domínio de `.env.deploy` na raiz
